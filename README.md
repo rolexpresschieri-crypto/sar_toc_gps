@@ -1,0 +1,50 @@
+# TOC SAR
+
+App KMP (Compose Multiplatform) per operatori SAR / unità cinofile.
+
+- **Android** (target iniziale)
+- **iOS** (struttura pronta)
+
+## Origine
+
+- UI home: come `gestSQUADRE` (opzioni login, notifica, foto, GPS)
+- Splash / vegetato / modulo GPS: da `TocAppBuild`
+- Schema DB: copia da `gestSQUADRE/sql` in `sql/` (progetto Supabase **nuovo e dedicato**)
+
+## Backend (come gestSQUADRE, progetto separato)
+
+**Non riusare** URL/chiavi del Supabase di gestSQUADRE: restano due ambienti indipendenti.
+
+1. Crea un **nuovo** progetto Supabase (es. `toc-sar`).
+2. Esegui gli SQL in `sql/` **in questo ordine**:
+   1. `schema_v1.sql`
+   2. `map_routes.sql`
+   3. `toc_mission_logs.sql`
+   4. `toc_mission_force_dismiss_logs.sql`
+   5. `squad_event_flow.sql`
+   6. `operational_events.sql`
+   7. `squad_field_photos.sql`
+   8. `alarm_auto_notify.sql`
+   9. `squad_session_auth_logs.sql` (log login/logout)
+   10. `operators_seed.sql` (opzionale: LUPO / OP001 / OP002)
+3. Abilita Realtime sulle tabelle come in gestSQUADRE.
+4. Config app: copia `supabase-config.example.json` → `supabase-config.local.json` (URL + publishable key).
+5. Firebase: progetto **dedicato** TOC SAR per FCM (push).
+6. Backend TOC web: copia `gestSQUADRE/backend_toc` in una cartella nuova e punta al nuovo Supabase/Firebase.
+
+**Terminologia:** in UI e prodotto si parla di **operatori**; nel DB le tabelle restano `squads` / `squad_sessions` (stesso protocollo gestSQUADRE). Ogni riga in `squads` = un operatore (codice, nome, password, `map_color`, `map_icon_key`).
+
+Login app: **codice operatore + password** (es. demo `LUPO` / `1234` dopo `operators_seed.sql`).
+
+## Build Android (release)
+
+Lancia `build-apk.bat`.
+
+- Versione in `composeApp/build.gradle.kts`
+- APK: `composeApp/build/outputs/apk/release/toc_sar_KMP_<version>.apk`
+
+## Struttura
+
+- `composeApp` — UI e logica condivisa + entry Android/iOS
+- `sql/` — schema Supabase dedicato (clonato da gestSQUADRE)
+- `iosApp` — Xcode (quando si passa a iOS)
