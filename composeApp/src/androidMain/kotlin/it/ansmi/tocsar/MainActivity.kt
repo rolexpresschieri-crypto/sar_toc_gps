@@ -1,6 +1,7 @@
 package it.ansmi.tocsar
 
 import android.Manifest
+import android.content.Intent
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -20,6 +21,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         AndroidAppContext.init(application)
         registerGpsImportPicker()
+        ingestGpsShareIntent(intent)
         val perms = buildList {
             add(Manifest.permission.ACCESS_FINE_LOCATION)
             add(Manifest.permission.ACCESS_COARSE_LOCATION)
@@ -31,6 +33,12 @@ class MainActivity : ComponentActivity() {
         setContent {
             App()
         }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        ingestGpsShareIntent(intent)
     }
 
     override fun onDestroy() {

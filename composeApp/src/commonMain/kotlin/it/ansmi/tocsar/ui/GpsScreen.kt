@@ -73,16 +73,14 @@ import it.ansmi.tocsar.geo.encodeWaypointFile
 import it.ansmi.tocsar.geo.formatAlt0
 import it.ansmi.tocsar.geo.formatCoord6
 import it.ansmi.tocsar.geo.haversineDistanceM
+import it.ansmi.tocsar.geo.importGpsFileContent
 import it.ansmi.tocsar.geo.loadAllWaypoints
 import it.ansmi.tocsar.geo.loadCompassHeadingOffset
-import it.ansmi.tocsar.geo.looksLikeTrkContent
-import it.ansmi.tocsar.geo.looksLikeWaypointContent
 import it.ansmi.tocsar.geo.normalizeHeadingDegrees
 import it.ansmi.tocsar.geo.parseCoord
-import it.ansmi.tocsar.geo.parseTrkFile
-import it.ansmi.tocsar.geo.parseWaypointFile
 import it.ansmi.tocsar.geo.pickGpsImportFile
 import it.ansmi.tocsar.geo.safeGpsFileStem
+import it.ansmi.tocsar.geo.sanitizeGpsStem
 import it.ansmi.tocsar.geo.saveCompassHeadingOffset
 import it.ansmi.tocsar.geo.OperatorGpsTracking
 import kotlinx.coroutines.delay
@@ -1181,33 +1179,11 @@ private fun WpTrkDialog(
                                     return@launch
                                 }
                                 val (fileName, body) = picked
-                                when {
-                                    looksLikeWaypointContent(body) -> {
-                                        val wp = parseWaypointFile(body)
-                                        if (wp == null) {
-                                            toast("File WP non valido")
-                                        } else {
-                                            store.upsertWaypoint(wp)
-                                            reload()
-                                            toast("Importato WP ${wp.name}")
-                                        }
-                                    }
-                                    looksLikeTrkContent(body) -> {
-                                        val pts = parseTrkFile(body)
-                                        if (pts.size < 2) {
-                                            toast("Traccia troppo corta")
-                                        } else {
-                                            val name = formatLocalTrackName(
-                                                fileName.substringBeforeLast('.').ifBlank { "IMPORT" },
-                                                operatorPrefix,
-                                            )
-                                            store.upsertTrack(name, encodeTrkFile(pts))
-                                            reload()
-                                            toast("Importata traccia $name")
-                                        }
-                                    }
-                                    else -> toast("Formato non riconosciuto (.trk / WP .wpt.txt)")
+                                val msg = importGpsFileContent(store, fileName, body)
+                                if (msg.startsWith("Importat")) {
+                                    reload()
                                 }
+                                toast(msg)
                             } catch (e: Exception) {
                                 toast("Import non riuscito: ${e.message}")
                             } finally {
@@ -1514,16 +1490,7 @@ private fun formatLocalTrackName(freeName: String, operatorPrefix: String): Stri
 }
 
 /** Spazi → _; toglie caratteri strani; senza estensione .trk/.txt. */
-private fun sanitizeLocalGpsStem(raw: String): String {
-    var free = raw.trim()
-    free = free.substringBeforeLast('.').ifBlank { free }
-    free = free.uppercase()
-        .replace(Regex("\\s+"), "_")
-        .replace(Regex("[^A-Z0-9_\\-]+"), "_")
-        .replace(Regex("_+"), "_")
-        .trim('_')
-    return free
-}
+private fun sanitizeLocalGpsStem(raw: String): String = sanitizeGpsStem(raw)
 
 /** Relative heading to target, same as TocAppBuild: ((bearing - heading + 540) % 360) - 180 */
 private fun relativeArrowDeg(bearingToTarget: Double, headingDeg: Double): Double =

@@ -20,6 +20,8 @@ import it.ansmi.tocsar.backend.OperatorSessionStore
 import it.ansmi.tocsar.backend.TocSarException
 import it.ansmi.tocsar.backend.TocSarFacade
 import it.ansmi.tocsar.backend.loadTocSarConfig
+import it.ansmi.tocsar.geo.createGpsLocalStore
+import it.ansmi.tocsar.geo.importGpsFileContent
 import it.ansmi.tocsar.geo.OperatorGpsTracking
 import it.ansmi.tocsar.ui.GpsScreen
 import it.ansmi.tocsar.ui.HomeScreen
@@ -30,6 +32,8 @@ import it.ansmi.tocsar.ui.VegetatoBackground
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.isActive
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 private const val SplashVisibleMs = 5500L
 
@@ -107,6 +111,21 @@ fun App() {
         while (isActive) {
             OperatorGpsTracking.statusLabel()?.let { gpsStatusLabel = it }
             delay(2_000L)
+        }
+    }
+
+    // File aperti/condivisi verso TOC SAR (WhatsApp, Drive, file manager, …)
+    LaunchedEffect(Unit) {
+        val store = createGpsLocalStore()
+        while (isActive) {
+            val payload = PendingGpsImport.take()
+            if (payload != null) {
+                val msg = withContext(Dispatchers.Default) {
+                    importGpsFileContent(store, payload.fileName, payload.body)
+                }
+                toast(msg)
+            }
+            delay(700L)
         }
     }
 
