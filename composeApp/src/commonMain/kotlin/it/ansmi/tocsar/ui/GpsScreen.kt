@@ -44,6 +44,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -139,6 +140,9 @@ fun GpsScreen(
     var selectedWpId by remember { mutableStateOf<String?>(null) }
     var overlayWaypoints by remember { mutableStateOf<List<WaypointItem>>(emptyList()) }
     var overlayTracks by remember { mutableStateOf<List<MapTrackOverlay>>(emptyList()) }
+    // Flag WP/TRK per MAPPA: restano fino a Clear data
+    val selectedWpFlags = remember { mutableStateListOf<String>() }
+    val selectedTrkFlags = remember { mutableStateListOf<String>() }
     val trackPoints = remember { mutableStateListOf<TrackPoint>() }
 
     var stopGoWatch by remember { mutableStateOf<(() -> Unit)?>(null) }
@@ -208,6 +212,8 @@ fun GpsScreen(
         selectedWpId = null
         overlayWaypoints = emptyList()
         overlayTracks = emptyList()
+        selectedWpFlags.clear()
+        selectedTrkFlags.clear()
         toast("Dati GPS cancellati")
     }
 
@@ -722,6 +728,8 @@ fun GpsScreen(
         WpTrkDialog(
             operatorPrefix = operatorPrefix,
             store = store,
+            selectedWp = selectedWpFlags,
+            selectedTrk = selectedTrkFlags,
             onDismiss = { showWpTrk = false },
             onUseAsBase = { wp ->
                 latBase = wp.lat.formatCoord6()
@@ -958,6 +966,8 @@ private fun SaveTrackDialog(
 private fun WpTrkDialog(
     operatorPrefix: String,
     store: it.ansmi.tocsar.geo.GpsLocalStore,
+    selectedWp: SnapshotStateList<String>,
+    selectedTrk: SnapshotStateList<String>,
     onDismiss: () -> Unit,
     onUseAsBase: (WaypointItem) -> Unit,
     onShowOnMap: (List<WaypointItem>, List<MapTrackOverlay>) -> Unit,
@@ -968,16 +978,22 @@ private fun WpTrkDialog(
     var loading by remember { mutableStateOf(true) }
     var wps by remember { mutableStateOf<List<WaypointItem>>(emptyList()) }
     var trks by remember { mutableStateOf<List<TrackListItem>>(emptyList()) }
-    val selectedWp = remember { mutableStateListOf<String>() }
-    val selectedTrk = remember { mutableStateListOf<String>() }
     var confirmDeleteWp by remember { mutableStateOf<WaypointItem?>(null) }
     var confirmDeleteTrk by remember { mutableStateOf<TrackListItem?>(null) }
+
+    fun pruneMissingFlags() {
+        val wpNames = wps.map { it.name }.toSet()
+        val trkNames = trks.map { it.name }.toSet()
+        selectedWp.retainAll { it in wpNames }
+        selectedTrk.retainAll { it in trkNames }
+    }
 
     LaunchedEffect(Unit) {
         loading = true
         try {
             wps = loadAllWaypoints(store)
             trks = store.loadTracks()
+            pruneMissingFlags()
         } catch (e: Exception) {
             toast("Caricamento WP/TRK: ${e.message}")
         } finally {
@@ -988,6 +1004,7 @@ private fun WpTrkDialog(
     suspend fun reload() {
         wps = loadAllWaypoints(store)
         trks = store.loadTracks()
+        pruneMissingFlags()
     }
 
     fun shareWp(wp: WaypointItem) {

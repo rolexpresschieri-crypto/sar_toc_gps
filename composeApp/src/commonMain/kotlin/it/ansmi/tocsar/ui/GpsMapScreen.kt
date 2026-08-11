@@ -37,6 +37,9 @@ import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -320,11 +323,14 @@ fun GpsMapScreen(
                         }
                     }
                 }
-                MapIconButton(onClick = { trailsEnabled = !trailsEnabled }) {
-                    Text(
-                        "🥾",
-                        fontSize = 16.sp,
-                        color = if (trailsEnabled) Color(0xFFFFEB3B) else Color.White.copy(alpha = 0.55f),
+                // Icona vettoriale (non emoji): contrasto alto su fondo scuro
+                MapIconButton(
+                    onClick = { trailsEnabled = !trailsEnabled },
+                    active = trailsEnabled,
+                ) {
+                    TrailsPathIcon(
+                        enabled = trailsEnabled,
+                        modifier = Modifier.size(22.dp),
                     )
                 }
             }
@@ -449,15 +455,57 @@ expect fun PlatformMapLayer(
 )
 
 @Composable
-private fun MapIconButton(onClick: () -> Unit, content: @Composable () -> Unit) {
+private fun MapIconButton(
+    onClick: () -> Unit,
+    active: Boolean = false,
+    content: @Composable () -> Unit,
+) {
     Box(
         modifier = Modifier
             .size(44.dp)
             .clip(RoundedCornerShape(12.dp))
             .background(Color.Black.copy(alpha = 0.52f))
+            .then(
+                if (active) {
+                    Modifier.border(2.dp, Color(0xFFFFEB3B), RoundedCornerShape(12.dp))
+                } else {
+                    Modifier
+                },
+            )
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) { content() }
+}
+
+/** Sentiero a zigzag: leggibile a differenza dell'emoji scarpone. */
+@Composable
+private fun TrailsPathIcon(enabled: Boolean, modifier: Modifier = Modifier) {
+    val ink = if (enabled) Color(0xFFFFEB3B) else Color.White.copy(alpha = 0.72f)
+    Canvas(modifier = modifier) {
+        val stroke = size.minDimension * 0.14f
+        val path = Path().apply {
+            moveTo(size.width * 0.12f, size.height * 0.78f)
+            lineTo(size.width * 0.32f, size.height * 0.38f)
+            lineTo(size.width * 0.52f, size.height * 0.72f)
+            lineTo(size.width * 0.72f, size.height * 0.28f)
+            lineTo(size.width * 0.88f, size.height * 0.55f)
+        }
+        drawPath(
+            path = path,
+            color = ink,
+            style = Stroke(
+                width = stroke,
+                cap = StrokeCap.Round,
+                join = StrokeJoin.Round,
+            ),
+        )
+        // Punto “partenza” per suggerire un percorso
+        drawCircle(
+            color = ink,
+            radius = stroke * 0.85f,
+            center = Offset(size.width * 0.12f, size.height * 0.78f),
+        )
+    }
 }
 
 @Composable
