@@ -32,6 +32,20 @@ class TocSarFacade(
         position: GpsPosition,
     ) = repository.updatePosition(sessionId, position)
 
-    suspend fun loadLiveOperators(): List<LiveOperatorPin> =
-        repository.loadLiveOperators()
+    suspend fun loadLiveOperators(viewerOperatorCode: String): List<LiveOperatorPin> =
+        repository.loadLiveOperators(viewerOperatorCode)
+
+    suspend fun loadOnlineOperatorSessions(): List<OnlineOperatorSession> =
+        repository.loadOnlineOperatorSessions()
+
+    suspend fun forceLogoutOperatorSession(
+        target: OnlineOperatorSession,
+        actorCode: String,
+    ) = repository.forceLogoutOperatorSession(target, actorCode)
+
+    suspend fun setPeerVisible(
+        sessionId: String,
+        visible: Boolean,
+        actorCode: String,
+    ) = repository.setPeerVisible(sessionId, visible, actorCode)
 }

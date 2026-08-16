@@ -36,6 +36,12 @@ App KMP (Compose Multiplatform) per operatori SAR / unità cinofile.
 
 Login app: **codice operatore + password** (es. demo `LUPO` / `1234` dopo `operators_seed.sql`).
 
+## Guida utente
+
+Per operatori sul campo: [`docs/GUIDA_UTENTE.md`](docs/GUIDA_UTENTE.md) (login, visibilità pin, GPS, misura in mappa, WP/TRK).
+
+Dopo lo schema, per la visibilità pin eseguire anche `sql/peer_visible_map.sql` (se il DB non è stato creato da `schema_v1.sql` già aggiornato).
+
 ## Build Android (release)
 
 Lancia `build-apk.bat`.

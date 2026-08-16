@@ -19,6 +19,7 @@ import it.ansmi.tocsar.backend.OperatorBackendSession
 import it.ansmi.tocsar.backend.OperatorSessionStore
 import it.ansmi.tocsar.backend.TocSarException
 import it.ansmi.tocsar.backend.TocSarFacade
+import it.ansmi.tocsar.backend.isTocAdminOperator
 import it.ansmi.tocsar.backend.loadTocSarConfig
 import it.ansmi.tocsar.geo.createGpsLocalStore
 import it.ansmi.tocsar.geo.importGpsFileContent
@@ -26,6 +27,7 @@ import it.ansmi.tocsar.geo.OperatorGpsTracking
 import it.ansmi.tocsar.ui.GpsScreen
 import it.ansmi.tocsar.ui.HomeScreen
 import it.ansmi.tocsar.ui.LoginScreen
+import it.ansmi.tocsar.ui.OnlineOperatorsScreen
 import it.ansmi.tocsar.ui.OperatorSession
 import it.ansmi.tocsar.ui.SplashScreen
 import it.ansmi.tocsar.ui.VegetatoBackground
@@ -42,6 +44,7 @@ private enum class AppRoute {
     Home,
     Login,
     Gps,
+    OnlineOperators,
 }
 
 @Composable
@@ -187,6 +190,32 @@ fun App() {
                             toast("INVIA FOTO: collegamento TOC nel prossimo step")
                         },
                         onOpenGps = { route = AppRoute.Gps },
+                        onOpenOnlineOperators =
+                            if (session != null && isTocAdminOperator(session!!.operatorCode)) {
+                                { route = AppRoute.OnlineOperators }
+                            } else {
+                                null
+                            },
+                    )
+                }
+            }
+            AppRoute.OnlineOperators -> {
+                val current = session
+                val api = facade
+                if (current == null || api == null || !isTocAdminOperator(current.operatorCode)) {
+                    route = AppRoute.Home
+                } else {
+                    OnlineOperatorsScreen(
+                        facade = api,
+                        actorCode = current.operatorCode,
+                        selfSessionId = current.sessionId,
+                        onBack = { route = AppRoute.Home },
+                        onForcedSelfLogout = {
+                            clearSessionLocal()
+                            route = AppRoute.Home
+                            toast("Sei stato disconnesso")
+                        },
+                        toast = ::toast,
                     )
                 }
             }

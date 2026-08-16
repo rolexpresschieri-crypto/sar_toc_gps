@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -51,6 +52,7 @@ import it.ansmi.tocsar.geo.WaypointItem
 import it.ansmi.tocsar.geo.createCompassGateway
 import it.ansmi.tocsar.geo.createLocationGateway
 import it.ansmi.tocsar.geo.haversineDistanceM
+import it.ansmi.tocsar.geo.bearingDeg
 import it.ansmi.tocsar.backend.LiveOperatorPin
 import it.ansmi.tocsar.backend.TocSarFacade
 import it.ansmi.tocsar.backend.loadTocSarConfig
@@ -72,13 +74,49 @@ data class GpsMapModel(
     val liveRecording: Boolean,
     /** Nome sotto la freccia: login se presente, altrimenti "GPS". */
     val navigatorLabel: String = "GPS",
-    /** Altri operatori online (tutti vedono tutti, per ora). */
+    /** Altri operatori online visibili al navigatore corrente. */
     val liveOperators: List<LiveOperatorPin> = emptyList(),
+    val measureA: MapMeasurePoint? = null,
+    val measureB: MapMeasurePoint? = null,
 )
-/** Tap su WP/TRK in mappa → condivisione come allegato. */
+
+/** Punto scelto in mappa per distanza/direzione: operatore, WP o posizione propria. */
+sealed class MapMeasurePoint {
+    abstract val id: String
+    abstract val label: String
+    abstract val latitude: Double
+    abstract val longitude: Double
+
+    data class Operator(val pin: LiveOperatorPin) : MapMeasurePoint() {
+        override val id get() = "op:${pin.sessionId}"
+        override val label get() = pin.operatorCode
+        override val latitude get() = pin.latitude
+        override val longitude get() = pin.longitude
+    }
+
+    data class Waypoint(val wp: WaypointItem) : MapMeasurePoint() {
+        override val id get() = "wp:${wp.name.uppercase()}"
+        override val label get() = wp.name
+        override val latitude get() = wp.lat
+        override val longitude get() = wp.lon
+    }
+
+    data class Self(
+        val code: String,
+        override val latitude: Double,
+        override val longitude: Double,
+    ) : MapMeasurePoint() {
+        override val id get() = "self"
+        override val label get() = code
+    }
+}
+
+/** Tap WP/operatore → misura; tap TRK → condivisione; tap freccia GPS → misura da te. */
 sealed class MapOverlayTap {
     data class Waypoint(val wp: WaypointItem) : MapOverlayTap()
     data class Track(val name: String, val points: List<TrackPoint>) : MapOverlayTap()
+    data class Operator(val pin: LiveOperatorPin) : MapOverlayTap()
+    data object Self : MapOverlayTap()
 }
 
 enum class MapBasemap {
@@ -119,6 +157,7 @@ fun GpsMapScreen(
     model: GpsMapModel,
     onBack: () -> Unit,
     onOverlayShare: (MapOverlayTap) -> Unit = {},
+    onSaveOperatorWaypoint: (LiveOperatorPin) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val location = remember { createLocationGateway() }
@@ -152,6 +191,8 @@ fun GpsMapScreen(
     var deviceFixLabel by remember { mutableStateOf<String?>(null) }
     var heading by remember { mutableStateOf<Double?>(null) }
     var liveOperators by remember { mutableStateOf<List<LiveOperatorPin>>(emptyList()) }
+    var measureA by remember { mutableStateOf<MapMeasurePoint?>(null) }
+    var measureB by remember { mutableStateOf<MapMeasurePoint?>(null) }
 
     val facade = remember { loadTocSarConfig()?.let { TocSarFacade(it) } }
     val selfCode = model.navigatorLabel.trim().uppercase().ifBlank { "GPS" }
@@ -159,7 +200,7 @@ fun GpsMapScreen(
     LaunchedEffect(facade, selfCode) {
         val api = facade ?: return@LaunchedEffect
         while (isActive) {
-            runCatching { api.loadLiveOperators() }
+            runCatching { api.loadLiveOperators(selfCode) }
                 .onSuccess { all ->
                     // Escludi te stesso: sei già la freccia GPS
                     liveOperators = all.filter {
@@ -168,6 +209,11 @@ fun GpsMapScreen(
                 }
             delay(2_000L)
         }
+    }
+
+    LaunchedEffect(liveOperators, deviceLat, deviceLon) {
+        measureA = measureA?.refreshed(liveOperators, deviceLat, deviceLon)
+        measureB = measureB?.refreshed(liveOperators, deviceLat, deviceLon)
     }
 
     DisposableEffect(Unit) {
@@ -189,9 +235,45 @@ fun GpsMapScreen(
     // Navigatore: freccia fissa verso l'alto → ruota la mappa sotto
     val mapRotation = if (northDynamic) -(heading ?: 0.0).toFloat() else 0f
     val markerLabel = selfCode
-    val mapModel = model.copy(liveOperators = liveOperators)
+    val mapModel = model.copy(
+        liveOperators = liveOperators,
+        measureA = measureA,
+        measureB = measureB,
+    )
     val scale = pickScaleBar(mapZoom, maxBarWidthPx = 120.0)
     val altText = deviceAlt?.takeIf { it.isFinite() && it > 0 }?.let { "${it.roundToInt()} m s.l.m." }
+    val selfSelected = measureA is MapMeasurePoint.Self || measureB is MapMeasurePoint.Self
+
+    fun selectMeasure(point: MapMeasurePoint) {
+        when {
+            measureA?.id == point.id -> {
+                measureA = measureB
+                measureB = null
+            }
+            measureB?.id == point.id -> measureB = null
+            measureA == null -> measureA = point
+            measureB == null -> measureB = point
+            else -> {
+                measureA = measureB
+                measureB = point
+            }
+        }
+    }
+
+    fun onMapTap(tap: MapOverlayTap) {
+        when (tap) {
+            is MapOverlayTap.Operator -> selectMeasure(MapMeasurePoint.Operator(tap.pin))
+            is MapOverlayTap.Waypoint -> selectMeasure(MapMeasurePoint.Waypoint(tap.wp))
+            is MapOverlayTap.Self -> {
+                val lat = deviceLat
+                val lon = deviceLon
+                if (lat != null && lon != null) {
+                    selectMeasure(MapMeasurePoint.Self(selfCode, lat, lon))
+                }
+            }
+            else -> onOverlayShare(tap)
+        }
+    }
 
     Column(
         modifier = modifier
@@ -253,7 +335,7 @@ fun GpsMapScreen(
                 mapOrientationDeg = mapRotation,
                 onUserGesture = { /* solo pan 1 dito: gestito in Android */ followMode = false },
                 onZoomChanged = { z -> mapZoom = z },
-                onOverlayShare = onOverlayShare,
+                onOverlayShare = { tap -> onMapTap(tap) },
                 modifier = Modifier.fillMaxSize(),
             )
 
@@ -375,7 +457,14 @@ fun GpsMapScreen(
                         .align(Alignment.Center)
                         .clip(CircleShape)
                         .background(Color.Black.copy(alpha = 0.35f))
-                        .border(1.2.dp, Color.White.copy(alpha = 0.85f), CircleShape),
+                        .border(
+                            1.2.dp,
+                            if (selfSelected) Color(0xFFFFEB3B) else Color.White.copy(alpha = 0.85f),
+                            CircleShape,
+                        )
+                        .clickable {
+                            onMapTap(MapOverlayTap.Self)
+                        },
                     contentAlignment = Alignment.Center,
                 ) {
                     Canvas(modifier = Modifier.size(30.dp)) {
@@ -419,6 +508,22 @@ fun GpsMapScreen(
                 )
             }
 
+            val a = measureA
+            if (a != null) {
+                MapMeasureCard(
+                    first = a,
+                    second = measureB,
+                    onSaveOperator = onSaveOperatorWaypoint,
+                    onClear = {
+                        measureA = null
+                        measureB = null
+                    },
+                    modifier = Modifier
+                        .align(Alignment.BottomStart)
+                        .padding(start = 12.dp, bottom = 58.dp),
+                )
+            }
+
             Text(
                 text = if (trailsEnabled) {
                     "© ${basemap.attribution} · sentieri © waymarkedtrails.org (CC BY-SA)"
@@ -453,6 +558,114 @@ expect fun PlatformMapLayer(
     onOverlayShare: (MapOverlayTap) -> Unit,
     modifier: Modifier = Modifier,
 )
+
+@Composable
+private fun MapMeasureCard(
+    first: MapMeasurePoint,
+    second: MapMeasurePoint?,
+    onSaveOperator: (LiveOperatorPin) -> Unit,
+    onClear: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val dist = second?.let {
+        haversineDistanceM(first.latitude, first.longitude, it.latitude, it.longitude)
+    }
+    val bearing = second?.let {
+        bearingDeg(first.latitude, first.longitude, it.latitude, it.longitude)
+    }
+    val savePins = listOfNotNull(
+        (first as? MapMeasurePoint.Operator)?.pin,
+        (second as? MapMeasurePoint.Operator)?.pin,
+    )
+    Column(
+        modifier = modifier
+            .widthIn(max = 210.dp)
+            .clip(RoundedCornerShape(14.dp))
+            .background(Color.Black.copy(alpha = 0.72f))
+            .border(1.dp, Color(0xFFFFEB3B).copy(alpha = 0.55f), RoundedCornerShape(14.dp))
+            .padding(horizontal = 10.dp, vertical = 8.dp),
+    ) {
+        Text(
+            "MISURA",
+            color = Color(0xFFFFEB3B),
+            fontSize = 10.sp,
+            fontWeight = FontWeight.ExtraBold,
+        )
+        Spacer(modifier = Modifier.height(4.dp))
+        if (second == null) {
+            Text(
+                "${first.label} · tocca un operatore o un WP",
+                color = Color.White,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold,
+            )
+        } else {
+            Text(
+                "${first.label} → ${second.label}",
+                color = Color.White,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.ExtraBold,
+            )
+            Text(
+                "Dist: ${formatNavDistance(dist ?: 0.0)}",
+                color = Color(0xFFE0E0E0),
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold,
+            )
+            Text(
+                "Dir: ${bearing?.roundToInt() ?: "—"}° ${bearing?.let { cardinalIt16(it) }.orEmpty()}".trim(),
+                color = Color(0xFFE0E0E0),
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold,
+            )
+        }
+        if (savePins.isNotEmpty()) {
+            Spacer(modifier = Modifier.height(8.dp))
+            savePins.forEachIndexed { idx, pin ->
+                if (idx > 0) Spacer(modifier = Modifier.height(4.dp))
+                MeasureActionChip("Salva WP ${pin.operatorCode}") { onSaveOperator(pin) }
+            }
+            Spacer(modifier = Modifier.height(4.dp))
+        } else {
+            Spacer(modifier = Modifier.height(8.dp))
+        }
+        MeasureActionChip("Annulla", muted = true, onClick = onClear)
+    }
+}
+
+@Composable
+private fun MeasureActionChip(
+    label: String,
+    muted: Boolean = false,
+    onClick: () -> Unit,
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(8.dp))
+            .background(if (muted) Color.White.copy(alpha = 0.12f) else Color(0xFF1565C0))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 8.dp, vertical = 6.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            label,
+            color = Color.White,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Bold,
+            textAlign = TextAlign.Center,
+        )
+    }
+}
+
+private fun cardinalIt16(bearing: Double): String {
+    val dirs = listOf(
+        "N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE",
+        "S", "SSO", "SO", "OSO", "O", "ONO", "NO", "NNO",
+    )
+    val idx = (((bearing % 360.0 + 360.0) % 360.0 + 11.25) / 22.5).toInt() % 16
+    return dirs[idx]
+}
 
 @Composable
 private fun MapIconButton(
@@ -637,5 +850,40 @@ private fun formatScaleDistance(meters: Int): String {
 
 private fun formatNavDistance(m: Double): String =
     if (m >= 1000) "${((m / 1000.0) * 100).toInt() / 100.0} km" else "${m.roundToInt()} m"
+
+private fun MapMeasurePoint.refreshed(
+    operators: List<LiveOperatorPin>,
+    selfLat: Double?,
+    selfLon: Double?,
+): MapMeasurePoint = when (this) {
+    is MapMeasurePoint.Operator ->
+        operators.find { it.sessionId == pin.sessionId }?.let { copy(pin = it) } ?: this
+    is MapMeasurePoint.Waypoint -> this
+    is MapMeasurePoint.Self ->
+        if (selfLat != null && selfLon != null) copy(latitude = selfLat, longitude = selfLon) else this
+}
+
+internal fun MapMeasurePoint?.measureKey(): String =
+    when (this) {
+        null -> ""
+        is MapMeasurePoint.Operator ->
+            "op:${pin.sessionId}:${(pin.latitude * 1e5).toInt()}:${(pin.longitude * 1e5).toInt()}"
+        is MapMeasurePoint.Waypoint ->
+            "wp:${wp.name}:${(wp.lat * 1e5).toInt()}:${(wp.lon * 1e5).toInt()}"
+        is MapMeasurePoint.Self ->
+            "self:${(latitude * 1e5).toInt()}:${(longitude * 1e5).toInt()}"
+    }
+
+internal fun GpsMapModel.selectedOperatorSessionIds(): Set<String> =
+    listOfNotNull(
+        (measureA as? MapMeasurePoint.Operator)?.pin?.sessionId,
+        (measureB as? MapMeasurePoint.Operator)?.pin?.sessionId,
+    ).toSet()
+
+internal fun GpsMapModel.selectedWaypointNames(): Set<String> =
+    listOfNotNull(
+        (measureA as? MapMeasurePoint.Waypoint)?.wp?.name,
+        (measureB as? MapMeasurePoint.Waypoint)?.wp?.name,
+    ).map { it.uppercase() }.toSet()
 
 expect fun currentFixClock(): String

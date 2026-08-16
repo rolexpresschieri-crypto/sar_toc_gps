@@ -60,6 +60,7 @@ create table if not exists squad_sessions (
   last_longitude double precision,
   last_accuracy double precision,
   last_fix_at timestamptz,
+  peer_visible boolean not null default false,
   created_at timestamptz not null default now()
 );
 
@@ -147,7 +148,8 @@ select
   ss.last_longitude,
   ss.last_accuracy,
   ss.last_fix_at,
-  s.map_icon_key
+  s.map_icon_key,
+  ss.peer_visible
 from squad_sessions ss
 join squads s on s.id = ss.squad_id
 where ss.is_online = true;

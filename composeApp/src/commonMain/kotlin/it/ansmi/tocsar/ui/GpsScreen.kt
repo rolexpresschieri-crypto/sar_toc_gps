@@ -267,6 +267,48 @@ fun GpsScreen(
         isGoMode = false
     }
 
+    /** Navigazione live verso un WP (tap in mappa). Secondo tap sullo stesso WP annulla. */
+    fun toggleNavigateToWaypoint(wp: WaypointItem) {
+        if (isGoMode && selectedWpId == wp.name) {
+            stopVaiABase()
+            distanceM = null
+            bearingToBase = null
+            arrowRotation = 0.0
+            selectedWpId = null
+            latBase = ""
+            lonBase = ""
+            altBase = ""
+            accBase = null
+            // Non togliere gli overlay: restano solo i WP selezionati
+            toast("Navigazione interrotta · restano i WP in mappa")
+            return
+        }
+        scope.launch {
+            if (!location.ensurePermission()) {
+                toast("Permesso GPS negato")
+                return@launch
+            }
+            stopGoWatch?.invoke()
+            latBase = wp.lat.formatCoord6()
+            lonBase = wp.lon.formatCoord6()
+            altBase = wp.alt?.formatAlt0().orEmpty()
+            accBase = null
+            selectedWpId = wp.name
+            isGoMode = true
+            stopGoWatch = location.watchFixes(2f) { fix ->
+                latPtg = fix.latitude.formatCoord6()
+                lonPtg = fix.longitude.formatCoord6()
+                altPtg = fix.altitude.formatAlt0()
+                accPtg = fix.accuracyM
+                distanceM = haversineDistanceM(fix.latitude, fix.longitude, wp.lat, wp.lon)
+                val b = bearingDeg(fix.latitude, fix.longitude, wp.lat, wp.lon)
+                bearingToBase = b
+                updateArrow(b, heading)
+            }
+            toast("Navigazione verso ${wp.name}")
+        }
+    }
+
     fun vaiABase() {
         scope.launch {
             val latB = parseCoord(latBase); val lonB = parseCoord(lonBase)
@@ -472,7 +514,12 @@ fun GpsScreen(
 
                 Spacer(modifier = Modifier.height(10.dp))
                 Text(
-                    text = if (isGoMode) "Distanza BASE: ${formatDistance(distanceM)}" else "Distanza: ${formatDistance(distanceM)}",
+                    text = if (isGoMode) {
+                        val target = selectedWpId?.takeIf { it.isNotBlank() } ?: "BASE"
+                        "Distanza $target: ${formatDistance(distanceM)}"
+                    } else {
+                        "Distanza: ${formatDistance(distanceM)}"
+                    },
                     color = fg,
                     fontSize = if (isGoMode) 22.sp else 24.sp,
                     fontWeight = FontWeight.ExtraBold,
@@ -578,13 +625,7 @@ fun GpsScreen(
                 onBack = { showMap = false },
                 onOverlayShare = { tap ->
                     when (tap) {
-                        is MapOverlayTap.Waypoint -> {
-                            sharePlainText(
-                                subject = "Waypoint ${tap.wp.name}",
-                                text = encodeWaypointFile(tap.wp.name, tap.wp.lat, tap.wp.lon, tap.wp.alt),
-                                fileNameHint = "${safeGpsFileStem(tap.wp.name)}.wpt.txt",
-                            )
-                        }
+                        is MapOverlayTap.Waypoint -> { /* selezione misura: gestita in GpsMapScreen */ }
                         is MapOverlayTap.Track -> {
                             sharePlainText(
                                 subject = "Traccia ${tap.name}",
@@ -592,6 +633,26 @@ fun GpsScreen(
                                 fileNameHint = "${safeGpsFileStem(tap.name)}.trk",
                             )
                         }
+                        is MapOverlayTap.Operator -> { /* selezione misura: gestita in GpsMapScreen */ }
+                        is MapOverlayTap.Self -> { /* selezione misura: gestita in GpsMapScreen */ }
+                    }
+                },
+                onSaveOperatorWaypoint = { pin ->
+                    scope.launch {
+                        val wp = WaypointItem(
+                            name = formatLocalWaypointName(pin.operatorCode, operatorPrefix),
+                            lat = pin.latitude,
+                            lon = pin.longitude,
+                            alt = null,
+                        )
+                        store.upsertWaypoint(wp)
+                        overlayWaypoints = overlayWaypoints.filterNot {
+                            it.name.equals(wp.name, ignoreCase = true)
+                        } + wp
+                        if (selectedWpFlags.none { it.equals(wp.name, ignoreCase = true) }) {
+                            selectedWpFlags.add(wp.name)
+                        }
+                        toast("WP locale ${wp.name} salvato")
                     }
                 },
                 modifier = Modifier
@@ -682,14 +743,16 @@ fun GpsScreen(
             initialAcc = accBase,
             location = location,
             onDismiss = { showInsWp = false },
-            onSaved = { wp, acc ->
+            onSaved = { wp, _ ->
                 showInsWp = false
-                latBase = wp.lat.formatCoord6()
-                lonBase = wp.lon.formatCoord6()
-                altBase = wp.alt?.formatAlt0().orEmpty()
-                accBase = acc
-                selectedWpId = wp.name
-                toast("Waypoint ${wp.name} salvato in locale")
+                overlayWaypoints = overlayWaypoints.filterNot {
+                    it.name.equals(wp.name, ignoreCase = true)
+                } + wp
+                if (selectedWpFlags.none { it.equals(wp.name, ignoreCase = true) }) {
+                    selectedWpFlags.add(wp.name)
+                }
+                openMap()
+                toast("Waypoint ${wp.name} in mappa · tap sul pin per navigare")
             },
             store = store,
             toast = ::toast,
@@ -729,31 +792,11 @@ fun GpsScreen(
             selectedWp = selectedWpFlags,
             selectedTrk = selectedTrkFlags,
             onDismiss = { showWpTrk = false },
-            onUseAsBase = { wp ->
-                latBase = wp.lat.formatCoord6()
-                lonBase = wp.lon.formatCoord6()
-                altBase = wp.alt?.formatAlt0().orEmpty()
-                accBase = null
-                selectedWpId = wp.name
-                overlayWaypoints = emptyList()
-                overlayTracks = emptyList()
-                showWpTrk = false
-            },
             onShowOnMap = { wps, tracks ->
                 showWpTrk = false
-                if (wps.size == 1 && tracks.isEmpty()) {
-                    val wp = wps.first()
-                    latBase = wp.lat.formatCoord6()
-                    lonBase = wp.lon.formatCoord6()
-                    altBase = wp.alt?.formatAlt0().orEmpty()
-                    selectedWpId = wp.name
-                    overlayWaypoints = emptyList()
-                    overlayTracks = emptyList()
-                } else {
-                    overlayWaypoints = wps
-                    overlayTracks = tracks
-                    selectedWpId = null
-                }
+                // Sempre overlay (anche 1 solo WP): navigazione al tap in mappa
+                overlayWaypoints = wps
+                overlayTracks = tracks
                 openMap()
             },
             toast = ::toast,
@@ -967,7 +1010,6 @@ private fun WpTrkDialog(
     selectedWp: SnapshotStateList<String>,
     selectedTrk: SnapshotStateList<String>,
     onDismiss: () -> Unit,
-    onUseAsBase: (WaypointItem) -> Unit,
     onShowOnMap: (List<WaypointItem>, List<MapTrackOverlay>) -> Unit,
     toast: (String) -> Unit,
 ) {
@@ -1050,7 +1092,6 @@ private fun WpTrkDialog(
                         },
                         showDelete = false,
                         onShare = { shareWp(wp) },
-                        onBase = { onUseAsBase(wp) },
                         onDelete = {},
                     )
                 }
@@ -1074,7 +1115,6 @@ private fun WpTrkDialog(
                         },
                         showDelete = true,
                         onShare = { shareWp(wp) },
-                        onBase = { onUseAsBase(wp) },
                         onDelete = { confirmDeleteWp = wp },
                     )
                 }
@@ -1309,7 +1349,6 @@ private fun WaypointRow(
     onSelect: (Boolean) -> Unit,
     showDelete: Boolean,
     onShare: () -> Unit,
-    onBase: () -> Unit,
     onDelete: () -> Unit,
 ) {
     Column(
@@ -1338,7 +1377,6 @@ private fun WaypointRow(
         }
         Row(horizontalArrangement = Arrangement.End, modifier = Modifier.fillMaxWidth()) {
             TextButton(enabled = !busy, onClick = onShare) { Text("Invia") }
-            TextButton(enabled = !busy, onClick = onBase) { Text("BASE") }
             if (showDelete) {
                 TextButton(enabled = !busy, onClick = onDelete) {
                     Text("Elimina", color = Color(0xFFCE2B37))

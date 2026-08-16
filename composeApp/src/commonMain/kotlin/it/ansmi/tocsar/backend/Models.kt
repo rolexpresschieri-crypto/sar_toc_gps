@@ -35,3 +35,22 @@ data class LiveOperatorPin(
     val mapIconKey: String,
     val accuracyM: Double?,
 )
+
+/** Riga elenco admin: operatori con sessione online (anche senza fix GPS). */
+data class OnlineOperatorSession(
+    val sessionId: String,
+    val eventId: String,
+    val operatorId: String,
+    val operatorCode: String,
+    val operatorName: String,
+    val loginAtIso: String?,
+    val hasGpsFix: Boolean,
+    /** Se true, gli altri operatori lo vedono in mappa. LUPO (admin) vede tutti indipendentemente dal flag. */
+    val peerVisible: Boolean,
+)
+
+/** Solo questo codice vede/gestisce l'elenco e il force log-out. */
+const val TocAdminOperatorCode = "LUPO"
+
+fun isTocAdminOperator(operatorCode: String): Boolean =
+    operatorCode.trim().equals(TocAdminOperatorCode, ignoreCase = true)

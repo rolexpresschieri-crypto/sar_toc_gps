@@ -16,6 +16,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.viewinterop.AndroidView
 import it.ansmi.tocsar.AndroidAppContext
+import it.ansmi.tocsar.backend.LiveOperatorPin
 import it.ansmi.tocsar.geo.MapTrackOverlay
 import it.ansmi.tocsar.geo.WaypointItem
 import it.ansmi.tocsar.geo.splitTrackSegments
@@ -101,6 +102,8 @@ private class MapRuntimeState {
     var navLine: Polyline? = null
     var liveTrailLines: MutableList<Polyline> = mutableListOf()
     var operatorMarkers: MutableList<Marker> = mutableListOf()
+    var waypointMarkers: MutableList<Marker> = mutableListOf()
+    var measureLine: Polyline? = null
     var gpsMarker: Marker? = null
     var baseMarker: Marker? = null
     var onOverlayShare: ((MapOverlayTap) -> Unit)? = null
@@ -224,8 +227,13 @@ private fun staticOverlayKey(model: GpsMapModel): String =
     }
 
 private fun liveOperatorsKey(model: GpsMapModel): String =
-    model.liveOperators.joinToString("|") {
-        "${it.sessionId}:${(it.latitude * 1e5).toInt()}:${(it.longitude * 1e5).toInt()}:${it.mapColorHex}"
+    buildString {
+        append(model.liveOperators.joinToString("|") {
+            val sel = if (it.sessionId in model.selectedOperatorSessionIds()) "S" else "-"
+            "${it.sessionId}:${(it.latitude * 1e5).toInt()}:${(it.longitude * 1e5).toInt()}:${it.mapColorHex}:$sel"
+        })
+        append("|a=").append(model.measureA.measureKey())
+        append("|b=").append(model.measureB.measureKey())
     }
 
 private fun rebuildOverlays(
@@ -251,6 +259,8 @@ private fun rebuildOverlays(
     state.baseMarker = null
     state.liveTrailLines.clear()
     state.operatorMarkers.clear()
+    state.waypointMarkers.clear()
+    state.measureLine = null
     state.lastLiveTrailSize = -1
     state.lastLiveOperatorsKey = null
 
@@ -258,11 +268,12 @@ private fun rebuildOverlays(
         map.overlays.add(trailsOverlay)
     }
 
+    val selectedWp = model.selectedWaypointNames()
     val baseLat = model.baseLat
     val baseLon = model.baseLon
     if (baseLat != null && baseLon != null) {
         val label = model.baseLabel?.trim()?.takeIf { it.isNotEmpty() } ?: "BASE"
-        val home = createHomeTargetBitmap(map, label)
+        val home = createHomeTargetBitmap(map, label, label.uppercase() in selectedWp)
         val baseWp = WaypointItem(label, baseLat, baseLon, null)
         val marker = Marker(map).apply {
             position = GeoPoint(baseLat, baseLon)
@@ -278,6 +289,7 @@ private fun rebuildOverlays(
             }
         }
         state.baseMarker = marker
+        state.waypointMarkers.add(marker)
         map.overlays.add(marker)
     }
 
@@ -289,22 +301,22 @@ private fun rebuildOverlays(
         ) {
             continue
         }
-        val home = createHomeTargetBitmap(map, w.name)
-        map.overlays.add(
-            Marker(map).apply {
-                position = GeoPoint(w.lat, w.lon)
-                title = w.name
-                relatedObject = w
-                setAnchor(Marker.ANCHOR_CENTER, home.hotV)
-                icon = BitmapDrawable(map.context.resources, home.bitmap)
-                setInfoWindow(null)
-                setOnMarkerClickListener { m, _ ->
-                    val wp = m.relatedObject as? WaypointItem
-                    if (wp != null) state.onOverlayShare?.invoke(MapOverlayTap.Waypoint(wp))
-                    true
-                }
-            },
-        )
+        val home = createHomeTargetBitmap(map, w.name, w.name.uppercase() in selectedWp)
+        val marker = Marker(map).apply {
+            position = GeoPoint(w.lat, w.lon)
+            title = w.name
+            relatedObject = w
+            setAnchor(Marker.ANCHOR_CENTER, home.hotV)
+            icon = BitmapDrawable(map.context.resources, home.bitmap)
+            setInfoWindow(null)
+            setOnMarkerClickListener { m, _ ->
+                val wp = m.relatedObject as? WaypointItem
+                if (wp != null) state.onOverlayShare?.invoke(MapOverlayTap.Waypoint(wp))
+                true
+            }
+        }
+        state.waypointMarkers.add(marker)
+        map.overlays.add(marker)
     }
 
     for (t in model.overlayTracks) {
@@ -376,6 +388,10 @@ private fun ensureGpsMarker(
         setAnchor(Marker.ANCHOR_CENTER, icon.hotV)
         this.icon = BitmapDrawable(map.context.resources, icon.bitmap)
         setInfoWindow(null)
+        setOnMarkerClickListener { _, _ ->
+            state.onOverlayShare?.invoke(MapOverlayTap.Self)
+            true
+        }
     }
     state.gpsMarker = marker
     map.overlays.add(marker)
@@ -530,7 +546,8 @@ private fun updateOnlineOperatorMarkers(
     state.operatorMarkers.clear()
 
     for (op in model.liveOperators) {
-        val pin = createOperatorPinBitmap(map, op.operatorCode, op.mapColorHex)
+        val selected = op.sessionId in model.selectedOperatorSessionIds()
+        val pin = createOperatorPinBitmap(map, op.operatorCode, op.mapColorHex, selected)
         val marker = Marker(map).apply {
             position = GeoPoint(op.latitude, op.longitude)
             title = op.operatorCode
@@ -538,11 +555,62 @@ private fun updateOnlineOperatorMarkers(
             setAnchor(Marker.ANCHOR_CENTER, pin.hotV)
             icon = BitmapDrawable(map.context.resources, pin.bitmap)
             setInfoWindow(null)
-            setOnMarkerClickListener { _, _ -> true }
+            setOnMarkerClickListener { m, _ ->
+                val tapped = m.relatedObject as? LiveOperatorPin
+                if (tapped != null) state.onOverlayShare?.invoke(MapOverlayTap.Operator(tapped))
+                true
+            }
         }
         state.operatorMarkers.add(marker)
         map.overlays.add(marker)
     }
+
+    updateWaypointMeasureIcons(map, model, state)
+    updateMeasureLine(map, model, state)
+}
+
+private fun updateWaypointMeasureIcons(
+    map: MapView,
+    model: GpsMapModel,
+    state: MapRuntimeState,
+) {
+    val selected = model.selectedWaypointNames()
+    for (m in state.waypointMarkers) {
+        val wp = m.relatedObject as? WaypointItem ?: continue
+        val home = createHomeTargetBitmap(map, wp.name, wp.name.uppercase() in selected)
+        m.setAnchor(Marker.ANCHOR_CENTER, home.hotV)
+        m.icon = BitmapDrawable(map.context.resources, home.bitmap)
+    }
+}
+
+private const val MeasureLineId = "MEASURE_OPS"
+
+private fun updateMeasureLine(
+    map: MapView,
+    model: GpsMapModel,
+    state: MapRuntimeState,
+) {
+    val a = model.measureA
+    val b = model.measureB
+    if (a == null || b == null) {
+        state.measureLine?.let { map.overlays.remove(it) }
+        state.measureLine = null
+        return
+    }
+    val pts = listOf(GeoPoint(a.latitude, a.longitude), GeoPoint(b.latitude, b.longitude))
+    val existing = state.measureLine
+    if (existing != null && map.overlays.contains(existing)) {
+        existing.setPoints(pts)
+        return
+    }
+    val line = Polyline().apply {
+        title = MeasureLineId
+        outlinePaint.color = AndroidColor.parseColor("#FFEB3B")
+        outlinePaint.strokeWidth = 8f
+        setPoints(pts)
+    }
+    state.measureLine = line
+    map.overlays.add(line)
 }
 
 /** TRK live: aggiorna polyline senza rebuild/refit (evita reset zoom). Supporta buchi GPS. */
@@ -608,7 +676,11 @@ private fun dp(map: MapView, value: Float): Float =
 private data class AnchoredBitmap(val bitmap: Bitmap, val hotV: Float)
 
 /** Target BASE come TocAppBuild: casa verde + etichetta (hotspot = base casa). */
-private fun createHomeTargetBitmap(map: MapView, label: String): AnchoredBitmap {
+private fun createHomeTargetBitmap(
+    map: MapView,
+    label: String,
+    selected: Boolean = false,
+): AnchoredBitmap {
     val display = label.trim().ifBlank { "BASE" }
     val density = map.resources.displayMetrics.density
     val w = (132 * density).toInt().coerceAtLeast(120)
@@ -640,13 +712,30 @@ private fun createHomeTargetBitmap(map: MapView, label: String): AnchoredBitmap 
     )
     c.drawRect(body, homePaint)
 
+    if (selected) {
+        c.drawCircle(
+            cx,
+            homeTop + homeSize * 0.48f,
+            homeSize * 0.62f,
+            Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = AndroidColor.parseColor("#FFEB3B")
+                style = Paint.Style.STROKE
+                strokeWidth = 3f * density
+            },
+        )
+    }
+
     drawLabelPill(
         c = c,
         text = display,
         cx = cx,
         top = homeBottom + 4f * density,
         maxWidth = w - 8f * density,
-        borderColor = AndroidColor.parseColor("#009246"),
+        borderColor = if (selected) {
+            AndroidColor.parseColor("#FFEB3B")
+        } else {
+            AndroidColor.parseColor("#009246")
+        },
         density = density,
     )
     return AnchoredBitmap(bmp, (homeBottom / h).coerceIn(0.05f, 0.95f))
@@ -720,6 +809,7 @@ private fun createOperatorPinBitmap(
     map: MapView,
     code: String,
     colorHex: String,
+    selected: Boolean = false,
 ): AnchoredBitmap {
     val display = code.trim().ifBlank { "?" }.uppercase()
     val density = map.resources.displayMetrics.density
@@ -729,7 +819,7 @@ private fun createOperatorPinBitmap(
         AndroidColor.parseColor("#079B42")
     }
     val circleR = 16f * density
-    val cy = 6f * density + circleR
+    val cy = 10f * density + circleR
     val labelTop = cy + circleR + 4f * density
     val w = (120 * density).toInt().coerceAtLeast(100)
     val h = (labelTop + 22f * density).toInt().coerceAtLeast(80)
@@ -746,6 +836,18 @@ private fun createOperatorPinBitmap(
             style = Paint.Style.FILL
         },
     )
+    if (selected) {
+        c.drawCircle(
+            cx,
+            cy,
+            circleR + 5f * density,
+            Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = AndroidColor.parseColor("#FFEB3B")
+                style = Paint.Style.STROKE
+                strokeWidth = 3.2f * density
+            },
+        )
+    }
     c.drawCircle(
         cx,
         cy,

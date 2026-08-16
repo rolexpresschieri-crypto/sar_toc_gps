@@ -3,6 +3,7 @@ package it.ansmi.tocsar.ui
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -84,6 +85,7 @@ fun HomeScreen(
     onSendNotify: () -> Unit,
     onSendPhoto: () -> Unit,
     onOpenGps: () -> Unit,
+    onOpenOnlineOperators: (() -> Unit)? = null,
     onOpenSettings: () -> Unit = { openAppSystemSettings() },
 ) {
     val isLogged = session != null
@@ -209,6 +211,26 @@ fun HomeScreen(
                     foregroundColor = if (isLogged) Color.Black else TacticalMuted,
                     onClick = if (isLogged) onOpenGps else null,
                 )
+                if (onOpenOnlineOperators != null) {
+                    Spacer(modifier = Modifier.height(18.dp))
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(TacticalNavy, RoundedCornerShape(12.dp))
+                            .border(1.dp, Color.White.copy(alpha = 0.35f), RoundedCornerShape(12.dp))
+                            .clickable(onClick = onOpenOnlineOperators)
+                            .padding(vertical = 16.dp, horizontal = 12.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(
+                            text = "Operatori on line",
+                            textAlign = TextAlign.Center,
+                            color = Color.White,
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                        )
+                    }
+                }
                 Spacer(modifier = Modifier.height(14.dp))
                 Text(
                     text = "Operatori SAR / unità cinofile: login = tracking, allarmi e push",

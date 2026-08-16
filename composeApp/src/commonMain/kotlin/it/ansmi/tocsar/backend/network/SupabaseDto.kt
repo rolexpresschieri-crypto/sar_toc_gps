@@ -56,6 +56,12 @@ internal data class SessionInsertBody(
     @SerialName("squad_id") val operatorId: String,
     @SerialName("is_online") val isOnline: Boolean,
     @SerialName("login_at") val loginAt: String,
+    @SerialName("peer_visible") val peerVisible: Boolean = false,
+)
+
+@Serializable
+internal data class PeerVisiblePatchBody(
+    @SerialName("peer_visible") val peerVisible: Boolean,
 )
 
 @Serializable
@@ -85,11 +91,15 @@ internal data class SessionAuthLogInsertBody(
 @Serializable
 internal data class ActiveOperatorSummaryRow(
     @SerialName("session_id") val sessionId: String,
+    @SerialName("event_id") val eventId: String? = null,
+    @SerialName("squad_id") val operatorId: String? = null,
     @SerialName("squad_code") val operatorCode: String,
     @SerialName("squad_name") val operatorName: String,
+    @SerialName("login_at") val loginAt: String? = null,
     @SerialName("last_latitude") val lastLatitude: Double? = null,
     @SerialName("last_longitude") val lastLongitude: Double? = null,
     @SerialName("map_color") val mapColor: String? = null,
     @SerialName("map_icon_key") val mapIconKey: String? = null,
     @SerialName("last_accuracy") val lastAccuracy: Double? = null,
+    @SerialName("peer_visible") val peerVisible: Boolean = false,
 )
