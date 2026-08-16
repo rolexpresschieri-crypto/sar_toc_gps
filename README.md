@@ -38,7 +38,9 @@ Login app: **codice operatore + password** (es. demo `LUPO` / `1234` dopo `opera
 
 ## Guida utente
 
-Per operatori sul campo: [`docs/GUIDA_UTENTE.md`](docs/GUIDA_UTENTE.md) (login, visibilità pin, GPS, misura in mappa, WP/TRK).
+PDF per operatori (loghi ANSMI + UCRS, dal log-in al GPS): [`docs/TOC_SAR_Guida_utente.pdf`](docs/TOC_SAR_Guida_utente.pdf).
+
+Per rigenerarlo: `python docs/build_guida_utente.py`.
 
 Dopo lo schema, per la visibilità pin eseguire anche `sql/peer_visible_map.sql` (se il DB non è stato creato da `schema_v1.sql` già aggiornato).
 
