@@ -191,12 +191,11 @@ actual fun PlatformMapLayer(
         update = { map ->
             state.onOverlayShare = onOverlayShare
             val key = staticOverlayKey(model)
-            val needRebuild =
-                state.lastBasemap != basemap ||
-                    state.lastTrails != trailsEnabled ||
-                    state.lastOverlayKey != key
+            val overlayChanged = state.lastOverlayKey != key
+            val tilesChanged = state.lastBasemap != basemap
+            val trailsChanged = state.lastTrails != trailsEnabled
 
-            if (needRebuild) {
+            if (overlayChanged) {
                 rebuildOverlays(
                     map, trailsOverlayRef[0], basemap, trailsEnabled, model,
                     deviceLat, deviceLon, followMode, state,
@@ -207,6 +206,16 @@ actual fun PlatformMapLayer(
                 state.userAdjustedView = false
                 state.lastFitKey = null
                 scheduleFit(map, model, deviceLat, deviceLon, state, onZoomChanged)
+            } else {
+                // Cambio strato / sentieri: non rifare fit e non tornare sul GPS
+                if (tilesChanged) {
+                    applyBasemapPreservingView(map, basemap)
+                    state.lastBasemap = basemap
+                }
+                if (trailsChanged) {
+                    applyTrailsOverlay(map, trailsOverlayRef[0], trailsEnabled)
+                    state.lastTrails = trailsEnabled
+                }
             }
 
             applyLive(map, followMode, deviceLat, deviceLon, mapOrientationDeg, model, state)
@@ -236,6 +245,37 @@ private fun liveOperatorsKey(model: GpsMapModel): String =
         append("|b=").append(model.measureB.measureKey())
     }
 
+private fun applyBasemap(map: MapView, basemap: MapBasemap) {
+    when (basemap) {
+        MapBasemap.Streets -> map.setTileSource(TileSourceFactory.MAPNIK)
+        MapBasemap.Topographic -> map.setTileSource(OpenTopoSource)
+        MapBasemap.Satellite -> map.setTileSource(EsriImagerySource)
+    }
+}
+
+/** Cambio ortofoto/stradale/topo: tieni pan e zoom (non tornare sul GPS). */
+private fun applyBasemapPreservingView(map: MapView, basemap: MapBasemap) {
+    val zoom = map.zoomLevelDouble
+    val center = map.mapCenter?.let { GeoPoint(it.latitude, it.longitude) }
+    applyBasemap(map, basemap)
+    if (center != null && zoom.isFinite()) {
+        map.controller.setZoom(zoom)
+        map.controller.setCenter(center)
+    }
+    map.invalidate()
+}
+
+private fun applyTrailsOverlay(map: MapView, trailsOverlay: TilesOverlay?, enabled: Boolean) {
+    if (trailsOverlay == null) return
+    val already = map.overlays.contains(trailsOverlay)
+    if (enabled && !already) {
+        map.overlays.add(0, trailsOverlay)
+    } else if (!enabled && already) {
+        map.overlays.remove(trailsOverlay)
+    }
+    map.invalidate()
+}
+
 private fun rebuildOverlays(
     map: MapView,
     trailsOverlay: TilesOverlay?,
@@ -247,11 +287,7 @@ private fun rebuildOverlays(
     followMode: Boolean,
     state: MapRuntimeState,
 ) {
-    when (basemap) {
-        MapBasemap.Streets -> map.setTileSource(TileSourceFactory.MAPNIK)
-        MapBasemap.Topographic -> map.setTileSource(OpenTopoSource)
-        MapBasemap.Satellite -> map.setTileSource(EsriImagerySource)
-    }
+    applyBasemap(map, basemap)
 
     map.overlays.clear()
     state.navLine = null

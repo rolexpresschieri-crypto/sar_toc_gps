@@ -20,7 +20,7 @@ GREEN = (7, 155, 66)
 DARK = (25, 25, 25)
 MUTED = (70, 70, 70)
 LINE = (180, 180, 180)
-VERSION = "1.0.42"
+VERSION = "1.0.43"
 
 
 class GuidaPdf(FPDF):
@@ -175,13 +175,19 @@ def build() -> Path:
     pdf.h1("2.  Prima di usare l’app")
     pdf.bullet(
         "Installazione",
-        "Copia sul telefono il file APK (es. toc_sar_KMP_1.0.42.apk) e installa. "
+        "Copia sul telefono il file APK (es. toc_sar_KMP_1.0.43.apk) e installa. "
         "Se Android lo chiede, consenti «origini sconosciute» solo per TOC SAR.",
     )
     pdf.bullet(
-        "Permessi",
-        "Al primo uso concedi Posizione (meglio «sempre» / anche in background) e Notifiche. "
-        "Senza GPS l’operatore è online ma senza pin in mappa.",
+        "Permesso Posizione",
+        "«Consenti solo mentre l’app è in uso» è corretto e sufficiente. "
+        "Non serve «Consenti sempre». In tasca / schermo spento il GPS resta attivo perché dopo il log-in "
+        "c’è la notifica fissa «Tracking operatore»: per Android l’app è ancora in uso. "
+        "Se togli la notifica o fai «Forza chiusura», il GPS si ferma.",
+    )
+    pdf.bullet(
+        "Notifiche",
+        "Concedile: servono per il tracking in tasca e per i messaggi dal TOC.",
     )
     pdf.bullet(
         "Batteria e «app inutilizzata»",
@@ -422,6 +428,10 @@ def build() -> Path:
         "Rossa = nord in alto (mappa ferma, meglio per vedere WP e tracce).",
     )
     pdf.p("Pinch = zoom. Lo zoom non torna da solo all’inquadratura iniziale.")
+    pdf.p(
+        "Cambio strato (stradale / topografica / ortofoto) o tasto sentieri: la mappa resta dove l’hai "
+        "lasciata (pan e zoom). Non torna da sola sulla tua posizione. Per ricentrarti usa il tasto centra."
+    )
 
     pdf.h2("7.8  Clear data")
     pdf.p(
