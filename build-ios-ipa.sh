@@ -1,0 +1,134 @@
+#!/usr/bin/env bash
+# Build IPA per iPhone fisico (Ad Hoc per Diawi, o development).
+# Output: toc_sar_iOS_<versione>.ipa nella cartella del progetto.
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "$0")" && pwd)"
+IOS_APP="$ROOT/iosApp"
+EXPORT_METHOD="${1:-ad-hoc}"
+
+if [[ "$EXPORT_METHOD" != "development" && "$EXPORT_METHOD" != "ad-hoc" ]]; then
+  echo "Uso: $0 [ad-hoc|development]"
+  echo "  ad-hoc        distribuzione a dispositivi registrati (Diawi)"
+  echo "  development   installazione via Xcode / Apple Configurator"
+  exit 1
+fi
+
+echo "============================================"
+echo "  TOC SAR — build IPA iOS ($EXPORT_METHOD)"
+echo "============================================"
+echo
+
+if ! command -v xcodebuild >/dev/null 2>&1; then
+  echo "ERRORE: Xcode non trovato. Installa Xcode dal Mac App Store."
+  exit 1
+fi
+
+bash "$IOS_APP/sync-config.sh"
+
+CONFIG_XC="$IOS_APP/Configuration/Config.xcconfig"
+MARKETING_VERSION="$(awk -F'= ' '/^MARKETING_VERSION/ {gsub(/ /, "", $2); print $2; exit}' "$CONFIG_XC")"
+if [[ -z "$MARKETING_VERSION" ]]; then
+  MARKETING_VERSION="1.0.43"
+fi
+
+OUTPUT_IPA="$ROOT/toc_sar_iOS_${MARKETING_VERSION}.ipa"
+ARCHIVE_DIR="$ROOT/build/ios-archive"
+ARCHIVE_PATH="$ARCHIVE_DIR/TocSAR.xcarchive"
+EXPORT_DIR="$ROOT/build/ios-ipa-export"
+case "$EXPORT_METHOD" in
+  development) EXPORT_PLIST_SUFFIX="development" ;;
+  ad-hoc) EXPORT_PLIST_SUFFIX="adhoc" ;;
+  *) EXPORT_PLIST_SUFFIX="$EXPORT_METHOD" ;;
+esac
+EXPORT_PLIST="$IOS_APP/ExportOptions-${EXPORT_PLIST_SUFFIX}.plist"
+
+rm -rf "$ARCHIVE_DIR" "$EXPORT_DIR"
+mkdir -p "$ARCHIVE_DIR"
+
+if [[ -z "${JAVA_HOME:-}" || ! -x "${JAVA_HOME}/bin/java" ]]; then
+  for jhome in \
+    "/Applications/Android Studio.app/Contents/jbr/Contents/Home" \
+    "$(/usr/libexec/java_home -v 17 2>/dev/null || true)" \
+    "$(/usr/libexec/java_home 2>/dev/null || true)"; do
+    if [[ -n "$jhome" && -x "$jhome/bin/java" ]]; then
+      export JAVA_HOME="$jhome"
+      break
+    fi
+  done
+fi
+if [[ -n "${JAVA_HOME:-}" ]]; then
+  export PATH="$JAVA_HOME/bin:$PATH"
+fi
+
+TEAM_ID="${DEVELOPMENT_TEAM:-}"
+if [[ -z "$TEAM_ID" && -f "$IOS_APP/Configuration/Signing.xcconfig" ]]; then
+  TEAM_ID="$(awk -F'= ' '/^DEVELOPMENT_TEAM/ {gsub(/ /, "", $2); print $2; exit}' "$IOS_APP/Configuration/Signing.xcconfig")"
+fi
+if [[ -z "$TEAM_ID" ]]; then
+  TEAM_ID="$(xcodebuild -showBuildSettings \
+    -project "$IOS_APP/iosApp.xcodeproj" \
+    -scheme iosApp \
+    -configuration Release 2>/dev/null \
+    | awk -F' = ' '/DEVELOPMENT_TEAM/ {print $2; exit}')"
+fi
+
+XCODE_ARGS=(
+  -project "$IOS_APP/iosApp.xcodeproj"
+  -scheme iosApp
+  -configuration Release
+  -destination "generic/platform=iOS"
+  -archivePath "$ARCHIVE_PATH"
+  -allowProvisioningUpdates
+)
+
+if [[ -n "$TEAM_ID" && "$TEAM_ID" != "" ]]; then
+  XCODE_ARGS+=(DEVELOPMENT_TEAM="$TEAM_ID")
+  echo "Team Apple: $TEAM_ID"
+else
+  echo "AVVISO: DEVELOPMENT_TEAM non impostato."
+  echo "  1) cp iosApp/Configuration/Signing.xcconfig.example iosApp/Configuration/Signing.xcconfig"
+  echo "     inserisci il Team ID Apple (10 caratteri)"
+  echo "  2) oppure: DEVELOPMENT_TEAM=XXXXXXXXXX ./build-ios-ipa.sh ad-hoc"
+  echo "  3) oppure Xcode: iosApp target → Signing & Capabilities → Team"
+  echo
+fi
+
+echo "Compilazione archive Release (dispositivo fisico)..."
+echo "  versione: $MARKETING_VERSION"
+echo
+
+cd "$IOS_APP"
+xcodebuild archive "${XCODE_ARGS[@]}"
+
+echo
+echo "Export IPA ($EXPORT_METHOD)..."
+xcodebuild -exportArchive \
+  -archivePath "$ARCHIVE_PATH" \
+  -exportPath "$EXPORT_DIR" \
+  -exportOptionsPlist "$EXPORT_PLIST" \
+  -allowProvisioningUpdates
+
+BUILT_IPA="$(find "$EXPORT_DIR" -maxdepth 1 -name '*.ipa' -print -quit)"
+if [[ -z "$BUILT_IPA" || ! -f "$BUILT_IPA" ]]; then
+  echo "ERRORE: IPA non trovato in $EXPORT_DIR"
+  exit 1
+fi
+
+cp -f "$BUILT_IPA" "$OUTPUT_IPA"
+
+echo
+echo "============================================"
+echo "  BUILD OK"
+echo "  $OUTPUT_IPA"
+echo "============================================"
+echo
+echo "Installazione su iPhone fisico:"
+echo "  A) Diawi — carica l'IPA (metodo ad-hoc)"
+echo "  B) Xcode → Window → Devices and Simulators → trascina l'IPA"
+echo "  C) Apple Configurator 2 → Aggiungi app"
+echo
+if [[ "$EXPORT_METHOD" == "ad-hoc" ]]; then
+  echo "Nota: ad-hoc richiede l'UDID del telefono nel portale Apple Developer."
+fi
+echo

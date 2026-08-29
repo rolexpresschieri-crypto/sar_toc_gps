@@ -1,5 +1,7 @@
 package it.ansmi.tocsar
 
+import kotlin.concurrent.Volatile
+
 /**
  * File WP/TRK in arrivo da intent Android (Apri con / Condividi).
  */

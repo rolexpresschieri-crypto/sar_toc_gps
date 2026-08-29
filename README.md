@@ -3,7 +3,7 @@
 App KMP (Compose Multiplatform) per operatori SAR / unità cinofile.
 
 - **Android** (target iniziale)
-- **iOS** (struttura pronta)
+- **iOS** (Xcode + IPA Ad Hoc)
 
 ## Origine
 
@@ -51,8 +51,25 @@ Lancia `build-apk.bat`.
 - Versione in `composeApp/build.gradle.kts`
 - APK: `composeApp/build/outputs/apk/release/toc_sar_KMP_<version>.apk`
 
+## Build iOS (IPA Ad Hoc / Diawi)
+
+Su Mac, con Xcode e `supabase-config.local.json` nella root:
+
+```bash
+cp iosApp/Configuration/Signing.xcconfig.example iosApp/Configuration/Signing.xcconfig
+# inserisci il Team ID Apple (10 caratteri)
+./build-ios-ipa.sh ad-hoc
+```
+
+- Versione allineata ad Android (`composeApp/build.gradle.kts`)
+- IPA: `toc_sar_iOS_<version>.ipa`
+- Bundle ID: `it.ansmi.tocsar`
+- L’UDID del telefono deve essere nel profilo Ad Hoc Apple
+
+Apri il progetto: `iosApp/iosApp.xcodeproj`.
+
 ## Struttura
 
 - `composeApp` — UI e logica condivisa + entry Android/iOS
 - `sql/` — schema Supabase dedicato (clonato da gestSQUADRE)
-- `iosApp` — Xcode (quando si passa a iOS)
+- `iosApp` — Xcode (Compose UI + framework Kotlin)

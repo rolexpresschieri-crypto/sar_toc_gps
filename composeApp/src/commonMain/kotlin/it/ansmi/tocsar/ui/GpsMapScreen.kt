@@ -46,6 +46,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.zIndex
 import it.ansmi.tocsar.geo.MapTrackOverlay
 import it.ansmi.tocsar.geo.TrackPoint
 import it.ansmi.tocsar.geo.WaypointItem
@@ -164,6 +165,7 @@ fun GpsMapScreen(
     onSaveOperatorWaypoint: (LiveOperatorPin) -> Unit = {},
     /** Coppia tua posizione + destinazione: avvia distanza/bearing/freccia sullo schermo GPS. */
     onNavigateFromSelf: (MapMeasurePoint) -> Unit = {},
+    onNavigateToWaypoint: (WaypointItem) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val location = remember { createLocationGateway() }
@@ -523,13 +525,29 @@ fun GpsMapScreen(
                     second = measureB,
                     guidingTo = destinationIfSelfPair(a, measureB)?.label,
                     onSaveOperator = onSaveOperatorWaypoint,
+                    onNavigateToWaypoint = onNavigateToWaypoint,
                     onClear = {
                         measureA = null
                         measureB = null
                     },
                     modifier = Modifier
-                        .align(Alignment.BottomStart)
-                        .padding(start = 12.dp, bottom = 58.dp),
+                        .align(Alignment.TopStart)
+                        .padding(start = 12.dp, top = 56.dp)
+                        .zIndex(8f),
+                )
+            } else if (model.overlayWaypoints.isNotEmpty() || model.baseLat != null) {
+                Text(
+                    "Tocca un pin, poi un altro (o la tua freccia) per distanza e direzione",
+                    color = Color.White,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier
+                        .align(Alignment.TopStart)
+                        .padding(start = 12.dp, top = 56.dp)
+                        .zIndex(8f)
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(Color.Black.copy(alpha = 0.72f))
+                        .padding(horizontal = 10.dp, vertical = 6.dp),
                 )
             }
 
@@ -574,6 +592,7 @@ private fun MapMeasureCard(
     second: MapMeasurePoint?,
     guidingTo: String?,
     onSaveOperator: (LiveOperatorPin) -> Unit,
+    onNavigateToWaypoint: (WaypointItem) -> Unit,
     onClear: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -589,11 +608,11 @@ private fun MapMeasureCard(
     )
     Column(
         modifier = modifier
-            .widthIn(max = 210.dp)
+            .widthIn(max = 240.dp)
             .clip(RoundedCornerShape(14.dp))
-            .background(Color.Black.copy(alpha = 0.72f))
-            .border(1.dp, Color(0xFFFFEB3B).copy(alpha = 0.55f), RoundedCornerShape(14.dp))
-            .padding(horizontal = 10.dp, vertical = 8.dp),
+            .background(Color(0xF21A1A1A))
+            .border(2.dp, Color(0xFFFFEB3B), RoundedCornerShape(14.dp))
+            .padding(horizontal = 12.dp, vertical = 10.dp),
     ) {
         Text(
             "MISURA",
@@ -651,6 +670,14 @@ private fun MapMeasureCard(
             Spacer(modifier = Modifier.height(4.dp))
         } else {
             Spacer(modifier = Modifier.height(8.dp))
+        }
+        val navWp = listOfNotNull(
+            (second as? MapMeasurePoint.Waypoint)?.wp,
+            (first as? MapMeasurePoint.Waypoint)?.wp,
+        ).firstOrNull()
+        if (navWp != null) {
+            MeasureActionChip("Naviga verso ${navWp.name}") { onNavigateToWaypoint(navWp) }
+            Spacer(modifier = Modifier.height(4.dp))
         }
         MeasureActionChip("Annulla", muted = true, onClick = onClear)
     }

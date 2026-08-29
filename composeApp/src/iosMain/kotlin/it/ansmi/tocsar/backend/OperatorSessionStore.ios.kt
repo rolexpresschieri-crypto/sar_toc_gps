@@ -1,11 +1,21 @@
 package it.ansmi.tocsar.backend
 
-actual object OperatorSessionStore {
-    private var cached: String? = null
+import platform.Foundation.NSUserDefaults
 
-    actual fun loadSessionId(): String? = cached
+actual object OperatorSessionStore {
+    private const val Key = "operator_session_id"
+    private val defaults get() = NSUserDefaults.standardUserDefaults
+
+    actual fun loadSessionId(): String? =
+        defaults.stringForKey(Key)?.trim()?.takeIf { it.isNotEmpty() }
 
     actual fun saveSessionId(sessionId: String?) {
-        cached = sessionId?.trim()?.takeIf { it.isNotEmpty() }
+        val value = sessionId?.trim()?.takeIf { it.isNotEmpty() }
+        if (value == null) {
+            defaults.removeObjectForKey(Key)
+        } else {
+            defaults.setObject(value, Key)
+        }
+        defaults.synchronize()
     }
 }
