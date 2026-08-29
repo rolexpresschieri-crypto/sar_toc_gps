@@ -20,7 +20,7 @@ GREEN = (7, 155, 66)
 DARK = (25, 25, 25)
 MUTED = (70, 70, 70)
 LINE = (180, 180, 180)
-VERSION = "1.0.43"
+VERSION = "1.0.44"
 
 
 class GuidaPdf(FPDF):
@@ -175,7 +175,7 @@ def build() -> Path:
     pdf.h1("2.  Prima di usare l’app")
     pdf.bullet(
         "Installazione",
-        "Copia sul telefono il file APK (es. toc_sar_KMP_1.0.43.apk) e installa. "
+        "Copia sul telefono il file APK (es. toc_sar_KMP_1.0.44.apk) e installa. "
         "Se Android lo chiede, consenti «origini sconosciute» solo per TOC SAR.",
     )
     pdf.bullet(
@@ -344,7 +344,12 @@ def build() -> Path:
         "La rosa viene sostituita dalla freccia di direzione. «Chiudi Vai a BASE» ferma solo la navigazione, non cancella le coordinate.",
     )
     pdf.p(
-        "In basso: Distanza e Bearing. In modalità Vai a BASE la distanza è verso BASE (o verso il WP se stavi navigando a un WP)."
+        "In basso: Distanza e Bearing. In modalità Vai a BASE la distanza è verso BASE "
+        "(o verso il WP / operatore se hai avviato la navigazione dalla mappa, cap. 8)."
+    )
+    pdf.p(
+        "Scorciatoia in mappa: tocca la tua freccia GPS e poi la destinazione (WP o operatore). "
+        "Si riempie BASE e parte Vai a BASE, senza copiare le coordinate a mano."
     )
 
     pdf.h2("7.4  START TRK  /  STOP TRK")
@@ -440,21 +445,15 @@ def build() -> Path:
         "né la sessione di log-in."
     )
 
-    pdf.h1("8.  Misura in mappa")
+    pdf.h1("8.  Misura in mappa  e  navigazione da te")
     pdf.p(
-        "Non parte da sola dalla tua posizione. In mappa tocchi due punti e il sistema calcola "
-        "distanza (linea d’aria) e direzione (gradi + rumba, es. 168° SSE)."
+        "In mappa tocchi due punti: distanza (linea d’aria) e direzione (gradi + rumba, es. 168° SSE), "
+        "con linea gialla. Il riquadro MISURA è in basso a sinistra."
     )
-    pdf.p("Combinazioni:")
+    pdf.p("Solo misura (non parte la freccia GPS), se nella coppia NON c’è la tua posizione:")
     pdf.bullet("Operatore → operatore", "Es. LOST e RAGGHY. Linea gialla tra i due pin.")
     pdf.bullet("Operatore → waypoint (o viceversa)", "Es. RAGGHY e un WP di missione o locale.")
     pdf.bullet("Waypoint → waypoint", "Due case verdi.")
-    pdf.bullet(
-        "Tu → operatore o WP",
-        "Tocca la tua freccia GPS (o il pin della tua posizione se hai fatto pan), poi l’altro punto. "
-        "Così misuri da LUPO (da te) solo se lo scegli tu, non in automatico.",
-    )
-    pdf.p("Il riquadro MISURA (in basso a sinistra) mostra i due nomi, distanza e direzione.")
     pdf.bullet(
         "Salva WP",
         "Compare solo per le posizioni degli OPERATORI (snapshot locale, es. LUPO_WP_LOST). "
@@ -462,9 +461,37 @@ def build() -> Path:
     )
     pdf.bullet("Annulla", "Toglie la misura e la linea gialla.")
     pdf.p("Ri-tap sullo stesso pin: lo togli dalla coppia. Un terzo tap sostituisce il secondo punto.")
+
+    pdf.h2("Da te verso un WP o un operatore  (es. CP_01)")
+    pdf.p(
+        "Se uno dei due punti è la TUA posizione, oltre alla misura parte anche la navigazione "
+        "sullo schermo GPS: distanza, Nord e freccia grande verso la destinazione."
+    )
+    pdf.bullet(
+        "1. MAPPA",
+        "Il WP (es. CP_01) deve essere visibile. Se non lo vedi: GPS → WP & TRK → flag sul WP → MAPPA.",
+    )
+    pdf.bullet(
+        "2. Tocca la tua freccia GPS",
+        "Poi tocca CP_01 (o un operatore). L’ordine inverso va bene. "
+        "Se hai fatto pan, tocca il pin della tua posizione sulla mappa.",
+    )
+    pdf.bullet(
+        "3. Riquadro MISURA",
+        "Distanza, direzione, linea gialla. Scritta gialla «GPS: freccia verso CP_01».",
+    )
+    pdf.bullet(
+        "4. Freccia indietro (←)",
+        "Chiude solo la mappa. Sullo schermo GPS: distanza verso CP_01, Nord e freccia grande. "
+        "BASE e PATTUGLIA si compilano da sole.",
+    )
+    pdf.bullet(
+        "Chiudi Vai a BASE",
+        "Ferma la navigazione (distanza e freccia). Non cancella i WP in mappa.",
+    )
     pdf.note(
-        "Questa misura NON è «Vai a BASE». Vai a BASE è la navigazione continua dalla tua posizione verso le coordinate BASE. "
-        "La misura in mappa confronta due pin scelti, indipendentemente da dove sei."
+        "Due operatori o due WP senza la tua freccia: solo misura in mappa. "
+        "La freccia GPS parte solo se nella coppia c’è la tua posizione."
     )
 
     pdf.h1("9.  Cosa fare se…")
@@ -473,7 +500,14 @@ def build() -> Path:
     pdf.bullet("Il TRK fa tratti dritti / si ferma in tasca", "Controlla la notifica tracking e le impostazioni batteria (cap. 2).")
     pdf.bullet("La bussola è storta", "Calibrazione a 8 e, se serve, correzione ±15°/±90°.")
     pdf.bullet("L’app non entra", "Evento attivo sul TOC? Codice/password? Già online su un altro telefono?")
-    pdf.bullet("Ho inserito un WP e non voglio navigarci", "Normale: compare solo in mappa. Per misurare, tocca due pin.")
+    pdf.bullet(
+        "Devo andare da me a un WP (es. CP_01)",
+        "Mappa: tocca la tua freccia GPS, poi il WP. Chiudi la mappa: distanza e freccia. Dettaglio cap. 8.",
+    )
+    pdf.bullet(
+        "Ho inserito un WP e non voglio navigarci",
+        "Normale: compare solo in mappa. La navigazione parte solo se tocchi anche la tua freccia GPS.",
+    )
 
     pdf.ln(8)
     pdf.set_font("ArialIt", "I", 10)

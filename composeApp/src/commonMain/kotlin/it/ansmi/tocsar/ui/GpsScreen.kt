@@ -267,45 +267,31 @@ fun GpsScreen(
         isGoMode = false
     }
 
-    /** Navigazione live verso un WP (tap in mappa). Secondo tap sullo stesso WP annulla. */
-    fun toggleNavigateToWaypoint(wp: WaypointItem) {
-        if (isGoMode && selectedWpId == wp.name) {
-            stopVaiABase()
-            distanceM = null
-            bearingToBase = null
-            arrowRotation = 0.0
-            selectedWpId = null
-            latBase = ""
-            lonBase = ""
-            altBase = ""
-            accBase = null
-            // Non togliere gli overlay: restano solo i WP selezionati
-            toast("Navigazione interrotta · restano i WP in mappa")
-            return
-        }
+    /** Navigazione live da te verso un punto (WP, operatore, o BASE). */
+    fun startNavigateTo(name: String, lat: Double, lon: Double, alt: Double?) {
         scope.launch {
             if (!location.ensurePermission()) {
                 toast("Permesso GPS negato")
                 return@launch
             }
             stopGoWatch?.invoke()
-            latBase = wp.lat.formatCoord6()
-            lonBase = wp.lon.formatCoord6()
-            altBase = wp.alt?.formatAlt0().orEmpty()
+            latBase = lat.formatCoord6()
+            lonBase = lon.formatCoord6()
+            altBase = alt?.formatAlt0().orEmpty()
             accBase = null
-            selectedWpId = wp.name
+            selectedWpId = name
             isGoMode = true
             stopGoWatch = location.watchFixes(2f) { fix ->
                 latPtg = fix.latitude.formatCoord6()
                 lonPtg = fix.longitude.formatCoord6()
                 altPtg = fix.altitude.formatAlt0()
                 accPtg = fix.accuracyM
-                distanceM = haversineDistanceM(fix.latitude, fix.longitude, wp.lat, wp.lon)
-                val b = bearingDeg(fix.latitude, fix.longitude, wp.lat, wp.lon)
+                distanceM = haversineDistanceM(fix.latitude, fix.longitude, lat, lon)
+                val b = bearingDeg(fix.latitude, fix.longitude, lat, lon)
                 bearingToBase = b
                 updateArrow(b, heading)
             }
-            toast("Navigazione verso ${wp.name}")
+            toast("Navigazione verso $name")
         }
     }
 
@@ -623,6 +609,9 @@ fun GpsScreen(
                 ),
                 // Solo chiude la mappa — non torna alla Home
                 onBack = { showMap = false },
+                onNavigateFromSelf = { dest ->
+                    startNavigateTo(dest.label, dest.latitude, dest.longitude, dest.altitudeM)
+                },
                 onOverlayShare = { tap ->
                     when (tap) {
                         is MapOverlayTap.Waypoint -> { /* selezione misura: gestita in GpsMapScreen */ }

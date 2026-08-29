@@ -86,12 +86,14 @@ sealed class MapMeasurePoint {
     abstract val label: String
     abstract val latitude: Double
     abstract val longitude: Double
+    abstract val altitudeM: Double?
 
     data class Operator(val pin: LiveOperatorPin) : MapMeasurePoint() {
         override val id get() = "op:${pin.sessionId}"
         override val label get() = pin.operatorCode
         override val latitude get() = pin.latitude
         override val longitude get() = pin.longitude
+        override val altitudeM get() = null
     }
 
     data class Waypoint(val wp: WaypointItem) : MapMeasurePoint() {
@@ -99,6 +101,7 @@ sealed class MapMeasurePoint {
         override val label get() = wp.name
         override val latitude get() = wp.lat
         override val longitude get() = wp.lon
+        override val altitudeM get() = wp.alt
     }
 
     data class Self(
@@ -108,10 +111,11 @@ sealed class MapMeasurePoint {
     ) : MapMeasurePoint() {
         override val id get() = "self"
         override val label get() = code
+        override val altitudeM get() = null
     }
 }
 
-/** Tap WP/operatore → misura; tap TRK → condivisione; tap freccia GPS → misura da te. */
+/** Tap WP/operatore → misura; tap TRK → condivisione; tap freccia GPS → misura da te (con destinazione: anche GPS). */
 sealed class MapOverlayTap {
     data class Waypoint(val wp: WaypointItem) : MapOverlayTap()
     data class Track(val name: String, val points: List<TrackPoint>) : MapOverlayTap()
@@ -158,6 +162,8 @@ fun GpsMapScreen(
     onBack: () -> Unit,
     onOverlayShare: (MapOverlayTap) -> Unit = {},
     onSaveOperatorWaypoint: (LiveOperatorPin) -> Unit = {},
+    /** Coppia tua posizione + destinazione: avvia distanza/bearing/freccia sullo schermo GPS. */
+    onNavigateFromSelf: (MapMeasurePoint) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val location = remember { createLocationGateway() }
@@ -258,6 +264,8 @@ fun GpsMapScreen(
                 measureB = point
             }
         }
+        val dest = destinationIfSelfPair(measureA, measureB)
+        if (dest != null) onNavigateFromSelf(dest)
     }
 
     fun onMapTap(tap: MapOverlayTap) {
@@ -513,6 +521,7 @@ fun GpsMapScreen(
                 MapMeasureCard(
                     first = a,
                     second = measureB,
+                    guidingTo = destinationIfSelfPair(a, measureB)?.label,
                     onSaveOperator = onSaveOperatorWaypoint,
                     onClear = {
                         measureA = null
@@ -563,6 +572,7 @@ expect fun PlatformMapLayer(
 private fun MapMeasureCard(
     first: MapMeasurePoint,
     second: MapMeasurePoint?,
+    guidingTo: String?,
     onSaveOperator: (LiveOperatorPin) -> Unit,
     onClear: () -> Unit,
     modifier: Modifier = Modifier,
@@ -594,7 +604,11 @@ private fun MapMeasureCard(
         Spacer(modifier = Modifier.height(4.dp))
         if (second == null) {
             Text(
-                "${first.label} · tocca un operatore o un WP",
+                if (first is MapMeasurePoint.Self) {
+                    "${first.label} · tocca WP o operatore di destinazione"
+                } else {
+                    "${first.label} · tocca un altro pin, o la tua freccia GPS per andarci"
+                },
                 color = Color.White,
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Bold,
@@ -618,6 +632,15 @@ private fun MapMeasureCard(
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Bold,
             )
+            if (guidingTo != null) {
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    "GPS: freccia verso $guidingTo — ← per vederla",
+                    color = Color(0xFFFFEB3B),
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                )
+            }
         }
         if (savePins.isNotEmpty()) {
             Spacer(modifier = Modifier.height(8.dp))
@@ -861,6 +884,16 @@ private fun MapMeasurePoint.refreshed(
     is MapMeasurePoint.Waypoint -> this
     is MapMeasurePoint.Self ->
         if (selfLat != null && selfLon != null) copy(latitude = selfLat, longitude = selfLon) else this
+}
+
+/** Destinazione se uno dei due punti è la tua posizione GPS. */
+private fun destinationIfSelfPair(a: MapMeasurePoint?, b: MapMeasurePoint?): MapMeasurePoint? {
+    if (a == null || b == null) return null
+    return when {
+        a is MapMeasurePoint.Self && b !is MapMeasurePoint.Self -> b
+        b is MapMeasurePoint.Self && a !is MapMeasurePoint.Self -> a
+        else -> null
+    }
 }
 
 internal fun MapMeasurePoint?.measureKey(): String =
