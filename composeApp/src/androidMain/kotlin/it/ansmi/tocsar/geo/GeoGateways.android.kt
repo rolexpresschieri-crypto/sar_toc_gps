@@ -46,20 +46,19 @@ private class AndroidLocationGateway(
     @SuppressLint("MissingPermission")
     override suspend fun currentFix(): GeoFix? = withContext(Dispatchers.Main) {
         if (!ensurePermission()) return@withContext null
-        // Preferisci lastKnown GPS (evita seed rete → stelle sul TRK)
+        // Solo last-known fresco: un GPS di ieri (accuracy ok) non deve finire sul TOC.
         val lastGps = lastKnownGps()
-        if (lastGps != null && lastGps.accuracy <= 60f &&
-            System.currentTimeMillis() - lastGps.time < 60_000L
+        if (
+            lastGps != null &&
+            lastGps.accuracy <= 60f &&
+            lastGps.ageMs() < GpsPublishPolicy.MAX_FIX_AGE_MS
         ) {
             return@withContext lastGps.toFix()
-        }
-        val last = lastKnown()
-        if (last != null && last.provider == LocationManager.GPS_PROVIDER && last.accuracy <= 50f) {
-            return@withContext last.toFix()
         }
         suspendCancellableCoroutine { cont ->
             val listener = object : LocationListener {
                 override fun onLocationChanged(location: Location) {
+                    if (location.ageMs() > GpsPublishPolicy.MAX_FIX_AGE_MS) return
                     locationManager.removeUpdates(this)
                     if (cont.isActive) cont.resume(location.toFix())
                 }
@@ -73,7 +72,8 @@ private class AndroidLocationGateway(
             try {
                 val provider = bestProvider()
                 if (provider == null) {
-                    cont.resume(lastGps?.toFix() ?: last?.takeIf { it.provider == LocationManager.GPS_PROVIDER }?.toFix())
+                    val fresh = lastGps?.takeIf { it.ageMs() < GpsPublishPolicy.MAX_FIX_AGE_MS }
+                    cont.resume(fresh?.toFix())
                     return@suspendCancellableCoroutine
                 }
                 locationManager.requestLocationUpdates(
@@ -104,6 +104,7 @@ private class AndroidLocationGateway(
         var lastLat: Double? = null
         var lastLon: Double? = null
         val listener = LocationListener { location ->
+            if (location.ageMs() > GpsPublishPolicy.MAX_FIX_AGE_MS) return@LocationListener
             if (minDistanceM > 0f && lastLat != null && lastLon != null) {
                 val out = FloatArray(1)
                 Location.distanceBetween(lastLat!!, lastLon!!, location.latitude, location.longitude, out)
@@ -154,22 +155,6 @@ private class AndroidLocationGateway(
         }
     }
 
-    @SuppressLint("MissingPermission")
-    private fun lastKnown(): Location? {
-        val providers = listOf(
-            LocationManager.GPS_PROVIDER,
-            LocationManager.NETWORK_PROVIDER,
-            LocationManager.PASSIVE_PROVIDER,
-        )
-        return providers.mapNotNull { p ->
-            try {
-                if (locationManager.isProviderEnabled(p)) locationManager.getLastKnownLocation(p) else null
-            } catch (_: Exception) {
-                null
-            }
-        }.minByOrNull { it.accuracy }
-    }
-
     private fun bestProvider(): String? {
         return when {
             locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER) -> LocationManager.GPS_PROVIDER
@@ -177,6 +162,14 @@ private class AndroidLocationGateway(
             else -> null
         }
     }
+}
+
+private fun Location.ageMs(): Long {
+    val elapsed = elapsedRealtimeNanos
+    if (elapsed > 0L) {
+        return ((SystemClock.elapsedRealtimeNanos() - elapsed) / 1_000_000L).coerceAtLeast(0L)
+    }
+    return if (time > 0L) (System.currentTimeMillis() - time).coerceAtLeast(0L) else Long.MAX_VALUE
 }
 
 private fun Location.toFix(): GeoFix = GeoFix(

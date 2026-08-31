@@ -150,9 +150,9 @@ android {
 
         // Formato come toc_app: 1.0.01, 1.0.02, ...
 
-        versionCode = 10044
+        versionCode = 10045
 
-        versionName = "1.0.44"
+        versionName = "1.0.45"
 
         buildConfigField("String", "SUPABASE_URL", "\"$supabaseUrl\"")
 

@@ -6,6 +6,11 @@ import kotlin.math.roundToInt
 /** Gate publish TOC: ~ogni 2 s se accuratezza accettabile. */
 object GpsPublishPolicy {
     const val MAX_PUBLISH_ACCURACY_M = 50.0
+    /** Se non arriva un fix buono, dopo un po’ si accetta anche rete/indoor (pin che si muove). */
+    const val RELAXED_PUBLISH_ACCURACY_M = 250.0
+    const val STALE_FORCE_AFTER_MS = 45_000L
+    /** Last-known più vecchio di così non va al TOC (altrimenti resta il pin di ieri). */
+    const val MAX_FIX_AGE_MS = 90_000L
     const val MIN_PUBLISH_INTERVAL_MS = 2_000L
     const val MAP_REFRESH_INTERVAL_MS = 2_000L
     private const val IMPROVEMENT_RATIO = 0.55
@@ -17,7 +22,12 @@ object GpsPublishPolicy {
         nowMs: Long,
     ): Boolean {
         val accuracy = position.accuracyMeters
-        if (accuracy != null && accuracy > 0 && accuracy > MAX_PUBLISH_ACCURACY_M) {
+        val silentMs =
+            if (lastPublishedAtMs == null) Long.MAX_VALUE else nowMs - lastPublishedAtMs
+        val maxAcc =
+            if (silentMs >= STALE_FORCE_AFTER_MS) RELAXED_PUBLISH_ACCURACY_M
+            else MAX_PUBLISH_ACCURACY_M
+        if (accuracy != null && accuracy > 0 && accuracy > maxAcc) {
             return false
         }
         if (lastPublished == null || lastPublishedAtMs == null) {

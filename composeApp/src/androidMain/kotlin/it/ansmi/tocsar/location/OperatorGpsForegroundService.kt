@@ -69,7 +69,13 @@ class OperatorGpsForegroundService : Service() {
                 return START_NOT_STICKY
             }
             ACTION_START_TRK -> {
-                // Tracking già avviato: solo flag TRK (runtime già beginTrk dal controller)
+                val sid = sessionId ?: GpsTrackingSessionStore.load(this)
+                if (sessionId == null) {
+                    if (sid.isNullOrBlank() || !beginTracking(sid)) {
+                        stopSelf()
+                        return START_NOT_STICKY
+                    }
+                }
                 return START_STICKY
             }
             ACTION_STOP_TRK -> {
@@ -78,7 +84,8 @@ class OperatorGpsForegroundService : Service() {
                 return START_STICKY
             }
             ACTION_START -> {
-                val id = intent.getStringExtra(EXTRA_SESSION_ID)
+                val id = intent.getStringExtra(EXTRA_SESSION_ID)?.trim()?.takeIf { it.isNotEmpty() }
+                    ?: GpsTrackingSessionStore.load(this)
                 if (id.isNullOrBlank()) {
                     stopSelf()
                     return START_NOT_STICKY
@@ -90,8 +97,14 @@ class OperatorGpsForegroundService : Service() {
                 return START_STICKY
             }
             else -> {
-                stopSelf()
-                return START_NOT_STICKY
+                // Android riavvia START_STICKY con intent null: riprendi dalla sessione salvata.
+                val id = intent?.getStringExtra(EXTRA_SESSION_ID)?.trim()?.takeIf { it.isNotEmpty() }
+                    ?: GpsTrackingSessionStore.load(this)
+                if (id.isNullOrBlank() || !beginTracking(id)) {
+                    stopSelf()
+                    return START_NOT_STICKY
+                }
+                return START_STICKY
             }
         }
     }
