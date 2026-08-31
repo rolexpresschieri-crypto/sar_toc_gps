@@ -644,6 +644,10 @@ fun GpsScreen(
                         toast("WP locale ${wp.name} salvato")
                     }
                 },
+                onNavigateToWaypoint = { wp ->
+                    showMap = false
+                    startNavigateTo(wp.name, wp.lat, wp.lon, wp.alt)
+                },
                 modifier = Modifier
                     .fillMaxSize()
                     .zIndex(10f),
@@ -783,10 +787,13 @@ fun GpsScreen(
             onDismiss = { showWpTrk = false },
             onShowOnMap = { wps, tracks ->
                 showWpTrk = false
-                // Sempre overlay (anche 1 solo WP): navigazione al tap in mappa
                 overlayWaypoints = wps
                 overlayTracks = tracks
                 openMap()
+            },
+            onNavigateToWaypoint = { wp ->
+                showWpTrk = false
+                startNavigateTo(wp.name, wp.lat, wp.lon, wp.alt)
             },
             toast = ::toast,
         )
@@ -1000,6 +1007,7 @@ private fun WpTrkDialog(
     selectedTrk: SnapshotStateList<String>,
     onDismiss: () -> Unit,
     onShowOnMap: (List<WaypointItem>, List<MapTrackOverlay>) -> Unit,
+    onNavigateToWaypoint: (WaypointItem) -> Unit,
     toast: (String) -> Unit,
 ) {
     val scope = rememberCoroutineScope()
@@ -1081,6 +1089,7 @@ private fun WpTrkDialog(
                         },
                         showDelete = false,
                         onShare = { shareWp(wp) },
+                        onGo = { onNavigateToWaypoint(wp) },
                         onDelete = {},
                     )
                 }
@@ -1104,6 +1113,7 @@ private fun WpTrkDialog(
                         },
                         showDelete = true,
                         onShare = { shareWp(wp) },
+                        onGo = { onNavigateToWaypoint(wp) },
                         onDelete = { confirmDeleteWp = wp },
                     )
                 }
@@ -1338,6 +1348,7 @@ private fun WaypointRow(
     onSelect: (Boolean) -> Unit,
     showDelete: Boolean,
     onShare: () -> Unit,
+    onGo: () -> Unit,
     onDelete: () -> Unit,
 ) {
     Column(
@@ -1365,6 +1376,7 @@ private fun WaypointRow(
             }
         }
         Row(horizontalArrangement = Arrangement.End, modifier = Modifier.fillMaxWidth()) {
+            TextButton(enabled = !busy, onClick = onGo) { Text("VAI") }
             TextButton(enabled = !busy, onClick = onShare) { Text("Invia") }
             if (showDelete) {
                 TextButton(enabled = !busy, onClick = onDelete) {

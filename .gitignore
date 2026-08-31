@@ -18,3 +18,10 @@ captures
 **/xcshareddata/WorkspaceSettings.xcsettings
 kotlin-js-store
 supabase-config.local.json
+iosApp/Configuration/Config.xcconfig
+iosApp/Configuration/Signing.xcconfig
+iosApp/iosApp/supabase-config.json
+toc_sar_iOS_*.ipa
+build/ios-archive/
+build/ios-ipa-export/
+build/ios-derived/

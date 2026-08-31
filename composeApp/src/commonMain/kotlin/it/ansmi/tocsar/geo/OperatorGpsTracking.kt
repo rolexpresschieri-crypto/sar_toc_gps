@@ -1,8 +1,7 @@
 package it.ansmi.tocsar.geo
 
 /**
- * Avvio/stop tracking GPS verso TOC + registrazione TRK in background (foreground service Android).
- * Su iOS: no-op per ora.
+ * Avvio/stop tracking GPS verso TOC + registrazione TRK (foreground Android / CoreLocation iOS).
  */
 expect object OperatorGpsTracking {
     fun start(sessionId: String): Boolean
