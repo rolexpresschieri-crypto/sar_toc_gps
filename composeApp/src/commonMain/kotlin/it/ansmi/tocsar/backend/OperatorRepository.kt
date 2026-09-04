@@ -11,6 +11,7 @@ import it.ansmi.tocsar.backend.network.SessionInsertBody
 import it.ansmi.tocsar.backend.network.SessionInsertRow
 import it.ansmi.tocsar.backend.network.SessionOnlineRow
 import it.ansmi.tocsar.backend.network.SessionRestoreRow
+import it.ansmi.tocsar.backend.network.SquadAlarmInsertBody
 import it.ansmi.tocsar.backend.network.SupabaseRestClient
 import kotlinx.serialization.json.Json
 
@@ -138,6 +139,28 @@ class OperatorRepository(
                     lastLongitude = position.longitude,
                     lastAccuracy = position.accuracyMeters,
                     lastFixAt = nowIso(),
+                ),
+        )
+    }
+
+    suspend fun sendOperatorAlarm(
+        session: OperatorBackendSession,
+        message: String,
+    ) {
+        val text = message.trim()
+        if (text.isEmpty()) {
+            throw TocSarException("Scrivi un messaggio o scegli un tipo di notifica.")
+        }
+        rest.insert(
+            table = "squad_alarms",
+            body =
+                SquadAlarmInsertBody(
+                    eventId = session.eventId,
+                    sessionId = session.sessionId,
+                    operatorId = session.operatorId,
+                    operatorCode = session.operatorCode,
+                    operatorName = session.operatorName,
+                    message = text.take(500),
                 ),
         )
     }

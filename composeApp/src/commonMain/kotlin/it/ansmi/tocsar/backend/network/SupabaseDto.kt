@@ -79,6 +79,16 @@ internal data class PositionPatchBody(
 )
 
 @Serializable
+internal data class SquadAlarmInsertBody(
+    @SerialName("event_id") val eventId: String,
+    @SerialName("session_id") val sessionId: String,
+    @SerialName("squad_id") val operatorId: String,
+    @SerialName("squad_code") val operatorCode: String,
+    @SerialName("squad_name") val operatorName: String,
+    val message: String,
+)
+
+@Serializable
 internal data class SessionAuthLogInsertBody(
     @SerialName("event_id") val eventId: String,
     @SerialName("session_id") val sessionId: String,

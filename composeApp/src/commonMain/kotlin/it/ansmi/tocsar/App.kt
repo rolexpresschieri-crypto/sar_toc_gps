@@ -24,6 +24,7 @@ import it.ansmi.tocsar.backend.loadTocSarConfig
 import it.ansmi.tocsar.geo.createGpsLocalStore
 import it.ansmi.tocsar.geo.importGpsFileContent
 import it.ansmi.tocsar.geo.OperatorGpsTracking
+import it.ansmi.tocsar.ui.SendNotifyScreen
 import it.ansmi.tocsar.ui.GpsScreen
 import it.ansmi.tocsar.ui.HomeScreen
 import it.ansmi.tocsar.ui.LoginScreen
@@ -45,6 +46,7 @@ private enum class AppRoute {
     Login,
     Gps,
     OnlineOperators,
+    SendNotify,
 }
 
 @Composable
@@ -56,6 +58,8 @@ fun App() {
     var loginBusy by remember { mutableStateOf(false) }
     var loginError by remember { mutableStateOf<String?>(null) }
     var logoutBusy by remember { mutableStateOf(false) }
+    var notifyBusy by remember { mutableStateOf(false) }
+    var notifyError by remember { mutableStateOf<String?>(null) }
     val snackbar = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     val facade = remember {
@@ -184,7 +188,8 @@ fun App() {
                             }
                         },
                         onSendNotify = {
-                            toast("INVIA NOTIFICA: collegamento TOC nel prossimo step")
+                            notifyError = null
+                            route = AppRoute.SendNotify
                         },
                         onSendPhoto = {
                             toast("INVIA FOTO: collegamento TOC nel prossimo step")
@@ -217,6 +222,60 @@ fun App() {
                         },
                         toast = ::toast,
                     )
+                }
+            }
+            AppRoute.SendNotify -> {
+                val current = session
+                val api = facade
+                if (current == null) {
+                    route = AppRoute.Home
+                } else {
+                    VegetatoBackground {
+                        SendNotifyScreen(
+                            operatorCode = current.operatorCode,
+                            isSending = notifyBusy,
+                            errorMessage = notifyError,
+                            onBack = {
+                                if (!notifyBusy) {
+                                    notifyError = null
+                                    route = AppRoute.Home
+                                }
+                            },
+                            onSend = { message ->
+                                if (notifyBusy) return@SendNotifyScreen
+                                if (api == null) {
+                                    notifyError =
+                                        "Config Supabase mancante. Controlla supabase-config.local.json."
+                                    return@SendNotifyScreen
+                                }
+                                scope.launch {
+                                    notifyBusy = true
+                                    notifyError = null
+                                    try {
+                                        api.sendOperatorAlarm(
+                                            OperatorBackendSession(
+                                                sessionId = current.sessionId,
+                                                eventId = current.eventId,
+                                                operatorId = current.operatorId,
+                                                operatorCode = current.operatorCode,
+                                                operatorName = current.displayName,
+                                                loginAtIso = "",
+                                            ),
+                                            message,
+                                        )
+                                        toast("Notifica inviata al TOC")
+                                        route = AppRoute.Home
+                                    } catch (e: TocSarException) {
+                                        notifyError = e.message
+                                    } catch (e: Exception) {
+                                        notifyError = e.message ?: "Invio non riuscito"
+                                    } finally {
+                                        notifyBusy = false
+                                    }
+                                }
+                            },
+                        )
+                    }
                 }
             }
             AppRoute.Login -> {

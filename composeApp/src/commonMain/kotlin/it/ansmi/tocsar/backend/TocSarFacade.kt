@@ -32,6 +32,11 @@ class TocSarFacade(
         position: GpsPosition,
     ) = repository.updatePosition(sessionId, position)
 
+    suspend fun sendOperatorAlarm(
+        session: OperatorBackendSession,
+        message: String,
+    ) = repository.sendOperatorAlarm(session, message)
+
     suspend fun loadLiveOperators(viewerOperatorCode: String): List<LiveOperatorPin> =
         repository.loadLiveOperators(viewerOperatorCode)
 
