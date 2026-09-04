@@ -26,3 +26,11 @@ if (-not (Test-Path -LiteralPath $src)) {
 
 Copy-Item -LiteralPath $src -Destination $dst -Force
 Write-Host "Copia con nome progetto: $dst"
+
+# Drive spesso blocca i .apk: zip accanto, stesso contenuto.
+$zip = Join-Path $dstDir "toc_sar_KMP_$v.zip"
+if (Test-Path -LiteralPath $zip) {
+  Remove-Item -LiteralPath $zip -Force
+}
+Compress-Archive -LiteralPath $dst -DestinationPath $zip -CompressionLevel Optimal
+Write-Host "Zip per Google Drive: $zip"

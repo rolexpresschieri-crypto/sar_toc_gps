@@ -32,7 +32,7 @@ class OperatorRepository(
         if (code.isEmpty()) return null
         return rest.getMaybeSingle(
             table = "organizations",
-            select = "id,org_code",
+            select = "id,org_code,is_enabled",
             filters = listOf("org_code" to code),
         ) { body ->
             json.decodeFromString<OrganizationRow>(body)

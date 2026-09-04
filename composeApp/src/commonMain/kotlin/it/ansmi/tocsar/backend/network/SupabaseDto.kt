@@ -14,6 +14,7 @@ internal data class EventRow(
 internal data class OrganizationRow(
     val id: String,
     @SerialName("org_code") val orgCode: String,
+    @SerialName("is_enabled") val isEnabled: Boolean = true,
 )
 
 @Serializable

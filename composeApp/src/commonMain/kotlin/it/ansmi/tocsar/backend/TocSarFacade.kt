@@ -20,6 +20,9 @@ class TocSarFacade(
         val org =
             repository.findOrganization(orgCode)
                 ?: throw TocSarException("Ente non trovato.")
+        if (!org.isEnabled) {
+            throw TocSarException("Ente non attivo.")
+        }
         val event =
             repository.loadActiveEvent(org.id)
                 ?: throw TocSarException("Nessun evento attivo per questo ente.")

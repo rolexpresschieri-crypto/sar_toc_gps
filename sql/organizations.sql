@@ -8,6 +8,7 @@ create table if not exists organizations (
   id uuid primary key default gen_random_uuid(),
   org_code text not null unique,
   org_name text not null,
+  is_enabled boolean not null default true,
   created_at timestamptz not null default now(),
   constraint organizations_org_code_upper check (org_code = upper(org_code)),
   constraint organizations_org_code_format check (org_code ~ '^[A-Z0-9_]+$')
