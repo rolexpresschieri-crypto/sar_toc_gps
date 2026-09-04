@@ -9,6 +9,16 @@ data class MissionGpsContent(
     val tracks: List<MapTrackOverlay>,
 )
 
+/** NVANSMI/WP_SESTRIERE/file.wpt → WP_SESTRIERE. File in radice ente → nome file. */
+fun missionFolderFromStoragePath(storagePath: String, fileName: String): String {
+    val parts = storagePath.trim('/').split('/').map { it.trim() }.filter { it.isNotEmpty() }
+    return if (parts.size >= 3) {
+        parts.drop(1).dropLast(1).joinToString("/")
+    } else {
+        fileName.substringBeforeLast('.').trim().ifBlank { fileName.trim() }.ifBlank { "WP" }
+    }
+}
+
 suspend fun loadAllWaypoints(
     store: GpsLocalStore,
     missionFromToc: List<WaypointItem>,

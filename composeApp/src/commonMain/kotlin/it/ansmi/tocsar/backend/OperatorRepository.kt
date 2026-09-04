@@ -21,6 +21,7 @@ import it.ansmi.tocsar.geo.MapTrackOverlay
 import it.ansmi.tocsar.geo.MissionGpsContent
 import it.ansmi.tocsar.geo.TrackStats
 import it.ansmi.tocsar.geo.WaypointItem
+import it.ansmi.tocsar.geo.missionFolderFromStoragePath
 import it.ansmi.tocsar.geo.parseMissionWaypoints
 import it.ansmi.tocsar.geo.parseTrkFile
 import kotlinx.serialization.json.Json
@@ -460,7 +461,10 @@ class OperatorRepository(
                     rest.downloadStorageObject("mission-gps", row.storagePath)
                 }.getOrNull() ?: continue
             when (row.kind.trim().lowercase()) {
-                "wpt" -> waypoints += parseMissionWaypoints(body)
+                "wpt" -> {
+                    val group = missionFolderFromStoragePath(row.storagePath, row.fileName)
+                    waypoints += parseMissionWaypoints(body).map { it.copy(missionGroup = group) }
+                }
                 "trk" -> {
                     val pts = parseTrkFile(body)
                     if (pts.size >= 2) {

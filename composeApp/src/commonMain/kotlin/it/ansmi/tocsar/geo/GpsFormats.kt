@@ -6,6 +6,8 @@ data class WaypointItem(
     val lon: Double,
     val alt: Double? = null,
     val isLocal: Boolean = true,
+    /** Cartella Storage (es. WP_SESTRIERE). Solo WP di missione. */
+    val missionGroup: String? = null,
 )
 
 data class TrackPoint(

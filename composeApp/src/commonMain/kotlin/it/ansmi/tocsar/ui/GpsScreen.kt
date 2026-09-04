@@ -1143,6 +1143,7 @@ private fun WpTrkDialog(
 
     val missionWps = wps.filter { !it.isLocal }
     val localWps = wps.filter { it.isLocal }
+    var expandedMissionFolders by remember { mutableStateOf(setOf<String>()) }
 
     AlertDialog(
         onDismissRequest = { if (!busy) onDismiss() },
@@ -1160,26 +1161,82 @@ private fun WpTrkDialog(
                 }
 
                 Text(
-                    "WP MISSIONE (${missionWps.size}) — flag = MAPPA",
+                    "WP MISSIONE — cartelle TOC, tap per aprire (flag = MAPPA)",
                     fontWeight = FontWeight.ExtraBold,
                     fontSize = 13.sp,
                 )
                 if (!loading && missionWps.isEmpty()) {
                     Text("Nessun waypoint di missione sul TOC per questo ente.", color = Color(0xFF616161), fontSize = 13.sp)
                 }
-                missionWps.forEach { wp ->
-                    WaypointRow(
-                        wp = wp,
-                        selected = selectedWp.contains(wp.name),
-                        busy = busy,
-                        onSelect = { checked ->
-                            if (checked) selectedWp.add(wp.name) else selectedWp.remove(wp.name)
-                        },
-                        showDelete = false,
-                        onShare = { shareWp(wp) },
-                        onGo = { onNavigateToWaypoint(wp) },
-                        onDelete = {},
-                    )
+                val missionGroups = missionWps.groupBy { wp ->
+                    wp.missionGroup?.trim().orEmpty().ifBlank { "WP" }
+                }
+                missionGroups.entries.sortedBy { it.key }.forEach { (folder, groupWps) ->
+                    val names = groupWps.map { it.name }
+                    val allOn = names.isNotEmpty() && names.all { selectedWp.contains(it) }
+                    val expanded = expandedMissionFolders.contains(folder)
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 4.dp)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(Color(0xFFE3F2FD))
+                            .padding(8.dp),
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Checkbox(
+                                checked = allOn,
+                                onCheckedChange = { checked ->
+                                    if (checked) {
+                                        names.forEach { n ->
+                                            if (!selectedWp.contains(n)) selectedWp.add(n)
+                                        }
+                                    } else {
+                                        selectedWp.removeAll(names)
+                                    }
+                                },
+                                enabled = !busy,
+                            )
+                            Column(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clickable(enabled = !busy) {
+                                        expandedMissionFolders =
+                                            if (expanded) {
+                                                expandedMissionFolders - folder
+                                            } else {
+                                                expandedMissionFolders + folder
+                                            }
+                                    },
+                            ) {
+                                Text(
+                                    "${if (expanded) "▾" else "▸"} $folder",
+                                    fontWeight = FontWeight.Bold,
+                                )
+                                Text(
+                                    "${groupWps.size} waypoint · tap per ${if (expanded) "chiudere" else "aprire"}",
+                                    fontSize = 12.sp,
+                                    color = Color(0xFF616161),
+                                )
+                            }
+                        }
+                        if (expanded) {
+                            groupWps.sortedBy { it.name }.forEach { wp ->
+                                WaypointRow(
+                                    wp = wp,
+                                    selected = selectedWp.contains(wp.name),
+                                    busy = busy,
+                                    onSelect = { checked ->
+                                        if (checked) selectedWp.add(wp.name) else selectedWp.remove(wp.name)
+                                    },
+                                    showDelete = false,
+                                    onShare = { shareWp(wp) },
+                                    onGo = { onNavigateToWaypoint(wp) },
+                                    onDelete = {},
+                                )
+                            }
+                        }
+                    }
                 }
 
                 Spacer(modifier = Modifier.height(10.dp))

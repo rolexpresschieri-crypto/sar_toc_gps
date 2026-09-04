@@ -45,7 +45,13 @@ using (bucket_id = 'mission-gps');
 comment on table mission_gps_files is
   'Catalogo WP/TRK missione. Upload file in Storage mission-gps, poi insert qui (org_code path es. NVANSMI/AREA.trk).';
 
--- Esempio (dopo aver caricato il file in Storage → mission-gps):
+-- Esempio TRK in radice ente:
 -- insert into mission_gps_files (organization_id, kind, file_name, storage_path)
 -- select id, 'trk', 'OULX_PELLUS', 'NVANSMI/OULX_PELLUS.trk'
+-- from organizations where org_code = 'NVANSMI';
+--
+-- Esempio WP in cartella (in app: tap sulla cartella, poi i CP):
+-- Storage: mission-gps / NVANSMI / WP_SESTRIERE / wp_sestriere.wpt
+-- insert into mission_gps_files (organization_id, kind, file_name, storage_path)
+-- select id, 'wpt', 'wp_sestriere.wpt', 'NVANSMI/WP_SESTRIERE/wp_sestriere.wpt'
 -- from organizations where org_code = 'NVANSMI';
