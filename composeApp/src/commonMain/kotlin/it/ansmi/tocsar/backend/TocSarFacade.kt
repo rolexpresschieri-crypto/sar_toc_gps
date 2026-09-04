@@ -5,17 +5,28 @@ class TocSarFacade(
 ) {
     private val repository = OperatorRepository(config)
 
-    suspend fun loadActiveEvent(): EventInfo? = repository.loadActiveEvent()
+    suspend fun loadActiveEvent(organizationId: String): EventInfo? =
+        repository.loadActiveEvent(organizationId)
 
     suspend fun loginOperator(
+        organizationCode: String,
         operatorCode: String,
         password: String,
     ): OperatorBackendSession {
+        val orgCode = normalizeOrgCode(organizationCode)
+        if (orgCode.isEmpty()) {
+            throw TocSarException("Inserisci il codice ente.")
+        }
+        val org =
+            repository.findOrganization(orgCode)
+                ?: throw TocSarException("Ente non trovato.")
         val event =
-            repository.loadActiveEvent()
-                ?: throw TocSarException("Nessun evento attivo su Supabase.")
+            repository.loadActiveEvent(org.id)
+                ?: throw TocSarException("Nessun evento attivo per questo ente.")
         return repository.loginOperator(
             eventId = event.id,
+            organizationId = org.id,
+            organizationCode = normalizeOrgCode(org.orgCode),
             operatorCode = operatorCode,
             password = password,
         )
@@ -46,11 +57,14 @@ class TocSarFacade(
         note: String?,
     ) = repository.sendFieldPhoto(session, jpegBytes, latitude, longitude, accuracyM, note)
 
-    suspend fun loadLiveOperators(viewerOperatorCode: String): List<LiveOperatorPin> =
-        repository.loadLiveOperators(viewerOperatorCode)
+    suspend fun loadLiveOperators(
+        viewerOperatorCode: String,
+        organizationId: String,
+    ): List<LiveOperatorPin> =
+        repository.loadLiveOperators(viewerOperatorCode, organizationId)
 
-    suspend fun loadOnlineOperatorSessions(): List<OnlineOperatorSession> =
-        repository.loadOnlineOperatorSessions()
+    suspend fun loadOnlineOperatorSessions(organizationId: String): List<OnlineOperatorSession> =
+        repository.loadOnlineOperatorSessions(organizationId)
 
     suspend fun forceLogoutOperatorSession(
         target: OnlineOperatorSession,

@@ -26,8 +26,10 @@ App KMP (Compose Multiplatform) per operatori SAR / unità cinofile.
    7. `squad_field_photos.sql`
    8. `squad_photos_storage_policy.sql` (upload foto da app)
    9. `alarm_auto_notify.sql`
-   10. `squad_session_auth_logs.sql` (log login/logout)
-   11. `operators_seed.sql` (opzionale: LUPO / OP001 / OP002)
+    10. `squad_session_auth_logs.sql` (log login/logout)
+    11. `organizations.sql` (ente seed **NVANSMI**, `organization_id`)
+    12. `organization_login.sql` (unique operatore per ente)
+    13. `operators_seed.sql` (opzionale: LUPO / OP001 / OP002, dopo unique per ente)
 3. Abilita Realtime sulle tabelle come in gestSQUADRE.
 4. Config app: copia `supabase-config.example.json` → `supabase-config.local.json` (URL + publishable key).
 5. Firebase: progetto **dedicato** TOC SAR per FCM (push).
@@ -35,7 +37,7 @@ App KMP (Compose Multiplatform) per operatori SAR / unità cinofile.
 
 **Terminologia:** in UI e prodotto si parla di **operatori**; nel DB le tabelle restano `squads` / `squad_sessions` (stesso protocollo gestSQUADRE). Ogni riga in `squads` = un operatore (codice, nome, password, `map_color`, `map_icon_key`).
 
-Login app: **codice operatore + password** (es. demo `LUPO` / `1234` dopo `operators_seed.sql`).
+Login app: **ente + codice operatore + password** (es. demo `NVANSMI` / `LUPO` / `1234`). L'ente è sempre maiuscolo e resta salvato sul dispositivo; «Cambia ente» per i tablet condivisi. Progetti già creati: eseguire `sql/organizations.sql` poi `sql/organization_login.sql`.
 
 ## Guida utente
 

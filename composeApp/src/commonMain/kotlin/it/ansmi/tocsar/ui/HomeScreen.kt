@@ -72,6 +72,8 @@ data class OperatorSession(
     val operatorCode: String,
     val displayName: String,
     val loginLabel: String,
+    val organizationId: String,
+    val organizationCode: String,
 )
 
 @Composable
@@ -138,7 +140,7 @@ fun HomeScreen(
                 ) {
                     Text(
                         text = if (isLogged) {
-                            "${session!!.operatorCode} · ${session.displayName} + ${session.loginLabel}"
+                            "${session!!.organizationCode} · ${session.operatorCode} · ${session.displayName} + ${session.loginLabel}"
                         } else {
                             "Nessun operatore loggato"
                         },

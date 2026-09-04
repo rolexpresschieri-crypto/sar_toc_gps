@@ -11,11 +11,14 @@ data class OperatorBackendSession(
     val operatorCode: String,
     val operatorName: String,
     val loginAtIso: String,
+    val organizationId: String,
+    val organizationCode: String,
 )
 
 data class EventInfo(
     val id: String,
     val title: String,
+    val organizationId: String,
 )
 
 data class GpsPosition(
@@ -47,6 +50,8 @@ data class OnlineOperatorSession(
     val hasGpsFix: Boolean,
     /** Se true, gli altri operatori lo vedono in mappa. LUPO (admin) vede tutti indipendentemente dal flag. */
     val peerVisible: Boolean,
+    val organizationId: String,
+    val organizationCode: String,
 )
 
 /** Solo questo codice vede/gestisce l'elenco e il force log-out. */
@@ -54,3 +59,5 @@ const val TocAdminOperatorCode = "LUPO"
 
 fun isTocAdminOperator(operatorCode: String): Boolean =
     operatorCode.trim().equals(TocAdminOperatorCode, ignoreCase = true)
+
+fun normalizeOrgCode(code: String): String = code.trim().uppercase()

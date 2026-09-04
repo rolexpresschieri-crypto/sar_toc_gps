@@ -75,6 +75,8 @@ data class GpsMapModel(
     val liveRecording: Boolean,
     /** Nome sotto la freccia: login se presente, altrimenti "GPS". */
     val navigatorLabel: String = "GPS",
+    /** Ente della sessione: i pin in mappa restano nello stesso organization_id. */
+    val organizationId: String = "",
     /** Altri operatori online visibili al navigatore corrente. */
     val liveOperators: List<LiveOperatorPin> = emptyList(),
     val measureA: MapMeasurePoint? = null,
@@ -205,10 +207,15 @@ fun GpsMapScreen(
     val facade = remember { loadTocSarConfig()?.let { TocSarFacade(it) } }
     val selfCode = model.navigatorLabel.trim().uppercase().ifBlank { "GPS" }
 
-    LaunchedEffect(facade, selfCode) {
+    LaunchedEffect(facade, selfCode, model.organizationId) {
         val api = facade ?: return@LaunchedEffect
+        val orgId = model.organizationId.trim()
+        if (orgId.isEmpty()) {
+            liveOperators = emptyList()
+            return@LaunchedEffect
+        }
         while (isActive) {
-            runCatching { api.loadLiveOperators(selfCode) }
+            runCatching { api.loadLiveOperators(selfCode, orgId) }
                 .onSuccess { all ->
                     // Escludi te stesso: sei già la freccia GPS
                     liveOperators = all.filter {

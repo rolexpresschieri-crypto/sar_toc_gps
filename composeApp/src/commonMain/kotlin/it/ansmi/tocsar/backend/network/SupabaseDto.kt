@@ -7,6 +7,13 @@ import kotlinx.serialization.Serializable
 internal data class EventRow(
     val id: String,
     val title: String,
+    @SerialName("organization_id") val organizationId: String,
+)
+
+@Serializable
+internal data class OrganizationRow(
+    val id: String,
+    @SerialName("org_code") val orgCode: String,
 )
 
 @Serializable
@@ -18,6 +25,7 @@ internal data class OperatorRow(
     @SerialName("is_enabled") val isEnabled: Boolean = true,
     @SerialName("map_color") val mapColor: String? = null,
     @SerialName("map_icon_key") val mapIconKey: String? = null,
+    @SerialName("organization_id") val organizationId: String,
 )
 
 @Serializable
@@ -27,6 +35,7 @@ internal data class SessionRestoreRow(
     @SerialName("event_id") val eventId: String,
     @SerialName("squad_id") val operatorId: String,
     @SerialName("login_at") val loginAt: String,
+    @SerialName("organization_id") val organizationId: String,
     val squads: OperatorCodeNameRow,
 )
 
@@ -57,6 +66,7 @@ internal data class SessionInsertBody(
     @SerialName("is_online") val isOnline: Boolean,
     @SerialName("login_at") val loginAt: String,
     @SerialName("peer_visible") val peerVisible: Boolean = false,
+    @SerialName("organization_id") val organizationId: String,
 )
 
 @Serializable
@@ -85,6 +95,7 @@ internal data class FieldPhotoLogInsertBody(
     @SerialName("squad_id") val operatorId: String,
     @SerialName("squad_code") val operatorCode: String,
     @SerialName("squad_name") val operatorName: String,
+    @SerialName("organization_id") val organizationId: String,
     val latitude: Double,
     val longitude: Double,
     @SerialName("accuracy_m") val accuracyM: Double? = null,
@@ -102,6 +113,7 @@ internal data class SquadAlarmInsertBody(
     @SerialName("squad_code") val operatorCode: String,
     @SerialName("squad_name") val operatorName: String,
     val message: String,
+    @SerialName("organization_id") val organizationId: String,
 )
 
 @Serializable
@@ -112,6 +124,7 @@ internal data class SessionAuthLogInsertBody(
     @SerialName("squad_code") val operatorCode: String,
     @SerialName("squad_name") val operatorName: String,
     val action: String,
+    @SerialName("organization_id") val organizationId: String,
 )
 
 @Serializable
@@ -119,6 +132,7 @@ internal data class ActiveOperatorSummaryRow(
     @SerialName("session_id") val sessionId: String,
     @SerialName("event_id") val eventId: String? = null,
     @SerialName("squad_id") val operatorId: String? = null,
+    @SerialName("organization_id") val organizationId: String? = null,
     @SerialName("squad_code") val operatorCode: String,
     @SerialName("squad_name") val operatorName: String,
     @SerialName("login_at") val loginAt: String? = null,

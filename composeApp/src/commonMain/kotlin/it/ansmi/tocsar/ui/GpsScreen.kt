@@ -102,6 +102,7 @@ private const val TrackPointMinDistanceM = 3f
 fun GpsScreen(
     onBack: () -> Unit,
     navigatorLabel: String? = null,
+    organizationId: String? = null,
 ) {
     val scope = rememberCoroutineScope()
     val snackbar = remember { SnackbarHostState() }
@@ -606,6 +607,7 @@ fun GpsScreen(
                     liveTrail = trackPoints.toList(),
                     liveRecording = trkRecording,
                     navigatorLabel = navigatorLabel?.trim()?.takeIf { it.isNotEmpty() } ?: "GPS",
+                    organizationId = organizationId?.trim().orEmpty(),
                 ),
                 // Solo chiude la mappa — non torna alla Home
                 onBack = { showMap = false },

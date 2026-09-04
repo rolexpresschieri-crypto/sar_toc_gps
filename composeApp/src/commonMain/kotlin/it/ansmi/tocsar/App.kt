@@ -64,6 +64,9 @@ fun App() {
     var notifyError by remember { mutableStateOf<String?>(null) }
     var photoBusy by remember { mutableStateOf(false) }
     var photoError by remember { mutableStateOf<String?>(null) }
+    var rememberedOrgCode by remember {
+        mutableStateOf(OperatorSessionStore.loadOrganizationCode())
+    }
     val snackbar = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     val facade = remember {
@@ -84,6 +87,8 @@ fun App() {
     fun applyBackendSession(backend: OperatorBackendSession) {
         session = backend.toUiSession()
         OperatorSessionStore.saveSessionId(backend.sessionId)
+        OperatorSessionStore.saveOrganizationCode(backend.organizationCode)
+        rememberedOrgCode = backend.organizationCode
         val started = OperatorGpsTracking.start(backend.sessionId)
         gpsStatusLabel =
             if (started) {
@@ -172,16 +177,7 @@ fun App() {
                             scope.launch {
                                 logoutBusy = true
                                 try {
-                                    api.logoutOperator(
-                                        OperatorBackendSession(
-                                            sessionId = current.sessionId,
-                                            eventId = current.eventId,
-                                            operatorId = current.operatorId,
-                                            operatorCode = current.operatorCode,
-                                            operatorName = current.displayName,
-                                            loginAtIso = "",
-                                        ),
-                                    )
+                                    api.logoutOperator(current.toBackend())
                                     clearSessionLocal()
                                     toast("Log-out effettuato")
                                 } catch (e: Exception) {
@@ -218,6 +214,7 @@ fun App() {
                     OnlineOperatorsScreen(
                         facade = api,
                         actorCode = current.operatorCode,
+                        organizationId = current.organizationId,
                         selfSessionId = current.sessionId,
                         onBack = { route = AppRoute.Home },
                         onForcedSelfLogout = {
@@ -258,14 +255,7 @@ fun App() {
                                     notifyError = null
                                     try {
                                         api.sendOperatorAlarm(
-                                            OperatorBackendSession(
-                                                sessionId = current.sessionId,
-                                                eventId = current.eventId,
-                                                operatorId = current.operatorId,
-                                                operatorCode = current.operatorCode,
-                                                operatorName = current.displayName,
-                                                loginAtIso = "",
-                                            ),
+                                            current.toBackend(),
                                             message,
                                         )
                                         toast("Notifica inviata al TOC")
@@ -312,14 +302,7 @@ fun App() {
                                     photoError = null
                                     try {
                                         api.sendFieldPhoto(
-                                            OperatorBackendSession(
-                                                sessionId = current.sessionId,
-                                                eventId = current.eventId,
-                                                operatorId = current.operatorId,
-                                                operatorCode = current.operatorCode,
-                                                operatorName = current.displayName,
-                                                loginAtIso = "",
-                                            ),
+                                            current.toBackend(),
                                             jpegBytes = jpeg,
                                             latitude = fix.latitude,
                                             longitude = fix.longitude,
@@ -344,6 +327,7 @@ fun App() {
             AppRoute.Login -> {
                 VegetatoBackground {
                     LoginScreen(
+                        rememberedOrgCode = rememberedOrgCode,
                         isLoading = loginBusy,
                         errorMessage = loginError,
                         onBack = {
@@ -352,7 +336,13 @@ fun App() {
                                 route = AppRoute.Home
                             }
                         },
-                        onLogin = { code, password ->
+                        onChangeOrganization = {
+                            if (loginBusy) return@LoginScreen
+                            OperatorSessionStore.saveOrganizationCode(null)
+                            rememberedOrgCode = null
+                            loginError = null
+                        },
+                        onLogin = { orgCode, code, password ->
                             val api = facade
                             if (api == null) {
                                 loginError =
@@ -363,10 +353,10 @@ fun App() {
                                 loginBusy = true
                                 loginError = null
                                 try {
-                                    val backend = api.loginOperator(code, password)
+                                    val backend = api.loginOperator(orgCode, code, password)
                                     applyBackendSession(backend)
                                     route = AppRoute.Home
-                                    toast("Login: ${backend.operatorCode}")
+                                    toast("Login: ${backend.organizationCode} · ${backend.operatorCode}")
                                 } catch (e: TocSarException) {
                                     loginError = e.message
                                 } catch (e: Exception) {
@@ -386,6 +376,7 @@ fun App() {
                     GpsScreen(
                         onBack = { route = AppRoute.Home },
                         navigatorLabel = session?.operatorCode,
+                        organizationId = session?.organizationId,
                     )
                 }
             }
@@ -408,4 +399,18 @@ private fun OperatorBackendSession.toUiSession(): OperatorSession =
         operatorCode = operatorCode,
         displayName = operatorName,
         loginLabel = currentTimeHm(),
+        organizationId = organizationId,
+        organizationCode = organizationCode,
+    )
+
+private fun OperatorSession.toBackend(): OperatorBackendSession =
+    OperatorBackendSession(
+        sessionId = sessionId,
+        eventId = eventId,
+        operatorId = operatorId,
+        operatorCode = operatorCode,
+        operatorName = displayName,
+        loginAtIso = "",
+        organizationId = organizationId,
+        organizationCode = organizationCode,
     )

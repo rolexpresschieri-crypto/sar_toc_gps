@@ -54,6 +54,7 @@ import kotlinx.coroutines.launch
 fun OnlineOperatorsScreen(
     facade: TocSarFacade,
     actorCode: String,
+    organizationId: String,
     selfSessionId: String,
     onBack: () -> Unit,
     onForcedSelfLogout: () -> Unit,
@@ -66,11 +67,11 @@ fun OnlineOperatorsScreen(
     var confirmTarget by remember { mutableStateOf<OnlineOperatorSession?>(null) }
 
     suspend fun reload() {
-        operators = facade.loadOnlineOperatorSessions()
+        operators = facade.loadOnlineOperatorSessions(organizationId)
         loading = false
     }
 
-    LaunchedEffect(facade) {
+    LaunchedEffect(facade, organizationId) {
         loading = true
         while (isActive) {
             runCatching { reload() }

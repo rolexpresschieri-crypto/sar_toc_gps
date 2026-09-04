@@ -4,6 +4,7 @@ import it.ansmi.tocsar.backend.network.ActiveOperatorSummaryRow
 import it.ansmi.tocsar.backend.network.EventRow
 import it.ansmi.tocsar.backend.network.LogoutPatchBody
 import it.ansmi.tocsar.backend.network.OperatorRow
+import it.ansmi.tocsar.backend.network.OrganizationRow
 import it.ansmi.tocsar.backend.network.PeerVisiblePatchBody
 import it.ansmi.tocsar.backend.network.PositionPatchBody
 import it.ansmi.tocsar.backend.network.SessionAuthLogInsertBody
@@ -26,20 +27,37 @@ class OperatorRepository(
     private val rest = SupabaseRestClient(config)
     private val json = Json { ignoreUnknownKeys = true }
 
-    suspend fun loadActiveEvent(): EventInfo? {
+    internal suspend fun findOrganization(orgCode: String): OrganizationRow? {
+        val code = normalizeOrgCode(orgCode)
+        if (code.isEmpty()) return null
+        return rest.getMaybeSingle(
+            table = "organizations",
+            select = "id,org_code",
+            filters = listOf("org_code" to code),
+        ) { body ->
+            json.decodeFromString<OrganizationRow>(body)
+        }
+    }
+
+    suspend fun loadActiveEvent(organizationId: String): EventInfo? {
         val row =
             rest.getMaybeSingle(
                 table = "events",
-                select = "id,title",
-                filters = listOf("is_active" to "true"),
+                select = "id,title,organization_id",
+                filters = listOf(
+                    "is_active" to "true",
+                    "organization_id" to organizationId,
+                ),
             ) { body ->
                 json.decodeFromString<EventRow>(body)
             } ?: return null
-        return EventInfo(id = row.id, title = row.title)
+        return EventInfo(id = row.id, title = row.title, organizationId = row.organizationId)
     }
 
     suspend fun loginOperator(
         eventId: String,
+        organizationId: String,
+        organizationCode: String,
         operatorCode: String,
         password: String,
     ): OperatorBackendSession {
@@ -47,9 +65,12 @@ class OperatorRepository(
         val operator =
             rest.getMaybeSingle(
                 table = "squads",
-                select = "id,squad_code,squad_name,password_hash,is_enabled,map_color,map_icon_key",
+                select =
+                    "id,squad_code,squad_name,password_hash,is_enabled," +
+                        "map_color,map_icon_key,organization_id",
                 filters = listOf(
                     "squad_code" to normalizedCode,
+                    "organization_id" to organizationId,
                     "is_enabled" to "true",
                 ),
             ) { body ->
@@ -58,6 +79,10 @@ class OperatorRepository(
 
         if (operator.passwordHash != password.trim()) {
             throw TocSarException("Password non valida.")
+        }
+
+        if (operator.organizationId != organizationId) {
+            throw TocSarException("Operatore e evento non appartengono allo stesso ente.")
         }
 
         if (hasActiveSession(eventId = eventId, operatorId = operator.id)) {
@@ -75,6 +100,7 @@ class OperatorRepository(
                         isOnline = true,
                         loginAt = now,
                         peerVisible = false,
+                        organizationId = organizationId,
                     ),
             ) { body ->
                 json.decodeFromString<SessionInsertRow>(body)
@@ -88,6 +114,8 @@ class OperatorRepository(
                 operatorCode = operator.operatorCode.uppercase(),
                 operatorName = operator.operatorName,
                 loginAtIso = inserted.loginAt,
+                organizationId = organizationId,
+                organizationCode = normalizeOrgCode(organizationCode),
             )
         insertSessionAuthLogBestEffort(session, ACTION_LOGIN)
         return session
@@ -97,7 +125,9 @@ class OperatorRepository(
         val row =
             rest.getMaybeSingle(
                 table = "squad_sessions",
-                select = "id,is_online,event_id,squad_id,login_at,squads(squad_code,squad_name)",
+                select =
+                    "id,is_online,event_id,squad_id,login_at,organization_id," +
+                        "squads(squad_code,squad_name)",
                 filters = listOf("id" to sessionId),
             ) { body ->
                 json.decodeFromString<SessionRestoreRow>(body)
@@ -114,6 +144,8 @@ class OperatorRepository(
             operatorCode = row.squads.operatorCode.uppercase(),
             operatorName = row.squads.operatorName,
             loginAtIso = row.loginAt,
+            organizationId = row.organizationId,
+            organizationCode = loadOrganizationCode(row.organizationId),
         )
     }
 
@@ -162,6 +194,7 @@ class OperatorRepository(
                     operatorCode = session.operatorCode,
                     operatorName = session.operatorName,
                     message = text.take(500),
+                    organizationId = session.organizationId,
                 ),
         )
     }
@@ -180,7 +213,8 @@ class OperatorRepository(
         val trimmedNote = note?.trim()?.takeIf { it.isNotEmpty() }?.take(200)
         val pathSeg = session.operatorCode.replace(Regex("[^A-Za-z0-9._-]"), "_")
         val eventSeg = session.eventId.replace(Regex("[^A-Za-z0-9._-]"), "_")
-        val objectPath = "$eventSeg/$pathSeg/${nowIso().replace(":", "").replace(".", "_")}.jpg"
+        val orgSeg = session.organizationCode.replace(Regex("[^A-Z0-9._-]"), "_")
+        val objectPath = "$orgSeg/$eventSeg/$pathSeg/${nowIso().replace(":", "").replace(".", "_")}.jpg"
         try {
             rest.uploadStorageObject(
                 bucket = "squad-photos",
@@ -197,6 +231,7 @@ class OperatorRepository(
                         operatorId = session.operatorId,
                         operatorCode = session.operatorCode,
                         operatorName = session.operatorName,
+                        organizationId = session.organizationId,
                         latitude = latitude,
                         longitude = longitude,
                         accuracyM = accuracyM,
@@ -216,6 +251,7 @@ class OperatorRepository(
                             operatorId = session.operatorId,
                             operatorCode = session.operatorCode,
                             operatorName = session.operatorName,
+                            organizationId = session.organizationId,
                             latitude = latitude,
                             longitude = longitude,
                             accuracyM = accuracyM,
@@ -236,9 +272,12 @@ class OperatorRepository(
      * - LUPO (admin): tutti gli online con fix GPS (anche nascosti)
      * - altri: solo sessioni con peer_visible = true (anche LUPO, se il flag è acceso)
      */
-    suspend fun loadLiveOperators(viewerOperatorCode: String): List<LiveOperatorPin> {
+    suspend fun loadLiveOperators(
+        viewerOperatorCode: String,
+        organizationId: String,
+    ): List<LiveOperatorPin> {
         val admin = isTocAdminOperator(viewerOperatorCode)
-        return loadOnlineSummaries().mapNotNull { row ->
+        return loadOnlineSummaries(organizationId).mapNotNull { row ->
             if (!admin && !row.peerVisible) return@mapNotNull null
             val lat = row.lastLatitude ?: return@mapNotNull null
             val lon = row.lastLongitude ?: return@mapNotNull null
@@ -256,9 +295,9 @@ class OperatorRepository(
         }
     }
 
-    /** Elenco admin: tutte le sessioni online (anche senza GPS). */
-    suspend fun loadOnlineOperatorSessions(): List<OnlineOperatorSession> {
-        return loadOnlineSummaries().mapNotNull { row ->
+    /** Elenco admin: sessioni online dello stesso ente (anche senza GPS). */
+    suspend fun loadOnlineOperatorSessions(organizationId: String): List<OnlineOperatorSession> {
+        return loadOnlineSummaries(organizationId).mapNotNull { row ->
             val eventId = row.eventId?.trim()?.takeIf { it.isNotEmpty() } ?: return@mapNotNull null
             val operatorId = row.operatorId?.trim()?.takeIf { it.isNotEmpty() } ?: return@mapNotNull null
             val lat = row.lastLatitude
@@ -273,6 +312,8 @@ class OperatorRepository(
                 loginAtIso = row.loginAt,
                 hasGpsFix = hasGps,
                 peerVisible = row.peerVisible,
+                organizationId = row.organizationId?.trim().orEmpty(),
+                organizationCode = "",
             )
         }
     }
@@ -295,6 +336,8 @@ class OperatorRepository(
                 operatorCode = target.operatorCode,
                 operatorName = target.operatorName,
                 loginAtIso = target.loginAtIso.orEmpty(),
+                organizationId = target.organizationId,
+                organizationCode = target.organizationCode,
             ),
         )
     }
@@ -315,12 +358,15 @@ class OperatorRepository(
         )
     }
 
-    private suspend fun loadOnlineSummaries(): List<ActiveOperatorSummaryRow> {
+    private suspend fun loadOnlineSummaries(organizationId: String): List<ActiveOperatorSummaryRow> {
+        val orgId = organizationId.trim()
+        if (orgId.isEmpty()) return emptyList()
         return rest.getList(
             table = "active_squad_summaries",
             select =
-                "session_id,event_id,squad_id,squad_code,squad_name,login_at," +
+                "session_id,event_id,squad_id,organization_id,squad_code,squad_name,login_at," +
                     "last_latitude,last_longitude,map_color,map_icon_key,last_accuracy,peer_visible",
+            eqFilters = listOf("organization_id" to orgId),
             order = "squad_code.asc",
         ) { body ->
             json.decodeFromString<List<ActiveOperatorSummaryRow>>(body)
@@ -342,6 +388,7 @@ class OperatorRepository(
                         operatorCode = session.operatorCode,
                         operatorName = session.operatorName,
                         action = action,
+                        organizationId = session.organizationId,
                     ),
             )
         }
@@ -366,6 +413,26 @@ class OperatorRepository(
                 json.decodeFromString<List<SessionOnlineRow>>(body)
             }
         return rows.isNotEmpty()
+    }
+
+    private suspend fun loadOrganizationCode(organizationId: String): String {
+        val id = organizationId.trim()
+        if (id.isEmpty()) {
+            throw TocSarException("Ente mancante. Esegui sql/organizations.sql su Supabase.")
+        }
+        val row =
+            rest.getMaybeSingle(
+                table = "organizations",
+                select = "id,org_code",
+                filters = listOf("id" to id),
+            ) { body ->
+                json.decodeFromString<OrganizationRow>(body)
+            } ?: throw TocSarException("Ente non trovato. Esegui sql/organizations.sql su Supabase.")
+        val code = normalizeOrgCode(row.orgCode)
+        if (code.isEmpty()) {
+            throw TocSarException("Codice ente vuoto.")
+        }
+        return code
     }
 
     companion object {

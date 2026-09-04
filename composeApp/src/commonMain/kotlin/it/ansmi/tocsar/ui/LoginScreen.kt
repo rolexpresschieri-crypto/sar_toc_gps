@@ -1,6 +1,7 @@
 package it.ansmi.tocsar.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
@@ -10,8 +11,10 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -38,20 +41,27 @@ import it.ansmi.tocsar.ui.theme.TacticalYellow
 
 @Composable
 fun LoginScreen(
+    rememberedOrgCode: String?,
     isLoading: Boolean,
     errorMessage: String?,
     onBack: () -> Unit,
-    onLogin: (operatorCode: String, password: String) -> Unit,
+    onChangeOrganization: () -> Unit,
+    onLogin: (organizationCode: String, operatorCode: String, password: String) -> Unit,
 ) {
+    var orgCode by remember { mutableStateOf("") }
     var code by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
-    val canSubmit = code.trim().isNotEmpty() && password.isNotEmpty() && !isLoading
+    val savedOrg = rememberedOrgCode?.trim()?.uppercase()?.takeIf { it.isNotEmpty() }
+    val orgToSend = savedOrg ?: orgCode.trim().uppercase()
+    val canSubmit =
+        orgToSend.isNotEmpty() && code.trim().isNotEmpty() && password.isNotEmpty() && !isLoading
 
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(Color(0xFF0A0607).copy(alpha = 0.72f))
             .windowInsetsPadding(WindowInsets.safeDrawing)
+            .verticalScroll(rememberScrollState())
             .padding(24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
@@ -63,11 +73,45 @@ fun LoginScreen(
         )
         Spacer(modifier = Modifier.height(8.dp))
         Text(
-            text = "Codice + password (anagrafica TOC)",
+            text = "Ente + codice + password (anagrafica TOC)",
             color = Color.White.copy(alpha = 0.75f),
             fontSize = 13.sp,
         )
         Spacer(modifier = Modifier.height(24.dp))
+        if (savedOrg != null) {
+            Text(
+                text = "Ente: $savedOrg",
+                color = Color.White,
+                fontSize = 18.sp,
+                fontWeight = FontWeight.ExtraBold,
+            )
+            Spacer(modifier = Modifier.height(6.dp))
+            Text(
+                text = "Cambia ente",
+                color = TacticalYellow,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier
+                    .clickable(enabled = !isLoading, onClick = onChangeOrganization)
+                    .padding(8.dp),
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+        } else {
+            OutlinedTextField(
+                value = orgCode,
+                onValueChange = { orgCode = it.uppercase() },
+                label = { Text("Codice ente") },
+                singleLine = true,
+                enabled = !isLoading,
+                modifier = Modifier.fillMaxWidth(),
+                keyboardOptions = KeyboardOptions(
+                    capitalization = KeyboardCapitalization.Characters,
+                    keyboardType = KeyboardType.Ascii,
+                ),
+                colors = fieldColors(),
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+        }
         OutlinedTextField(
             value = code,
             onValueChange = { code = it.uppercase() },
@@ -104,7 +148,7 @@ fun LoginScreen(
         }
         Spacer(modifier = Modifier.height(20.dp))
         Button(
-            onClick = { onLogin(code.trim(), password) },
+            onClick = { onLogin(orgToSend, code.trim(), password) },
             enabled = canSubmit,
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(12.dp),
