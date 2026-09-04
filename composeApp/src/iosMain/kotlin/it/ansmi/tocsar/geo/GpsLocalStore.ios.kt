@@ -20,8 +20,6 @@ import platform.Foundation.writeToFile
 @OptIn(ExperimentalForeignApi::class)
 actual fun createGpsLocalStore(): GpsLocalStore = IosGpsLocalStore()
 
-actual suspend fun pickGpsImportFile(): Pair<String, String>? = null
-
 @Serializable
 private data class StoredWaypoint(
     val name: String,

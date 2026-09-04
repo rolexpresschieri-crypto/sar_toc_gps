@@ -24,6 +24,10 @@
 	<false/>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>La fotocamera serve per scattare foto da inviare al TOC.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>La galleria serve per scegliere una foto da inviare al TOC.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>La posizione GPS viene usata per la mappa e inviata al TOC durante il servizio.</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
