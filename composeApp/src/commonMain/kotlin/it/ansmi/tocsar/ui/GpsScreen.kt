@@ -75,6 +75,15 @@ import it.ansmi.tocsar.geo.formatCoord6
 import it.ansmi.tocsar.geo.haversineDistanceM
 import it.ansmi.tocsar.geo.importGpsFileContent
 import it.ansmi.tocsar.geo.loadAllWaypoints
+import it.ansmi.tocsar.geo.computeTrackStats
+import it.ansmi.tocsar.geo.formatTrackDistance
+import it.ansmi.tocsar.geo.formatTrackDurationMin
+import it.ansmi.tocsar.geo.formatTrackElev
+import it.ansmi.tocsar.geo.formatTrackSpeed
+import it.ansmi.tocsar.backend.OperatorBackendSession
+import it.ansmi.tocsar.geo.MissionGpsContent
+import it.ansmi.tocsar.backend.TocSarFacade
+import it.ansmi.tocsar.backend.loadTocSarConfig
 import it.ansmi.tocsar.geo.loadCompassHeadingOffset
 import it.ansmi.tocsar.geo.normalizeHeadingDegrees
 import it.ansmi.tocsar.geo.parseCoord
@@ -103,6 +112,10 @@ fun GpsScreen(
     onBack: () -> Unit,
     navigatorLabel: String? = null,
     organizationId: String? = null,
+    eventId: String? = null,
+    sessionId: String? = null,
+    operatorId: String? = null,
+    operatorName: String? = null,
 ) {
     val scope = rememberCoroutineScope()
     val snackbar = remember { SnackbarHostState() }
@@ -136,6 +149,7 @@ fun GpsScreen(
     var showWpTrk by remember { mutableStateOf(false) }
     var showMap by remember { mutableStateOf(false) }
     var pendingSavePoints by remember { mutableStateOf<List<TrackPoint>>(emptyList()) }
+    var pendingSaveDurationMs by remember { mutableStateOf(0L) }
     var selectedWpId by remember { mutableStateOf<String?>(null) }
     var overlayWaypoints by remember { mutableStateOf<List<WaypointItem>>(emptyList()) }
     var overlayTracks by remember { mutableStateOf<List<MapTrackOverlay>>(emptyList()) }
@@ -326,7 +340,8 @@ fun GpsScreen(
     fun toggleTrk() {
         scope.launch {
             if (trkRecording || OperatorGpsTracking.isTrkRecording()) {
-                val points = OperatorGpsTracking.stopTrkRecording()
+                val stopped = OperatorGpsTracking.stopTrkRecording()
+                val points = stopped.points
                 trkRecording = false
                 trackPoints.clear()
                 trackPoints.addAll(points)
@@ -335,6 +350,7 @@ fun GpsScreen(
                     trackPoints.clear()
                 } else {
                     pendingSavePoints = points
+                    pendingSaveDurationMs = stopped.durationMs
                     showSaveTrk = true
                 }
                 return@launch
@@ -757,16 +773,25 @@ fun GpsScreen(
     if (showSaveTrk) {
         SaveTrackDialog(
             points = pendingSavePoints,
+            durationMs = pendingSaveDurationMs,
             operatorPrefix = operatorPrefix,
+            organizationId = organizationId,
+            eventId = eventId,
+            sessionId = sessionId,
+            operatorId = operatorId,
+            operatorCode = navigatorLabel,
+            operatorName = operatorName,
             store = store,
             onDismiss = {
                 showSaveTrk = false
                 pendingSavePoints = emptyList()
+                pendingSaveDurationMs = 0L
                 trackPoints.clear()
             },
             onSaved = { name, points ->
                 showSaveTrk = false
                 pendingSavePoints = emptyList()
+                pendingSaveDurationMs = 0L
                 trackPoints.clear()
                 // Mantieni area/WP già selezionati e aggiungi la traccia appena salvata
                 overlayTracks = overlayTracks + MapTrackOverlay(
@@ -774,7 +799,7 @@ fun GpsScreen(
                     points = points,
                     colorHex = TrackColors[overlayTracks.size % TrackColors.size],
                 )
-                toast("Traccia $name salvata in locale")
+                toast("Traccia $name salvata")
             },
             toast = ::toast,
         )
@@ -783,6 +808,8 @@ fun GpsScreen(
     if (showWpTrk) {
         WpTrkDialog(
             operatorPrefix = operatorPrefix,
+            organizationId = organizationId,
+            eventId = eventId,
             store = store,
             selectedWp = selectedWpFlags,
             selectedTrk = selectedTrkFlags,
@@ -922,7 +949,14 @@ private fun InsertWaypointDialog(
 @Composable
 private fun SaveTrackDialog(
     points: List<TrackPoint>,
+    durationMs: Long,
     operatorPrefix: String,
+    organizationId: String?,
+    eventId: String?,
+    sessionId: String?,
+    operatorId: String?,
+    operatorCode: String?,
+    operatorName: String?,
     store: it.ansmi.tocsar.geo.GpsLocalStore,
     onDismiss: () -> Unit,
     onSaved: (String, List<TrackPoint>) -> Unit,
@@ -933,6 +967,7 @@ private fun SaveTrackDialog(
     var saving by remember { mutableStateOf(false) }
     val trackPrefix = "${operatorPrefix}_TRK_"
     val preview = formatLocalTrackName(nameFree, operatorPrefix)
+    val stats = remember(points, durationMs) { computeTrackStats(points, durationMs) }
 
     suspend fun save(shareAfter: Boolean) {
         val fullName = formatLocalTrackName(nameFree, operatorPrefix)
@@ -944,6 +979,32 @@ private fun SaveTrackDialog(
         try {
             val body = encodeTrkFile(points)
             store.upsertTrack(fullName, body)
+            val org = organizationId?.trim().orEmpty()
+            val opId = operatorId?.trim().orEmpty()
+            val code = operatorCode?.trim().orEmpty()
+            if (org.isNotEmpty() && opId.isNotEmpty() && code.isNotEmpty()) {
+                val api = loadTocSarConfig()?.let { TocSarFacade(it) }
+                if (api != null) {
+                    runCatching {
+                        api.sendTrackLog(
+                            OperatorBackendSession(
+                                sessionId = sessionId?.trim().orEmpty(),
+                                eventId = eventId?.trim().orEmpty(),
+                                operatorId = opId,
+                                operatorCode = code,
+                                operatorName = operatorName?.trim().orEmpty().ifBlank { code },
+                                loginAtIso = "",
+                                organizationId = org,
+                                organizationCode = "",
+                            ),
+                            trackName = fullName,
+                            stats = stats,
+                        )
+                    }.onFailure { e ->
+                        toast("Traccia sul telefono, TOC: ${e.message}")
+                    }
+                }
+            }
             onSaved(fullName, points)
             if (shareAfter) {
                 sharePlainText(
@@ -960,10 +1021,14 @@ private fun SaveTrackDialog(
 
     AlertDialog(
         onDismissRequest = { /* obbligatorio scegliere Salva / Annulla */ },
-        title = { Text("Salva traccia", fontWeight = FontWeight.ExtraBold) },
+        title = { Text("Report traccia", fontWeight = FontWeight.ExtraBold) },
         text = {
             Column {
-                Text("${points.size} punti registrati", color = Color(0xFF616161), fontSize = 13.sp)
+                Text("Distanza: ${formatTrackDistance(stats.distanceM)}", fontWeight = FontWeight.SemiBold)
+                Text("Tempo: ${formatTrackDurationMin(stats.durationMs)}")
+                Text("Velocità media: ${formatTrackSpeed(stats.avgSpeedKmh)}")
+                Text("Dislivello: ${formatTrackElev(stats.elevGainM, stats.elevLossM)}")
+                Text("${stats.nPoints} punti GPS", color = Color(0xFF616161), fontSize = 13.sp)
                 Spacer(modifier = Modifier.height(8.dp))
                 OutlinedTextField(
                     value = nameFree,
@@ -979,6 +1044,12 @@ private fun SaveTrackDialog(
                     color = Color(0xFF616161),
                     fontSize = 12.sp,
                     modifier = Modifier.padding(top = 4.dp),
+                )
+                Text(
+                    "Salva = telefono + riepilogo su TOC. Annulla scarta la registrazione.",
+                    color = Color(0xFF616161),
+                    fontSize = 12.sp,
+                    modifier = Modifier.padding(top = 8.dp),
                 )
             }
         },
@@ -1004,6 +1075,8 @@ private fun SaveTrackDialog(
 @Composable
 private fun WpTrkDialog(
     operatorPrefix: String,
+    organizationId: String?,
+    eventId: String?,
     store: it.ansmi.tocsar.geo.GpsLocalStore,
     selectedWp: SnapshotStateList<String>,
     selectedTrk: SnapshotStateList<String>,
@@ -1017,22 +1090,37 @@ private fun WpTrkDialog(
     var loading by remember { mutableStateOf(true) }
     var wps by remember { mutableStateOf<List<WaypointItem>>(emptyList()) }
     var trks by remember { mutableStateOf<List<TrackListItem>>(emptyList()) }
+    var missionTracks by remember { mutableStateOf<List<MapTrackOverlay>>(emptyList()) }
     var confirmDeleteWp by remember { mutableStateOf<WaypointItem?>(null) }
     var confirmDeleteTrk by remember { mutableStateOf<TrackListItem?>(null) }
 
     fun pruneMissingFlags() {
         val wpNames = wps.map { it.name }.toSet()
-        val trkNames = trks.map { it.name }.toSet()
+        val trkNames = trks.map { it.name }.toSet() + missionTracks.map { it.name }.toSet()
         selectedWp.retainAll { it in wpNames }
         selectedTrk.retainAll { it in trkNames }
     }
 
-    LaunchedEffect(Unit) {
+    suspend fun loadBundle() {
+        val api = loadTocSarConfig()?.let { TocSarFacade(it) }
+        val org = organizationId?.trim().orEmpty()
+        val mission =
+            if (api != null && org.isNotEmpty()) {
+                runCatching { api.loadMissionGps(org, eventId) }
+                    .getOrDefault(MissionGpsContent(emptyList(), emptyList()))
+            } else {
+                MissionGpsContent(emptyList(), emptyList())
+            }
+        missionTracks = mission.tracks
+        wps = loadAllWaypoints(store, mission.waypoints)
+        trks = store.loadTracks()
+        pruneMissingFlags()
+    }
+
+    LaunchedEffect(organizationId, eventId) {
         loading = true
         try {
-            wps = loadAllWaypoints(store)
-            trks = store.loadTracks()
-            pruneMissingFlags()
+            loadBundle()
         } catch (e: Exception) {
             toast("Caricamento WP/TRK: ${e.message}")
         } finally {
@@ -1041,9 +1129,7 @@ private fun WpTrkDialog(
     }
 
     suspend fun reload() {
-        wps = loadAllWaypoints(store)
-        trks = store.loadTracks()
-        pruneMissingFlags()
+        loadBundle()
     }
 
     fun shareWp(wp: WaypointItem) {
@@ -1069,7 +1155,7 @@ private fun WpTrkDialog(
                     .verticalScroll(rememberScrollState()),
             ) {
                 if (loading) {
-                    Text("Caricamento WP missione e locali…", color = Color(0xFF616161), fontSize = 13.sp)
+                    Text("Caricamento WP/TRK TOC e locali…", color = Color(0xFF616161), fontSize = 13.sp)
                     Spacer(modifier = Modifier.height(10.dp))
                 }
 
@@ -1079,7 +1165,7 @@ private fun WpTrkDialog(
                     fontSize = 13.sp,
                 )
                 if (!loading && missionWps.isEmpty()) {
-                    Text("Nessun waypoint di missione.", color = Color(0xFF616161), fontSize = 13.sp)
+                    Text("Nessun waypoint di missione sul TOC per questo ente.", color = Color(0xFF616161), fontSize = 13.sp)
                 }
                 missionWps.forEach { wp ->
                     WaypointRow(
@@ -1118,6 +1204,48 @@ private fun WpTrkDialog(
                         onGo = { onNavigateToWaypoint(wp) },
                         onDelete = { confirmDeleteWp = wp },
                     )
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
+                Text(
+                    "TRACCE MISSIONE (${missionTracks.size}) — flag = MAPPA",
+                    fontWeight = FontWeight.ExtraBold,
+                    fontSize = 13.sp,
+                )
+                if (!loading && missionTracks.isEmpty()) {
+                    Text("Nessuna traccia di missione sul TOC per questo ente.", color = Color(0xFF616161), fontSize = 13.sp)
+                }
+                missionTracks.forEach { trk ->
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 4.dp)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(Color(0xFFE3F2FD))
+                            .padding(8.dp),
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Checkbox(
+                                checked = selectedTrk.contains(trk.name),
+                                onCheckedChange = { checked ->
+                                    if (checked) selectedTrk.add(trk.name) else selectedTrk.remove(trk.name)
+                                },
+                                enabled = !busy,
+                            )
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(trk.name, fontWeight = FontWeight.Bold)
+                                Text("${trk.points.size} punti · TOC", fontSize = 12.sp, color = Color(0xFF616161))
+                            }
+                        }
+                        Row(horizontalArrangement = Arrangement.End, modifier = Modifier.fillMaxWidth()) {
+                            TextButton(
+                                enabled = !busy,
+                                onClick = {
+                                    onShowOnMap(emptyList(), listOf(trk.copy(colorHex = TrackColors[0])))
+                                },
+                            ) { Text("MAPPA") }
+                        }
+                    }
                 }
 
                 Spacer(modifier = Modifier.height(10.dp))
@@ -1248,6 +1376,13 @@ private fun WpTrkDialog(
                                     val selectedWps = wps.filter { selectedWp.contains(it.name) }
                                     val overlays = mutableListOf<MapTrackOverlay>()
                                     var colorIdx = 0
+                                    for (t in missionTracks.filter { selectedTrk.contains(it.name) }) {
+                                        if (t.points.size < 2) continue
+                                        overlays.add(
+                                            t.copy(colorHex = TrackColors[colorIdx % TrackColors.size]),
+                                        )
+                                        colorIdx++
+                                    }
                                     for (t in trks.filter { selectedTrk.contains(it.name) }) {
                                         val pts = store.fetchTrackPoints(t.name)
                                         if (pts.size < 2) continue

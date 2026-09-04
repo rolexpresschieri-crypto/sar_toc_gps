@@ -141,6 +141,20 @@ internal class SupabaseRestClient(
         ensureSuccess(response)
     }
 
+    suspend fun downloadStorageObject(
+        bucket: String,
+        objectPath: String,
+    ): String {
+        val encoded = objectPath.trim('/').split('/').joinToString("/") { segment ->
+            segment.replace(Regex("[^A-Za-z0-9._-]"), "_")
+        }
+        val response = http.get("${config.storageObjectUrl}$bucket/$encoded") {
+            authHeaders()
+        }
+        ensureSuccess(response)
+        return response.bodyAsText()
+    }
+
     suspend fun <T> getList(
         table: String,
         select: String,

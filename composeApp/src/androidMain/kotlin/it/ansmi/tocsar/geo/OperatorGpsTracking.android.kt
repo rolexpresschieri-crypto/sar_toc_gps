@@ -20,10 +20,15 @@ actual object OperatorGpsTracking {
         GpsTrackingController.startTrk(ctx)
     }
 
-    actual fun stopTrkRecording(): List<TrackPoint> {
+    actual fun stopTrkRecording(): TrkRecordingResult {
         val ctx = runCatching { AndroidAppContext.require() }.getOrNull()
-            ?: return GpsTrackingRuntime.stopTrkAndTakePoints()
-        return GpsTrackingController.stopTrk(ctx)
+        val (points, durationMs) =
+            if (ctx == null) {
+                GpsTrackingRuntime.stopTrkAndTakePoints()
+            } else {
+                GpsTrackingController.stopTrk(ctx)
+            }
+        return TrkRecordingResult(points = points, durationMs = durationMs)
     }
 
     actual fun isTrkRecording(): Boolean = GpsTrackingRuntime.trkRecording

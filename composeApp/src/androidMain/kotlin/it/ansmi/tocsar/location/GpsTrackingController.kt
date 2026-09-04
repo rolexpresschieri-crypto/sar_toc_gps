@@ -59,7 +59,7 @@ object GpsTrackingController {
         }
     }
 
-    fun stopTrk(context: Context): List<TrackPoint> {
+    fun stopTrk(context: Context): Pair<List<TrackPoint>, Long> {
         val appContext = context.applicationContext
         val intent =
             Intent(appContext, OperatorGpsForegroundService::class.java).apply {

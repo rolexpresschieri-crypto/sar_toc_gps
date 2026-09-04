@@ -1,5 +1,7 @@
 package it.ansmi.tocsar.backend
 
+import it.ansmi.tocsar.geo.TrackStats
+
 class TocSarFacade(
     config: TocSarConfig,
 ) {
@@ -79,4 +81,15 @@ class TocSarFacade(
         visible: Boolean,
         actorCode: String,
     ) = repository.setPeerVisible(sessionId, visible, actorCode)
+
+    suspend fun loadMissionGps(
+        organizationId: String,
+        eventId: String?,
+    ) = repository.loadMissionGps(organizationId, eventId)
+
+    suspend fun sendTrackLog(
+        session: OperatorBackendSession,
+        trackName: String,
+        stats: TrackStats,
+    ) = repository.sendTrackLog(session, trackName, stats)
 }

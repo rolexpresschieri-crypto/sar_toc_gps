@@ -35,6 +35,7 @@ fun splitTrackSegments(points: List<TrackPoint>): List<List<TrackPoint>> {
 data class TrackListItem(
     val name: String,
     val nPoints: Int,
+    val isMission: Boolean = false,
 )
 
 data class MapTrackOverlay(
@@ -212,6 +213,67 @@ fun looksLikeTrkContent(raw: String): Boolean {
         return true
     }
     return Regex("""lat\s*,\s*lon""", RegexOption.IGNORE_CASE).containsMatchIn(raw)
+}
+
+/** WP di missione da file TOC (CSV name,lat,lon[,alt] oppure blocco lat=/lon=). Senza prefisso ZZ_. */
+fun parseMissionWaypoints(raw: String): List<WaypointItem> {
+    val labeled = parseMissionLabeledBlocks(raw)
+    if (labeled.isNotEmpty()) return labeled
+    val csv = mutableListOf<WaypointItem>()
+    for (line in raw.lineSequence()) {
+        val t = line.trim()
+        if (t.isEmpty()) continue
+        val low = t.lowercase()
+        if (low.startsWith("name") || low.startsWith("lat")) continue
+        val parts = t.split(Regex("[,;]+"))
+        if (parts.size < 3) continue
+        val maybeName = parts[0].trim()
+        if (maybeName.isEmpty()) continue
+        val lat = parseCoord(parts[1]) ?: continue
+        val lon = parseCoord(parts[2]) ?: continue
+        if (parseCoord(maybeName) != null && maybeName.length <= 12) continue
+        val alt = if (parts.size > 3) parseCoord(parts[3]) else null
+        csv.add(WaypointItem(name = maybeName, lat = lat, lon = lon, alt = alt, isLocal = false))
+    }
+    return csv
+}
+
+private fun parseMissionLabeledBlocks(raw: String): List<WaypointItem> {
+    val blocks = raw.split(Regex("\\r?\\n\\s*\\r?\\n"))
+    val out = mutableListOf<WaypointItem>()
+    for (block in blocks) {
+        val wp = parseMissionLabeledBlock(block) ?: continue
+        out.add(wp)
+    }
+    return out
+}
+
+private fun parseMissionLabeledBlock(raw: String): WaypointItem? {
+    val lines = raw.lineSequence().map { it.trim() }.filter { it.isNotEmpty() }.toList()
+    if (lines.isEmpty()) return null
+    var name: String? = null
+    var lat: Double? = null
+    var lon: Double? = null
+    var alt: Double? = null
+    var labeled = false
+    for (line in lines) {
+        val eq = Regex("""^\s*(lat|lon|long|longitude|log|alt|altitude)\s*=\s*(.+)\s*$""", RegexOption.IGNORE_CASE)
+            .find(line)
+        if (eq != null) {
+            labeled = true
+            val key = eq.groupValues[1].lowercase()
+            val value = eq.groupValues[2].trim()
+            when (key) {
+                "lat" -> lat = parseCoord(value)
+                "lon", "long", "longitude", "log" -> lon = parseCoord(value)
+                "alt", "altitude" -> alt = parseCoord(value)
+            }
+        } else if (name == null && !line.contains('=') && !line.contains(',')) {
+            name = line
+        }
+    }
+    if (!labeled || name.isNullOrBlank() || lat == null || lon == null) return null
+    return WaypointItem(name = name, lat = lat, lon = lon, alt = alt, isLocal = false)
 }
 
 fun Double.formatCoord6(): String {

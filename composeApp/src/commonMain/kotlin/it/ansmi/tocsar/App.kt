@@ -377,6 +377,10 @@ fun App() {
                         onBack = { route = AppRoute.Home },
                         navigatorLabel = session?.operatorCode,
                         organizationId = session?.organizationId,
+                        eventId = session?.eventId,
+                        sessionId = session?.sessionId,
+                        operatorId = session?.operatorId,
+                        operatorName = session?.displayName,
                     )
                 }
             }

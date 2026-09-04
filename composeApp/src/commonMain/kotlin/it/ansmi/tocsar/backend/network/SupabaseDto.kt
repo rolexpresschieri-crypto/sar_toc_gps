@@ -144,3 +144,31 @@ internal data class ActiveOperatorSummaryRow(
     @SerialName("last_accuracy") val lastAccuracy: Double? = null,
     @SerialName("peer_visible") val peerVisible: Boolean = false,
 )
+
+@Serializable
+internal data class MissionGpsFileRow(
+    val id: String,
+    @SerialName("organization_id") val organizationId: String,
+    @SerialName("event_id") val eventId: String? = null,
+    val kind: String,
+    @SerialName("file_name") val fileName: String,
+    @SerialName("storage_path") val storagePath: String,
+    @SerialName("is_enabled") val isEnabled: Boolean = true,
+)
+
+@Serializable
+internal data class TrackLogInsertBody(
+    @SerialName("organization_id") val organizationId: String,
+    @SerialName("event_id") val eventId: String? = null,
+    @SerialName("session_id") val sessionId: String? = null,
+    @SerialName("squad_id") val operatorId: String,
+    @SerialName("squad_code") val operatorCode: String,
+    @SerialName("squad_name") val operatorName: String,
+    @SerialName("track_name") val trackName: String,
+    @SerialName("distance_m") val distanceM: Double,
+    @SerialName("duration_s") val durationS: Double,
+    @SerialName("avg_speed_kmh") val avgSpeedKmh: Double? = null,
+    @SerialName("elev_gain_m") val elevGainM: Double,
+    @SerialName("elev_loss_m") val elevLossM: Double,
+    @SerialName("n_points") val nPoints: Int,
+)

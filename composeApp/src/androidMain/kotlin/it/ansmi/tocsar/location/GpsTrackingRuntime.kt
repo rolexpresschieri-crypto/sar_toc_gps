@@ -20,6 +20,10 @@ object GpsTrackingRuntime {
     var trkRecording: Boolean = false
         private set
 
+    @Volatile
+    var trkStartedAtMs: Long = 0L
+        private set
+
     private val trackPoints = mutableListOf<TrackPoint>()
     private val trackLock = Any()
 
@@ -42,6 +46,7 @@ object GpsTrackingRuntime {
         synchronized(trackLock) {
             trackPoints.clear()
             trkRecording = true
+            trkStartedAtMs = System.currentTimeMillis()
         }
         val cur = _status.value
         updateStatus(cur?.accuracyM, cur?.label ?: "TRK in registrazione…")
@@ -56,16 +61,24 @@ object GpsTrackingRuntime {
         updateStatus(cur?.accuracyM, cur?.label ?: "TRK in registrazione…")
     }
 
-    fun stopTrkAndTakePoints(): List<TrackPoint> {
+    fun stopTrkAndTakePoints(): Pair<List<TrackPoint>, Long> {
         val out: List<TrackPoint>
+        val durationMs: Long
         synchronized(trackLock) {
             trkRecording = false
             out = trackPoints.toList()
             trackPoints.clear()
+            durationMs =
+                if (trkStartedAtMs > 0L) {
+                    (System.currentTimeMillis() - trkStartedAtMs).coerceAtLeast(0L)
+                } else {
+                    0L
+                }
+            trkStartedAtMs = 0L
         }
         val cur = _status.value
         updateStatus(cur?.accuracyM, cur?.label ?: "GPS inviato al TOC")
-        return out
+        return out to durationMs
     }
 
     fun trkSnapshot(): List<TrackPoint> = synchronized(trackLock) { trackPoints.toList() }
@@ -76,6 +89,7 @@ object GpsTrackingRuntime {
         synchronized(trackLock) {
             trkRecording = false
             trackPoints.clear()
+            trkStartedAtMs = 0L
         }
         _status.value = null
     }

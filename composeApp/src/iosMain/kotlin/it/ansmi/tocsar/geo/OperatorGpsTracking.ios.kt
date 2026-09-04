@@ -37,6 +37,10 @@ private object IosGpsRuntime {
     var trkRecording: Boolean = false
         private set
 
+    @Volatile
+    var trkStartedAtMs: Long = 0L
+        private set
+
     private val trackLock = NSLock()
     private val trackPoints = mutableListOf<TrackPoint>()
 
@@ -84,6 +88,7 @@ private object IosGpsRuntime {
         withTrackLock {
             trkRecording = false
             trackPoints.clear()
+            trkStartedAtMs = 0L
         }
         statusLabel = null
     }
@@ -92,15 +97,23 @@ private object IosGpsRuntime {
         withTrackLock {
             trackPoints.clear()
             trkRecording = true
+            trkStartedAtMs = nowMs()
         }
     }
 
-    fun stopTrkAndTake(): List<TrackPoint> =
+    fun stopTrkAndTake(): TrkRecordingResult =
         withTrackLock {
             trkRecording = false
             val out = trackPoints.toList()
             trackPoints.clear()
-            out
+            val durationMs =
+                if (trkStartedAtMs > 0L) {
+                    (nowMs() - trkStartedAtMs).coerceAtLeast(0L)
+                } else {
+                    0L
+                }
+            trkStartedAtMs = 0L
+            TrkRecordingResult(points = out, durationMs = durationMs)
         }
 
     fun trkSnapshot(): List<TrackPoint> = withTrackLock { trackPoints.toList() }
@@ -205,7 +218,7 @@ actual object OperatorGpsTracking {
 
     actual fun startTrkRecording() = IosGpsRuntime.beginTrk()
 
-    actual fun stopTrkRecording(): List<TrackPoint> = IosGpsRuntime.stopTrkAndTake()
+    actual fun stopTrkRecording(): TrkRecordingResult = IosGpsRuntime.stopTrkAndTake()
 
     actual fun isTrkRecording(): Boolean = IosGpsRuntime.trkRecording
 

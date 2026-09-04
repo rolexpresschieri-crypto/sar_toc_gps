@@ -13,8 +13,16 @@ import it.ansmi.tocsar.backend.network.SessionInsertRow
 import it.ansmi.tocsar.backend.network.SessionOnlineRow
 import it.ansmi.tocsar.backend.network.SessionRestoreRow
 import it.ansmi.tocsar.backend.network.FieldPhotoLogInsertBody
+import it.ansmi.tocsar.backend.network.MissionGpsFileRow
 import it.ansmi.tocsar.backend.network.SquadAlarmInsertBody
+import it.ansmi.tocsar.backend.network.TrackLogInsertBody
 import it.ansmi.tocsar.backend.network.SupabaseRestClient
+import it.ansmi.tocsar.geo.MapTrackOverlay
+import it.ansmi.tocsar.geo.MissionGpsContent
+import it.ansmi.tocsar.geo.TrackStats
+import it.ansmi.tocsar.geo.WaypointItem
+import it.ansmi.tocsar.geo.parseMissionWaypoints
+import it.ansmi.tocsar.geo.parseTrkFile
 import kotlinx.serialization.json.Json
 
 /**
@@ -413,6 +421,87 @@ class OperatorRepository(
                 json.decodeFromString<List<SessionOnlineRow>>(body)
             }
         return rows.isNotEmpty()
+    }
+
+    suspend fun loadMissionGps(
+        organizationId: String,
+        eventId: String?,
+    ): MissionGpsContent {
+        val orgId = organizationId.trim()
+        if (orgId.isEmpty()) {
+            return MissionGpsContent(emptyList(), emptyList())
+        }
+        val rows =
+            rest.getList(
+                table = "mission_gps_files",
+                select = "id,organization_id,event_id,kind,file_name,storage_path,is_enabled",
+                eqFilters =
+                    listOf(
+                        "organization_id" to orgId,
+                        "is_enabled" to "true",
+                    ),
+                order = "file_name.asc",
+            ) { body ->
+                json.decodeFromString<List<MissionGpsFileRow>>(body)
+            }
+        val event = eventId?.trim()?.takeIf { it.isNotEmpty() }
+        val scoped =
+            rows.filter { row ->
+                val fileEvent = row.eventId?.trim()?.takeIf { it.isNotEmpty() }
+                fileEvent == null || fileEvent == event
+            }
+        val waypoints = mutableListOf<WaypointItem>()
+        val tracks = mutableListOf<MapTrackOverlay>()
+        val colors = listOf("#1565C0", "#00838F", "#6A1B9A", "#EF6C00", "#2E7D32")
+        var colorIdx = 0
+        for (row in scoped) {
+            val body =
+                runCatching {
+                    rest.downloadStorageObject("mission-gps", row.storagePath)
+                }.getOrNull() ?: continue
+            when (row.kind.trim().lowercase()) {
+                "wpt" -> waypoints += parseMissionWaypoints(body)
+                "trk" -> {
+                    val pts = parseTrkFile(body)
+                    if (pts.size >= 2) {
+                        tracks +=
+                            MapTrackOverlay(
+                                name = row.fileName.trim().ifBlank { "TRK" },
+                                points = pts,
+                                colorHex = colors[colorIdx % colors.size],
+                            )
+                        colorIdx++
+                    }
+                }
+            }
+        }
+        return MissionGpsContent(waypoints = waypoints, tracks = tracks)
+    }
+
+    suspend fun sendTrackLog(
+        session: OperatorBackendSession,
+        trackName: String,
+        stats: TrackStats,
+    ) {
+        rest.insert(
+            table = "squad_track_logs",
+            body =
+                TrackLogInsertBody(
+                    organizationId = session.organizationId,
+                    eventId = session.eventId.trim().takeIf { it.isNotEmpty() },
+                    sessionId = session.sessionId.trim().takeIf { it.isNotEmpty() },
+                    operatorId = session.operatorId,
+                    operatorCode = session.operatorCode,
+                    operatorName = session.operatorName,
+                    trackName = trackName,
+                    distanceM = stats.distanceM,
+                    durationS = stats.durationMs / 1000.0,
+                    avgSpeedKmh = stats.avgSpeedKmh,
+                    elevGainM = stats.elevGainM,
+                    elevLossM = stats.elevLossM,
+                    nPoints = stats.nPoints,
+                ),
+        )
     }
 
     private suspend fun loadOrganizationCode(organizationId: String): String {

@@ -7,10 +7,15 @@ expect object OperatorGpsTracking {
     fun start(sessionId: String): Boolean
     fun stop()
     fun startTrkRecording()
-    /** Ferma TRK e restituisce i punti accumulati (può essere vuoto). */
-    fun stopTrkRecording(): List<TrackPoint>
+    /** Ferma TRK: punti + durata da START (ms). */
+    fun stopTrkRecording(): TrkRecordingResult
     fun isTrkRecording(): Boolean
     fun trkPointCount(): Int
     fun trkPointsSnapshot(): List<TrackPoint>
     fun statusLabel(): String?
 }
+
+data class TrkRecordingResult(
+    val points: List<TrackPoint>,
+    val durationMs: Long,
+)
