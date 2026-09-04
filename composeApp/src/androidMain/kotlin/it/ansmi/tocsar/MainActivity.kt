@@ -21,6 +21,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         AndroidAppContext.init(application)
         registerGpsImportPicker()
+        registerFieldPhotoPicker()
         ingestGpsShareIntent(intent)
         val perms = buildList {
             add(Manifest.permission.ACCESS_FINE_LOCATION)
@@ -43,6 +44,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onDestroy() {
         GpsImportPicker.unbind(this)
+        FieldPhotoPicker.unbind(this)
         super.onDestroy()
     }
 }

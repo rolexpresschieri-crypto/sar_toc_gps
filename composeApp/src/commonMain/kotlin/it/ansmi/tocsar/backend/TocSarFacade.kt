@@ -37,6 +37,15 @@ class TocSarFacade(
         message: String,
     ) = repository.sendOperatorAlarm(session, message)
 
+    suspend fun sendFieldPhoto(
+        session: OperatorBackendSession,
+        jpegBytes: ByteArray,
+        latitude: Double,
+        longitude: Double,
+        accuracyM: Double?,
+        note: String?,
+    ) = repository.sendFieldPhoto(session, jpegBytes, latitude, longitude, accuracyM, note)
+
     suspend fun loadLiveOperators(viewerOperatorCode: String): List<LiveOperatorPin> =
         repository.loadLiveOperators(viewerOperatorCode)
 

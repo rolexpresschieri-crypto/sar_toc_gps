@@ -24,9 +24,10 @@ App KMP (Compose Multiplatform) per operatori SAR / unità cinofile.
    5. `squad_event_flow.sql`
    6. `operational_events.sql`
    7. `squad_field_photos.sql`
-   8. `alarm_auto_notify.sql`
-   9. `squad_session_auth_logs.sql` (log login/logout)
-   10. `operators_seed.sql` (opzionale: LUPO / OP001 / OP002)
+   8. `squad_photos_storage_policy.sql` (upload foto da app)
+   9. `alarm_auto_notify.sql`
+   10. `squad_session_auth_logs.sql` (log login/logout)
+   11. `operators_seed.sql` (opzionale: LUPO / OP001 / OP002)
 3. Abilita Realtime sulle tabelle come in gestSQUADRE.
 4. Config app: copia `supabase-config.example.json` → `supabase-config.local.json` (URL + publishable key).
 5. Firebase: progetto **dedicato** TOC SAR per FCM (push).

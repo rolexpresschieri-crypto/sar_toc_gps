@@ -25,6 +25,7 @@ import it.ansmi.tocsar.geo.createGpsLocalStore
 import it.ansmi.tocsar.geo.importGpsFileContent
 import it.ansmi.tocsar.geo.OperatorGpsTracking
 import it.ansmi.tocsar.ui.SendNotifyScreen
+import it.ansmi.tocsar.ui.SendPhotoScreen
 import it.ansmi.tocsar.ui.GpsScreen
 import it.ansmi.tocsar.ui.HomeScreen
 import it.ansmi.tocsar.ui.LoginScreen
@@ -47,6 +48,7 @@ private enum class AppRoute {
     Gps,
     OnlineOperators,
     SendNotify,
+    SendPhoto,
 }
 
 @Composable
@@ -60,6 +62,8 @@ fun App() {
     var logoutBusy by remember { mutableStateOf(false) }
     var notifyBusy by remember { mutableStateOf(false) }
     var notifyError by remember { mutableStateOf<String?>(null) }
+    var photoBusy by remember { mutableStateOf(false) }
+    var photoError by remember { mutableStateOf<String?>(null) }
     val snackbar = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     val facade = remember {
@@ -192,7 +196,8 @@ fun App() {
                             route = AppRoute.SendNotify
                         },
                         onSendPhoto = {
-                            toast("INVIA FOTO: collegamento TOC nel prossimo step")
+                            photoError = null
+                            route = AppRoute.SendPhoto
                         },
                         onOpenGps = { route = AppRoute.Gps },
                         onOpenOnlineOperators =
@@ -271,6 +276,64 @@ fun App() {
                                         notifyError = e.message ?: "Invio non riuscito"
                                     } finally {
                                         notifyBusy = false
+                                    }
+                                }
+                            },
+                        )
+                    }
+                }
+            }
+            AppRoute.SendPhoto -> {
+                val current = session
+                val api = facade
+                if (current == null) {
+                    route = AppRoute.Home
+                } else {
+                    VegetatoBackground {
+                        SendPhotoScreen(
+                            operatorCode = current.operatorCode,
+                            isSending = photoBusy,
+                            errorMessage = photoError,
+                            onBack = {
+                                if (!photoBusy) {
+                                    photoError = null
+                                    route = AppRoute.Home
+                                }
+                            },
+                            onSend = { jpeg, fix, note ->
+                                if (photoBusy) return@SendPhotoScreen
+                                if (api == null) {
+                                    photoError =
+                                        "Config Supabase mancante. Controlla supabase-config.local.json."
+                                    return@SendPhotoScreen
+                                }
+                                scope.launch {
+                                    photoBusy = true
+                                    photoError = null
+                                    try {
+                                        api.sendFieldPhoto(
+                                            OperatorBackendSession(
+                                                sessionId = current.sessionId,
+                                                eventId = current.eventId,
+                                                operatorId = current.operatorId,
+                                                operatorCode = current.operatorCode,
+                                                operatorName = current.displayName,
+                                                loginAtIso = "",
+                                            ),
+                                            jpegBytes = jpeg,
+                                            latitude = fix.latitude,
+                                            longitude = fix.longitude,
+                                            accuracyM = fix.accuracyM.toDouble(),
+                                            note = note,
+                                        )
+                                        toast("Foto inviata al TOC")
+                                        route = AppRoute.Home
+                                    } catch (e: TocSarException) {
+                                        photoError = e.message
+                                    } catch (e: Exception) {
+                                        photoError = e.message ?: "Invio foto non riuscito"
+                                    } finally {
+                                        photoBusy = false
                                     }
                                 }
                             },

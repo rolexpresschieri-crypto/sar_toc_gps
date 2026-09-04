@@ -15,6 +15,7 @@ import io.ktor.http.ContentType
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.contentType
 import io.ktor.http.isSuccess
+import io.ktor.http.content.ByteArrayContent
 import io.ktor.serialization.kotlinx.json.json
 import kotlinx.serialization.json.Json
 
@@ -119,6 +120,23 @@ internal class SupabaseRestClient(
             preferMinimal()
             contentType(ContentType.Application.Json)
             setBody(body)
+        }
+        ensureSuccess(response)
+    }
+
+    suspend fun uploadStorageObject(
+        bucket: String,
+        objectPath: String,
+        bytes: ByteArray,
+        contentType: String,
+    ) {
+        val encoded = objectPath.trim('/').split('/').joinToString("/") { segment ->
+            segment.replace(Regex("[^A-Za-z0-9._-]"), "_")
+        }
+        val response = http.post("${config.storageObjectUrl}$bucket/$encoded") {
+            authHeaders()
+            header("x-upsert", "true")
+            setBody(ByteArrayContent(bytes, ContentType.parse(contentType)))
         }
         ensureSuccess(response)
     }

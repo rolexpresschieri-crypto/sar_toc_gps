@@ -79,6 +79,22 @@ internal data class PositionPatchBody(
 )
 
 @Serializable
+internal data class FieldPhotoLogInsertBody(
+    @SerialName("event_id") val eventId: String,
+    @SerialName("session_id") val sessionId: String,
+    @SerialName("squad_id") val operatorId: String,
+    @SerialName("squad_code") val operatorCode: String,
+    @SerialName("squad_name") val operatorName: String,
+    val latitude: Double,
+    val longitude: Double,
+    @SerialName("accuracy_m") val accuracyM: Double? = null,
+    val note: String? = null,
+    @SerialName("storage_path") val storagePath: String? = null,
+    val status: String,
+    @SerialName("error_message") val errorMessage: String? = null,
+)
+
+@Serializable
 internal data class SquadAlarmInsertBody(
     @SerialName("event_id") val eventId: String,
     @SerialName("session_id") val sessionId: String,

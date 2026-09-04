@@ -11,6 +11,7 @@ import it.ansmi.tocsar.backend.network.SessionInsertBody
 import it.ansmi.tocsar.backend.network.SessionInsertRow
 import it.ansmi.tocsar.backend.network.SessionOnlineRow
 import it.ansmi.tocsar.backend.network.SessionRestoreRow
+import it.ansmi.tocsar.backend.network.FieldPhotoLogInsertBody
 import it.ansmi.tocsar.backend.network.SquadAlarmInsertBody
 import it.ansmi.tocsar.backend.network.SupabaseRestClient
 import kotlinx.serialization.json.Json
@@ -163,6 +164,71 @@ class OperatorRepository(
                     message = text.take(500),
                 ),
         )
+    }
+
+    suspend fun sendFieldPhoto(
+        session: OperatorBackendSession,
+        jpegBytes: ByteArray,
+        latitude: Double,
+        longitude: Double,
+        accuracyM: Double?,
+        note: String?,
+    ) {
+        if (jpegBytes.isEmpty()) {
+            throw TocSarException("Nessuna foto da inviare.")
+        }
+        val trimmedNote = note?.trim()?.takeIf { it.isNotEmpty() }?.take(200)
+        val pathSeg = session.operatorCode.replace(Regex("[^A-Za-z0-9._-]"), "_")
+        val eventSeg = session.eventId.replace(Regex("[^A-Za-z0-9._-]"), "_")
+        val objectPath = "$eventSeg/$pathSeg/${nowIso().replace(":", "").replace(".", "_")}.jpg"
+        try {
+            rest.uploadStorageObject(
+                bucket = "squad-photos",
+                objectPath = objectPath,
+                bytes = jpegBytes,
+                contentType = "image/jpeg",
+            )
+            rest.insert(
+                table = "squad_field_photo_logs",
+                body =
+                    FieldPhotoLogInsertBody(
+                        eventId = session.eventId,
+                        sessionId = session.sessionId,
+                        operatorId = session.operatorId,
+                        operatorCode = session.operatorCode,
+                        operatorName = session.operatorName,
+                        latitude = latitude,
+                        longitude = longitude,
+                        accuracyM = accuracyM,
+                        note = trimmedNote,
+                        storagePath = objectPath,
+                        status = "inviato",
+                    ),
+            )
+        } catch (e: Exception) {
+            runCatching {
+                rest.insert(
+                    table = "squad_field_photo_logs",
+                    body =
+                        FieldPhotoLogInsertBody(
+                            eventId = session.eventId,
+                            sessionId = session.sessionId,
+                            operatorId = session.operatorId,
+                            operatorCode = session.operatorCode,
+                            operatorName = session.operatorName,
+                            latitude = latitude,
+                            longitude = longitude,
+                            accuracyM = accuracyM,
+                            note = trimmedNote,
+                            storagePath = null,
+                            status = "fallito",
+                            errorMessage = e.message?.take(300),
+                        ),
+                )
+            }
+            if (e is TocSarException) throw e
+            throw TocSarException(e.message ?: "Invio foto non riuscito")
+        }
     }
 
     /**
