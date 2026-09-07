@@ -34,14 +34,15 @@ private fun CLLocation.toGeoFix(): GeoFix {
     val latLon = coordinate.useContents { latitude to longitude }
     val timestampMs =
         ((timestamp.timeIntervalSinceReferenceDate + 978307200.0) * 1000.0).toLong()
+    val altOk = verticalAccuracy >= 0 && verticalAccuracy <= 40
     return GeoFix(
         latitude = latLon.first,
         longitude = latLon.second,
-        altitude = altitude,
+        altitude = if (altOk) altitude else 0.0,
         accuracyM = horizontalAccuracy.toFloat(),
         timestampMs = timestampMs,
         provider = "gps",
-        hasAltitude = verticalAccuracy >= 0 && verticalAccuracy <= 40,
+        hasAltitude = altOk,
     )
 }
 
