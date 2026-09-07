@@ -41,7 +41,7 @@ private fun CLLocation.toGeoFix(): GeoFix {
         accuracyM = horizontalAccuracy.toFloat(),
         timestampMs = timestampMs,
         provider = "gps",
-        hasAltitude = verticalAccuracy >= 0,
+        hasAltitude = verticalAccuracy >= 0 && verticalAccuracy <= 40,
     )
 }
 

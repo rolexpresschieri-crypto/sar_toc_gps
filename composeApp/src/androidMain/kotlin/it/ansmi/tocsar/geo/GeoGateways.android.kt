@@ -12,6 +12,7 @@ import android.hardware.display.DisplayManager
 import android.location.Location
 import android.location.LocationListener
 import android.location.LocationManager
+import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -172,15 +173,24 @@ private fun Location.ageMs(): Long {
     return if (time > 0L) (System.currentTimeMillis() - time).coerceAtLeast(0L) else Long.MAX_VALUE
 }
 
-private fun Location.toFix(): GeoFix = GeoFix(
-    latitude = latitude,
-    longitude = longitude,
-    altitude = if (hasAltitude()) altitude else 0.0,
-    accuracyM = accuracy,
-    timestampMs = time,
-    provider = provider.orEmpty(),
-    hasAltitude = hasAltitude(),
-)
+private fun Location.toFix(): GeoFix {
+    val vertOk =
+        if (Build.VERSION.SDK_INT >= 26 && hasVerticalAccuracy()) {
+            verticalAccuracyMeters <= 40f
+        } else {
+            true
+        }
+    val altOk = hasAltitude() && vertOk
+    return GeoFix(
+        latitude = latitude,
+        longitude = longitude,
+        altitude = if (altOk) altitude else 0.0,
+        accuracyM = accuracy,
+        timestampMs = time,
+        provider = provider.orEmpty(),
+        hasAltitude = altOk,
+    )
+}
 
 private class AndroidCompassGateway(
     private val context: Context,

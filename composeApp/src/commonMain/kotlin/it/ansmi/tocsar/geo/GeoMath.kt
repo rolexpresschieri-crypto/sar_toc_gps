@@ -17,6 +17,9 @@ data class GeoFix(
 ) {
     val isGpsProvider: Boolean
         get() = provider.contains("gps", ignoreCase = true)
+
+    fun trackAltitudeOrNull(): Double? =
+        if (hasAltitude && altitude.isFinite()) altitude else null
 }
 
 fun parseCoord(raw: String): Double? =

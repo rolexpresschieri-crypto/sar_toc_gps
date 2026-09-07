@@ -8,6 +8,9 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
@@ -58,6 +61,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.zIndex
 import it.ansmi.tocsar.sharePlainText
 import it.ansmi.tocsar.geo.MapTrackOverlay
@@ -70,15 +74,18 @@ import it.ansmi.tocsar.geo.createGpsLocalStore
 import it.ansmi.tocsar.geo.createLocationGateway
 import it.ansmi.tocsar.geo.encodeTrkFile
 import it.ansmi.tocsar.geo.encodeWaypointFile
+import it.ansmi.tocsar.geo.reverseTrackPoints
 import it.ansmi.tocsar.geo.formatAlt0
 import it.ansmi.tocsar.geo.formatCoord6
 import it.ansmi.tocsar.geo.haversineDistanceM
 import it.ansmi.tocsar.geo.importGpsFileContent
 import it.ansmi.tocsar.geo.loadAllWaypoints
 import it.ansmi.tocsar.geo.computeTrackStats
+import it.ansmi.tocsar.geo.formatTrackAltM
 import it.ansmi.tocsar.geo.formatTrackDistance
 import it.ansmi.tocsar.geo.formatTrackDurationMin
 import it.ansmi.tocsar.geo.formatTrackElev
+import it.ansmi.tocsar.geo.formatTrackNetElev
 import it.ansmi.tocsar.geo.formatTrackSpeed
 import it.ansmi.tocsar.backend.OperatorBackendSession
 import it.ansmi.tocsar.geo.MissionGpsContent
@@ -150,6 +157,7 @@ fun GpsScreen(
     var showMap by remember { mutableStateOf(false) }
     var pendingSavePoints by remember { mutableStateOf<List<TrackPoint>>(emptyList()) }
     var pendingSaveDurationMs by remember { mutableStateOf(0L) }
+    var inspectTrack by remember { mutableStateOf<Pair<String, List<TrackPoint>>?>(null) }
     var selectedWpId by remember { mutableStateOf<String?>(null) }
     var overlayWaypoints by remember { mutableStateOf<List<WaypointItem>>(emptyList()) }
     var overlayTracks by remember { mutableStateOf<List<MapTrackOverlay>>(emptyList()) }
@@ -634,11 +642,7 @@ fun GpsScreen(
                     when (tap) {
                         is MapOverlayTap.Waypoint -> { /* selezione misura: gestita in GpsMapScreen */ }
                         is MapOverlayTap.Track -> {
-                            sharePlainText(
-                                subject = "Traccia ${tap.name}",
-                                text = encodeTrkFile(tap.points),
-                                fileNameHint = "${safeGpsFileStem(tap.name)}.trk",
-                            )
+                            inspectTrack = tap.name to tap.points
                         }
                         is MapOverlayTap.Operator -> { /* selezione misura: gestita in GpsMapScreen */ }
                         is MapOverlayTap.Self -> { /* selezione misura: gestita in GpsMapScreen */ }
@@ -824,7 +828,18 @@ fun GpsScreen(
                 showWpTrk = false
                 startNavigateTo(wp.name, wp.lat, wp.lon, wp.alt)
             },
+            onInspectTrack = { name, points ->
+                inspectTrack = name to points
+            },
             toast = ::toast,
+        )
+    }
+
+    inspectTrack?.let { (name, points) ->
+        InspectTrackDialog(
+            name = name,
+            points = points,
+            onDismiss = { inspectTrack = null },
         )
     }
 }
@@ -1024,11 +1039,7 @@ private fun SaveTrackDialog(
         title = { Text("Report traccia", fontWeight = FontWeight.ExtraBold) },
         text = {
             Column {
-                Text("Distanza: ${formatTrackDistance(stats.distanceM)}", fontWeight = FontWeight.SemiBold)
-                Text("Tempo: ${formatTrackDurationMin(stats.durationMs)}")
-                Text("Velocità media: ${formatTrackSpeed(stats.avgSpeedKmh)}")
-                Text("Dislivello: ${formatTrackElev(stats.elevGainM, stats.elevLossM)}")
-                Text("${stats.nPoints} punti GPS", color = Color(0xFF616161), fontSize = 13.sp)
+                TrackStatsLines(stats)
                 Spacer(modifier = Modifier.height(8.dp))
                 OutlinedTextField(
                     value = nameFree,
@@ -1073,6 +1084,68 @@ private fun SaveTrackDialog(
 }
 
 @Composable
+private fun TrackStatsLines(
+    stats: it.ansmi.tocsar.geo.TrackStats,
+    showRecordedTime: Boolean = true,
+) {
+    Text("Distanza 3D: ${formatTrackDistance(stats.distanceM)}", fontWeight = FontWeight.SemiBold)
+    Text(
+        "In pianta: ${formatTrackDistance(stats.distanceHorizM)}",
+        color = Color(0xFF616161),
+        fontSize = 13.sp,
+    )
+    if (showRecordedTime && stats.durationMs >= 1000L) {
+        Text("Tempo rilevato: ${formatTrackDurationMin(stats.durationMs)}")
+        Text("Velocità media: ${formatTrackSpeed(stats.avgSpeedKmh)}")
+    }
+    Text("Tempo stimato: ${formatTrackDurationMin(stats.estimatedDurationMs)}")
+    Text(
+        "Quota: ${formatTrackAltM(stats.startAltM)} → ${formatTrackAltM(stats.endAltM)}  (netto ${formatTrackNetElev(stats.netElevM)})",
+    )
+    Text("Dislivello percorso: ${formatTrackElev(stats.elevGainM, stats.elevLossM)}")
+    Text("${stats.nPoints} punti GPS", color = Color(0xFF616161), fontSize = 13.sp)
+}
+
+@Composable
+private fun InspectTrackDialog(
+    name: String,
+    points: List<TrackPoint>,
+    onDismiss: () -> Unit,
+) {
+    val stats = remember(points) { computeTrackStats(points, 0L) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(name, fontWeight = FontWeight.ExtraBold) },
+        text = {
+            Column {
+                TrackStatsLines(stats, showRecordedTime = false)
+                Text(
+                    "Tempo stimato = 5 km/h in pianta + 1 h / 600 m salita + 1 h / 1500 m discesa. " +
+                        "Quota GPS a inizio traccia spesso alta e poi scende: guarda «netto».",
+                    color = Color(0xFF616161),
+                    fontSize = 12.sp,
+                    modifier = Modifier.padding(top = 8.dp),
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    sharePlainText(
+                        subject = "Traccia $name",
+                        text = encodeTrkFile(points),
+                        fileNameHint = "${safeGpsFileStem(name)}.trk",
+                    )
+                },
+            ) { Text("Invia") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Chiudi") }
+        },
+    )
+}
+
+@Composable
 private fun WpTrkDialog(
     operatorPrefix: String,
     organizationId: String?,
@@ -1083,6 +1156,7 @@ private fun WpTrkDialog(
     onDismiss: () -> Unit,
     onShowOnMap: (List<WaypointItem>, List<MapTrackOverlay>) -> Unit,
     onNavigateToWaypoint: (WaypointItem) -> Unit,
+    onInspectTrack: (String, List<TrackPoint>) -> Unit,
     toast: (String) -> Unit,
 ) {
     val scope = rememberCoroutineScope()
@@ -1147,6 +1221,8 @@ private fun WpTrkDialog(
 
     AlertDialog(
         onDismissRequest = { if (!busy) onDismiss() },
+        modifier = Modifier.fillMaxWidth(0.96f),
+        properties = DialogProperties(usePlatformDefaultWidth = false),
         title = { Text("WP & TRK", fontWeight = FontWeight.ExtraBold) },
         text = {
             Column(
@@ -1294,13 +1370,15 @@ private fun WpTrkDialog(
                                 Text("${trk.points.size} punti · TOC", fontSize = 12.sp, color = Color(0xFF616161))
                             }
                         }
-                        Row(horizontalArrangement = Arrangement.End, modifier = Modifier.fillMaxWidth()) {
-                            TextButton(
+                        DialogActionFlow {
+                            CompactTextButton(enabled = !busy, onClick = { onInspectTrack(trk.name, trk.points) }, label = "REPORT")
+                            CompactTextButton(
                                 enabled = !busy,
                                 onClick = {
                                     onShowOnMap(emptyList(), listOf(trk.copy(colorHex = TrackColors[0])))
                                 },
-                            ) { Text("MAPPA") }
+                                label = "MAPPA",
+                            )
                         }
                     }
                 }
@@ -1336,8 +1414,8 @@ private fun WpTrkDialog(
                                 Text("${trk.nPoints} punti", fontSize = 12.sp, color = Color(0xFF616161))
                             }
                         }
-                        Row(horizontalArrangement = Arrangement.End, modifier = Modifier.fillMaxWidth()) {
-                            TextButton(
+                        DialogActionFlow {
+                            CompactTextButton(
                                 enabled = !busy,
                                 onClick = {
                                     scope.launch {
@@ -1356,8 +1434,26 @@ private fun WpTrkDialog(
                                         }
                                     }
                                 },
-                            ) { Text("Invia") }
-                            TextButton(
+                                label = "Invia",
+                            )
+                            CompactTextButton(
+                                enabled = !busy,
+                                onClick = {
+                                    scope.launch {
+                                        busy = true
+                                        try {
+                                            val pts = store.fetchTrackPoints(trk.name)
+                                            onInspectTrack(trk.name, pts)
+                                        } catch (e: Exception) {
+                                            toast("Report non riuscito: ${e.message}")
+                                        } finally {
+                                            busy = false
+                                        }
+                                    }
+                                },
+                                label = "REPORT",
+                            )
+                            CompactTextButton(
                                 enabled = !busy,
                                 onClick = {
                                     scope.launch {
@@ -1375,11 +1471,33 @@ private fun WpTrkDialog(
                                         }
                                     }
                                 },
-                            ) { Text("MAPPA") }
-                            TextButton(
+                                label = "MAPPA",
+                            )
+                            CompactTextButton(
+                                enabled = !busy,
+                                onClick = {
+                                    scope.launch {
+                                        busy = true
+                                        try {
+                                            val pts = reverseTrackPoints(store.fetchTrackPoints(trk.name))
+                                            store.upsertTrack(trk.name, encodeTrkFile(pts))
+                                            reload()
+                                            toast("Traccia invertita · REPORT ora dal basso")
+                                        } catch (e: Exception) {
+                                            toast("Inversione non riuscita: ${e.message}")
+                                        } finally {
+                                            busy = false
+                                        }
+                                    }
+                                },
+                                label = "Inverti",
+                            )
+                            CompactTextButton(
                                 enabled = !busy,
                                 onClick = { confirmDeleteTrk = trk },
-                            ) { Text("Elimina", color = Color(0xFFCE2B37)) }
+                                label = "Elimina",
+                                color = Color(0xFFCE2B37),
+                            )
                         }
                     }
                 }
@@ -1534,6 +1652,40 @@ private fun WpTrkDialog(
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun DialogActionFlow(
+    content: @Composable androidx.compose.foundation.layout.FlowRowScope.() -> Unit,
+) {
+    FlowRow(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.End,
+        verticalArrangement = Arrangement.Center,
+    ) {
+        content()
+    }
+}
+
+@Composable
+private fun CompactTextButton(
+    enabled: Boolean,
+    onClick: () -> Unit,
+    label: String,
+    color: Color? = null,
+) {
+    TextButton(
+        enabled = enabled,
+        onClick = onClick,
+        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
+    ) {
+        if (color != null) {
+            Text(text = label, color = color, maxLines = 1, softWrap = false)
+        } else {
+            Text(text = label, maxLines = 1, softWrap = false)
+        }
+    }
+}
+
 @Composable
 private fun WaypointRow(
     wp: WaypointItem,
@@ -1569,13 +1721,16 @@ private fun WaypointRow(
                 )
             }
         }
-        Row(horizontalArrangement = Arrangement.End, modifier = Modifier.fillMaxWidth()) {
-            TextButton(enabled = !busy, onClick = onGo) { Text("VAI") }
-            TextButton(enabled = !busy, onClick = onShare) { Text("Invia") }
+        DialogActionFlow {
+            CompactTextButton(enabled = !busy, onClick = onGo, label = "VAI")
+            CompactTextButton(enabled = !busy, onClick = onShare, label = "Invia")
             if (showDelete) {
-                TextButton(enabled = !busy, onClick = onDelete) {
-                    Text("Elimina", color = Color(0xFFCE2B37))
-                }
+                CompactTextButton(
+                    enabled = !busy,
+                    onClick = onDelete,
+                    label = "Elimina",
+                    color = Color(0xFFCE2B37),
+                )
             }
         }
     }

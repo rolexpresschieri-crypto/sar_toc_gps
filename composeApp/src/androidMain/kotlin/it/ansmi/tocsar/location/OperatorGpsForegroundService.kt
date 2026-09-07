@@ -202,7 +202,7 @@ class OperatorGpsForegroundService : Service() {
             TrackPoint(
                 lat = fix.latitude,
                 lon = fix.longitude,
-                alt = fix.altitude,
+                alt = fix.trackAltitudeOrNull(),
                 gapBefore = gap,
             ),
         )

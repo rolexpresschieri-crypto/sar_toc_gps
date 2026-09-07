@@ -88,6 +88,16 @@ fun encodeTrkFile(points: List<TrackPoint>): String {
     return buf.toString()
 }
 
+/** Inverte il senso della traccia (import LAND spesso salva dalla fine). */
+fun reverseTrackPoints(points: List<TrackPoint>): List<TrackPoint> {
+    val n = points.size
+    if (n < 2) return points
+    return List(n) { i ->
+        val src = points[n - 1 - i]
+        src.copy(gapBefore = if (i == 0) false else points[n - i].gapBefore)
+    }
+}
+
 fun parseTrkFile(raw: String): List<TrackPoint> {
     val out = mutableListOf<TrackPoint>()
     var nextIsGap = false
