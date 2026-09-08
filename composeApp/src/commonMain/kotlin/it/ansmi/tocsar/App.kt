@@ -122,11 +122,21 @@ fun App() {
             }
     }
 
-    LaunchedEffect(session?.sessionId) {
-        if (session == null) return@LaunchedEffect
+    LaunchedEffect(session?.sessionId, facade) {
+        val sid = session?.sessionId ?: return@LaunchedEffect
+        val api = facade
         while (isActive) {
             OperatorGpsTracking.statusLabel()?.let { gpsStatusLabel = it }
-            delay(2_000L)
+            if (api != null) {
+                val stillOnline = runCatching { api.sessionIsOnline(sid) }.getOrNull()
+                if (stillOnline == false) {
+                    clearSessionLocal()
+                    route = AppRoute.Home
+                    toast("Disconnesso dal TOC")
+                    return@LaunchedEffect
+                }
+            }
+            delay(3_000L)
         }
     }
 

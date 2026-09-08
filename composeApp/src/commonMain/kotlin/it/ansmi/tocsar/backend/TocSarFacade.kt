@@ -27,7 +27,7 @@ class TocSarFacade(
         }
         val event =
             repository.loadActiveEvent(org.id)
-                ?: throw TocSarException("Nessun evento attivo per questo ente.")
+                ?: throw TocSarException("Nessuna operazione attiva per questo ente.")
         return repository.loginOperator(
             eventId = event.id,
             organizationId = org.id,
@@ -42,6 +42,9 @@ class TocSarFacade(
 
     suspend fun restoreOnlineSession(sessionId: String): OperatorBackendSession? =
         repository.restoreOnlineSession(sessionId)
+
+    suspend fun sessionIsOnline(sessionId: String): Boolean =
+        repository.sessionIsOnline(sessionId)
 
     suspend fun updatePosition(
         sessionId: String,

@@ -26,9 +26,9 @@ on conflict (organization_id, squad_code) do update set
   map_icon_key = excluded.map_icon_key,
   is_enabled = excluded.is_enabled;
 
--- Assicura un evento attivo per NVANSMI
+-- Assicura un'operazione attiva per NVANSMI
 insert into events (title, description, is_active, organization_id)
-select 'Evento operativo TOC SAR', 'Evento demo', true, o.id
+select 'Operazione TOC SAR', 'Demo', true, o.id
 from organizations o
 where o.org_code = 'NVANSMI'
   and not exists (

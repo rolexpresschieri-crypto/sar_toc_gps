@@ -1,0 +1,166 @@
+.sar-map-shell {
+  position: relative;
+  height: 100%;
+  width: 100%;
+  min-height: 0;
+}
+
+.sar-map-shell .leaflet-container {
+  height: 100%;
+  width: 100%;
+  min-height: 240px;
+  z-index: 0;
+}
+
+.sar-marker-divicon {
+  background: none !important;
+  border: none !important;
+}
+
+.sar-pin {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  pointer-events: none;
+}
+
+.sar-circle-pin {
+  border-radius: 50%;
+  border: 2px solid #fff;
+  box-sizing: border-box;
+  flex-shrink: 0;
+}
+
+.sar-png-img {
+  display: block;
+  object-fit: contain;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.45));
+}
+
+.sar-png-dot {
+  width: 10px;
+  height: 10px;
+  margin-top: -4px;
+  border-radius: 50%;
+  border: 2px solid #fff;
+  box-sizing: border-box;
+}
+
+.sar-chip {
+  margin-top: 2px;
+  padding: 2px 7px;
+  background: #111;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  border-radius: 5px;
+  border: 1.5px solid #fff;
+  white-space: nowrap;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.2;
+}
+
+.sar-chip-alarm {
+  background: #c62828;
+  text-transform: uppercase;
+}
+
+.sar-ruler-bar {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  z-index: 1000;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  max-width: calc(100% - 56px);
+  padding: 6px;
+  border-radius: 10px;
+  background: rgba(10, 18, 35, 0.88);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.35);
+  pointer-events: auto;
+}
+
+.sar-ruler-btn {
+  padding: 7px 10px;
+  border-radius: 7px;
+  border: none;
+  font-weight: 800;
+  font-size: 12px;
+  cursor: pointer;
+  background: #14295d;
+  color: #e8eeff;
+}
+
+.sar-ruler-btn-on {
+  background: #e0be3a;
+  color: #111;
+}
+
+.sar-ruler-distance {
+  color: #fff;
+  font-weight: 800;
+  font-size: 13px;
+  padding: 0 6px;
+}
+
+.sar-ruler-hint {
+  color: rgba(255, 255, 255, 0.78);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.leaflet-container.sar-ruler-cursor {
+  cursor: crosshair;
+}
+
+.sar-coord-divicon {
+  background: none !important;
+  border: none !important;
+}
+
+.sar-coord-pin {
+  position: relative;
+  width: 40px;
+  height: 40px;
+  filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.65));
+}
+
+.sar-coord-x,
+.sar-coord-y {
+  position: absolute;
+  background: #ff1a1a;
+  border: 2px solid #fff;
+  box-sizing: border-box;
+}
+
+.sar-coord-x {
+  left: 3px;
+  top: 17px;
+  width: 34px;
+  height: 6px;
+}
+
+.sar-coord-y {
+  left: 17px;
+  top: 3px;
+  width: 6px;
+  height: 34px;
+}
+
+.sar-coord-dot {
+  position: absolute;
+  left: 14px;
+  top: 14px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #ff1a1a;
+  border: 2px solid #fff;
+  box-sizing: border-box;
+}

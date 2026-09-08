@@ -1,0 +1,110 @@
+.screen {
+  height: 100vh;
+  height: 100dvh;
+  width: 100vw;
+  max-height: 100dvh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  background:
+    linear-gradient(
+      180deg,
+      rgba(166, 0, 53, 0.38) 0%,
+      rgba(120, 0, 40, 0.48) 55%,
+      rgba(70, 0, 24, 0.55) 100%
+    ),
+    #0a0607;
+  color: #f5f5f5;
+  font-family: system-ui, sans-serif;
+}
+
+.header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  padding: 8px 12px;
+  flex-shrink: 0;
+}
+
+.brand {
+  color: #e0be3a;
+  font-weight: 700;
+}
+
+.back {
+  color: #e0be3a;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.btn {
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: none;
+  font-weight: 700;
+  cursor: pointer;
+  background: #14295d;
+  color: #e8eeff;
+}
+
+.layerLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+}
+
+.layerSelect {
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: #0d1a12;
+  color: #fff;
+  border: 1px solid #4a5568;
+}
+
+.hint {
+  color: #ccc;
+  font-size: 13px;
+  flex: 1 1 220px;
+}
+
+.mapWrap {
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+  position: relative;
+}
+
+.mapWrap :global(.sar-map-shell),
+.mapWrap :global(.leaflet-container) {
+  position: absolute;
+  inset: 0;
+  height: 100% !important;
+  width: 100% !important;
+  min-height: 0;
+  z-index: 0;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 8px 12px;
+  flex-shrink: 0;
+}
+
+.chip {
+  border: none;
+  border-radius: 6px;
+  padding: 4px 8px;
+  color: #fff;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.login {
+  padding: 24px;
+  color: #fff;
+  min-height: 100dvh;
+}

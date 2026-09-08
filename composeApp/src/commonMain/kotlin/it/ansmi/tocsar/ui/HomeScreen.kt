@@ -116,7 +116,7 @@ fun HomeScreen(
 
                 BodyText(
                     text = "Reset notifica: solo sul telefono (log «notifica chiusa»). " +
-                        "La chiusura evento è solo dal TOC.",
+                        "La chiusura operazione è solo dal TOC.",
                     fontSize = 12,
                     modifier = Modifier.padding(bottom = 8.dp),
                 )

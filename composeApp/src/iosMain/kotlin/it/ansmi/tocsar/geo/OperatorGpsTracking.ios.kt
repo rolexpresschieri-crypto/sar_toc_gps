@@ -46,6 +46,7 @@ private object IosGpsRuntime {
 
     private var stopWatch: (() -> Unit)? = null
     private var heartbeat: Job? = null
+    private var sessionWatch: Job? = null
     private var lastPublished: GpsPosition? = null
     private var lastPublishedAtMs: Long? = null
     private var lastTrackFix: GeoFix? = null
@@ -80,6 +81,8 @@ private object IosGpsRuntime {
         stopWatch = null
         heartbeat?.cancel()
         heartbeat = null
+        sessionWatch?.cancel()
+        sessionWatch = null
         sessionId = null
         lastPublished = null
         lastPublishedAtMs = null
@@ -123,6 +126,7 @@ private object IosGpsRuntime {
     private fun beginStreams() {
         stopWatch?.invoke()
         heartbeat?.cancel()
+        sessionWatch?.cancel()
         val sid = sessionId ?: return
         statusLabel = GpsPublishPolicy.accuracyLabel(null)
         stopWatch =
@@ -140,6 +144,19 @@ private object IosGpsRuntime {
                     }
                     val fix = location.currentFix() ?: continue
                     onFix(sessionId ?: continue, fix)
+                }
+            }
+        sessionWatch =
+            scope.launch {
+                val api = facade ?: return@launch
+                while (isActive && sessionId != null) {
+                    val sid = sessionId ?: break
+                    val online = runCatching { api.sessionIsOnline(sid) }.getOrNull()
+                    if (online == false) {
+                        withContext(Dispatchers.Main) { stop() }
+                        break
+                    }
+                    delay(4_000L)
                 }
             }
     }

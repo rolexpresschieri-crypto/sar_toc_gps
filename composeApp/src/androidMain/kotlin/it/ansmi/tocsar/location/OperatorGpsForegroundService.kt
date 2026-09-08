@@ -46,6 +46,7 @@ class OperatorGpsForegroundService : Service() {
     private var sessionId: String? = null
     private var stopLocationUpdates: (() -> Unit)? = null
     private var heartbeatJob: Job? = null
+    private var sessionWatchJob: Job? = null
     private var lastPublished: GpsPosition? = null
     private var lastPublishedAtMs: Long? = null
 
@@ -166,6 +167,19 @@ class OperatorGpsForegroundService : Service() {
                         onFix(fix)
                     }
                 }
+            sessionWatchJob =
+                serviceScope.launch {
+                    while (isActive) {
+                        val sid = sessionId ?: break
+                        val api = facade ?: break
+                        val online = runCatching { api.sessionIsOnline(sid) }.getOrNull()
+                        if (online == false) {
+                            GpsTrackingController.stop(applicationContext)
+                            break
+                        }
+                        delay(4_000L)
+                    }
+                }
             true
         } catch (e: Exception) {
             Log.e(TAG, "beginTracking fallito", e)
@@ -279,6 +293,8 @@ class OperatorGpsForegroundService : Service() {
     private fun shutdownStreams() {
         heartbeatJob?.cancel()
         heartbeatJob = null
+        sessionWatchJob?.cancel()
+        sessionWatchJob = null
         stopLocationUpdates?.invoke()
         stopLocationUpdates = null
         lastPublished = null

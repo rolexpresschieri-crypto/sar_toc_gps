@@ -1,0 +1,522 @@
+.root {
+  min-height: 100vh;
+  background:
+    linear-gradient(
+      180deg,
+      rgba(166, 0, 53, 0.38) 0%,
+      rgba(120, 0, 40, 0.48) 55%,
+      rgba(70, 0, 24, 0.55) 100%
+    ),
+    #0a0607;
+  color: #edf2ff;
+  display: flex;
+  flex-direction: column;
+  font-family: system-ui, sans-serif;
+}
+
+.loginScreen {
+  position: relative;
+}
+
+.loginLayout {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(16px, 4vw, 48px);
+  min-height: calc(100vh - 32px);
+  padding: 24px 12px;
+  flex-wrap: wrap;
+}
+
+.loginSignature {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  margin: 0;
+  padding: 4px 10px;
+  background: rgba(0, 0, 0, 0.42);
+  border-radius: 8px;
+  color: #fff;
+  font-style: italic;
+  font-size: 18px;
+  font-weight: 400;
+  text-shadow: 0 0 8px rgba(0, 0, 0, 0.9);
+  pointer-events: none;
+  z-index: 2;
+}
+
+.loginLogoWrap {
+  flex-shrink: 0;
+  background: #fff;
+  border-radius: 10px;
+  padding: 12px 16px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+}
+
+.loginLogoSide {
+  display: block;
+  width: clamp(160px, 22vw, 280px);
+  height: auto;
+  object-fit: contain;
+}
+
+.loginCard {
+  max-width: 400px;
+  width: 100%;
+  flex: 0 1 400px;
+  margin: 0;
+  padding: 24px;
+  background: rgba(0, 0, 0, 0.45);
+  border: 2px solid #1a3066;
+  border-radius: 12px;
+}
+
+.loginCard h1 {
+  margin: 0 0 16px;
+  font-size: 1.4rem;
+}
+
+.loginCard input {
+  width: 100%;
+  margin-bottom: 12px;
+  padding: 10px;
+  border-radius: 8px;
+  border: 1px solid #4a5568;
+  background: #060b16;
+  color: #fff;
+}
+
+.loginBtn {
+  width: 100%;
+  padding: 14px;
+  background: #e0be3a;
+  color: #000;
+  font-weight: 800;
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+.loginBtn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.changeEnte {
+  display: block;
+  width: 100%;
+  margin: -4px 0 12px;
+  padding: 0;
+  border: none;
+  background: none;
+  color: #e0be3a;
+  font-size: 13px;
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+}
+
+.loginCard input:disabled {
+  opacity: 0.7;
+}
+
+.loginHint {
+  margin: 12px 0 0;
+  font-size: 13px;
+  color: #c8d4ee;
+}
+
+.message {
+  margin: 12px 0 0;
+  color: #ff8a80;
+  font-size: 14px;
+}
+
+.topBar {
+  flex-shrink: 0;
+  padding: 12px 18px;
+  border-bottom: 1px solid #1e2a4a;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.topBar h1 {
+  margin: 0;
+  font-size: 1.25rem;
+}
+
+.sub {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: #9baccc;
+}
+
+.backLink {
+  display: inline-flex;
+  padding: 8px 14px;
+  border-radius: 8px;
+  background: #14295d;
+  color: #e8eeff;
+  border: none;
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.topBarActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.scroll {
+  flex: 1;
+  overflow: auto;
+  padding: 16px 18px 28px;
+}
+
+.maxWidth {
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+.panel {
+  border: 1px solid #203667;
+  border-radius: 16px;
+  background: #0a1223;
+  overflow: hidden;
+  padding-bottom: 16px;
+  margin-bottom: 16px;
+}
+
+.panelHeader {
+  padding: 14px 18px;
+  border-bottom: 1px solid #203667;
+}
+
+.panelHeaderText {
+  flex: 1;
+  min-width: 200px;
+}
+
+.panelHeader h2 {
+  margin: 0 0 6px;
+  font-size: 1.1rem;
+}
+
+.panelHeader p {
+  margin: 0;
+  font-size: 13px;
+  color: #9baccc;
+}
+
+.form {
+  padding: 16px 18px;
+  border-bottom: 1px solid #203667;
+}
+
+.fieldRow {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.fieldRow label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.fieldRow input[type="text"],
+.fieldRow input:not([type="color"]):not([type="checkbox"]) {
+  padding: 10px;
+  border-radius: 8px;
+  border: 1px solid #3a4a6a;
+  background: #060b16;
+  color: #fff;
+}
+
+.checkLabel {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  font-size: 14px;
+}
+
+.formActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.btnPrimary,
+.btnGhost,
+.btnDanger {
+  padding: 10px 14px;
+  border-radius: 8px;
+  border: none;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.btnPrimary {
+  background: #079b42;
+  color: #fff;
+}
+
+.btnGhost {
+  background: transparent;
+  color: #fff;
+  border: 1px solid #666;
+}
+
+.btnDanger {
+  background: #c62828;
+  color: #fff;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.table th,
+.table td {
+  border-top: 1px solid #203667;
+  padding: 10px 14px;
+  text-align: left;
+}
+
+.table th {
+  color: #9baccc;
+  font-weight: 600;
+}
+
+.rowSelected {
+  background: rgba(224, 190, 58, 0.12);
+}
+
+.linkBtn {
+  background: none;
+  border: none;
+  color: #e0be3a;
+  font-weight: 800;
+  cursor: pointer;
+  padding: 0;
+  font-size: inherit;
+}
+
+.squadIconPreview {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  margin-right: 6px;
+  vertical-align: middle;
+}
+
+.squadIconPreview img {
+  object-fit: contain;
+}
+
+.circleSwatch,
+.circleSwatchSm {
+  display: block;
+  border-radius: 50%;
+  border: 2px solid #fff;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.25);
+  flex-shrink: 0;
+}
+
+.circleSwatch {
+  width: 40px;
+  height: 40px;
+}
+
+.circleSwatchSm {
+  width: 18px;
+  height: 18px;
+}
+
+.fieldGroup {
+  margin-bottom: 14px;
+}
+
+.iconPickerLabel {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 8px;
+  color: #e8e8e8;
+}
+
+.colorRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.colorSwatchBtn {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 2px solid #fff;
+  cursor: pointer;
+  padding: 0;
+}
+
+.colorSwatchBtn:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.colorSwatchBtnActive {
+  box-shadow: 0 0 0 3px #e0be3a;
+}
+
+.colorInput {
+  width: 56px;
+  height: 36px;
+  padding: 0;
+  border: 1px solid #fff;
+  border-radius: 8px;
+  background: none;
+  cursor: pointer;
+}
+
+.iconPicker {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(88px, 1fr));
+  gap: 8px;
+}
+
+.iconOption {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 2px solid rgba(255, 255, 255, 0.15);
+  background: rgba(0, 0, 0, 0.25);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  color: #ddd;
+  min-width: 0;
+}
+
+.iconOption input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.iconOption img {
+  object-fit: contain;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 6px;
+}
+
+.iconOptionActive {
+  border-color: #e0be3a;
+  background: rgba(224, 190, 58, 0.12);
+}
+
+.rowActions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.rowActions button {
+  padding: 6px 10px;
+  border-radius: 6px;
+  border: 1px solid #3a4a6a;
+  background: #14295d;
+  color: #fff;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.statusActive,
+.statusDisabled {
+  display: inline-block;
+  padding: 5px 12px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+button.statusActive,
+button.statusDisabled {
+  cursor: pointer;
+}
+
+.statusActive {
+  background: rgba(7, 155, 66, 0.22);
+  border-color: #079b42;
+  color: #8fe88f;
+}
+
+.statusDisabled {
+  background: rgba(198, 40, 40, 0.2);
+  border-color: #c62828;
+  color: #ff8a80;
+}
+
+.statusActive:disabled,
+.statusDisabled:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.error {
+  margin: 0 0 12px;
+  color: #ff8a80;
+  font-size: 13px;
+}
+
+.empty {
+  padding: 16px 18px;
+  color: #9baccc;
+}
+
+.toast {
+  margin-bottom: 12px;
+  padding: 12px 14px;
+  border-radius: 8px;
+  background: #079b42;
+  color: #fff;
+  font-weight: 600;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.toast button {
+  background: none;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.panelHeader p code,
+.empty code,
+.sub code {
+  font-size: 12px;
+}

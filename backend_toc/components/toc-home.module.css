@@ -1,0 +1,406 @@
+.screen {
+  height: 100dvh;
+  max-height: 100dvh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  background:
+    linear-gradient(
+      180deg,
+      rgba(166, 0, 53, 0.38) 0%,
+      rgba(120, 0, 40, 0.48) 55%,
+      rgba(70, 0, 24, 0.55) 100%
+    ),
+    #0a0607;
+  color: #f5f5f5;
+  padding: 16px;
+  font-family: system-ui, sans-serif;
+}
+
+.header {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 12px;
+  flex-shrink: 0;
+}
+
+.headerTop {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: 16px;
+  width: 100%;
+}
+
+.headerLogoWrap {
+  justify-self: start;
+}
+
+.headerLogoWrapRight {
+  justify-self: end;
+}
+
+.headerLogoWrap,
+.headerLogoWrapRight {
+  flex-shrink: 0;
+  background: #fff;
+  border-radius: 10px;
+  padding: 8px 12px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+}
+
+.headerLogo {
+  display: block;
+  width: clamp(72px, 10vw, 120px);
+  height: auto;
+  object-fit: contain;
+}
+
+.headerCenterCluster {
+  grid-column: 2;
+  text-align: center;
+  min-width: 0;
+}
+
+.header h1 {
+  margin: 0;
+  font-size: clamp(2.2rem, 4.6vw, 3.4rem);
+  font-weight: 800;
+  line-height: 1.05;
+  letter-spacing: 0.01em;
+}
+
+.orgTag {
+  font-size: 0.7em;
+  color: #e0be3a;
+  font-weight: 700;
+}
+
+.sub {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: #c8d4ee;
+}
+
+.message {
+  margin: 6px 0 0;
+  color: #e0be3a;
+  font-size: 13px;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.btnLogout {
+  margin-left: auto;
+}
+
+.btn {
+  padding: 10px 16px;
+  border-radius: 8px;
+  border: none;
+  font-weight: 700;
+  cursor: pointer;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  color: inherit;
+}
+
+.btnPrimary {
+  background: #079b42;
+  color: #fff;
+}
+
+.btnYellow {
+  background: #e0be3a;
+  color: #000;
+}
+
+.btnDanger {
+  background: #c62828;
+  color: #fff;
+}
+
+.btnSmall {
+  padding: 5px 10px;
+  font-size: 12px;
+  background: #fff;
+  color: #c62828;
+  border: 1px solid #fff;
+  margin-top: 0;
+}
+
+.notifyActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-top: 8px;
+}
+
+.logLink {
+  color: #e0be3a;
+  font-size: 12px;
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.workspace {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.opsGrid {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) minmax(240px, 1fr) minmax(0, 2fr);
+  grid-template-rows: minmax(0, 1fr);
+  gap: 16px;
+  flex: 1;
+  min-height: 0;
+}
+
+@media (max-width: 1100px) {
+  .opsGrid {
+    grid-template-columns: 1fr;
+    grid-template-rows: minmax(160px, 0.7fr) minmax(160px, 0.7fr) minmax(280px, 1.4fr);
+  }
+}
+
+.opsColumn {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+  background: rgba(0, 0, 0, 0.28);
+  border: 2px solid #1a3066;
+  border-radius: 12px;
+  padding: 12px;
+}
+
+.opsColumnTitle {
+  margin: 0 0 6px;
+  font-size: 1.1rem;
+}
+
+.opsColumnHint {
+  margin: 0 0 10px;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.72);
+  line-height: 1.35;
+}
+
+.mapToolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.mapToolbar .opsColumnHint {
+  margin: 0;
+}
+
+.layerLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.layerSelect {
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: #0d1a12;
+  color: #fff;
+  border: 1px solid #4a5568;
+}
+
+.opsColumnBody {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  background: rgba(0, 0, 0, 0.25);
+  border-radius: 10px;
+  padding: 8px;
+}
+
+.opsEmpty {
+  margin: 8px 4px;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 13px;
+}
+
+.squadList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.squadRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+  padding: 8px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.squadRow:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.squadRowSelected {
+  box-shadow: 0 0 0 2px #e0be3a;
+}
+
+.squadBadge {
+  flex-shrink: 0;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #079b42;
+  border: 2px solid #fff;
+}
+
+.squadBadgeAlarm {
+  background: #c62828;
+  animation: pulse 1.1s ease-in-out infinite;
+}
+
+.squadLabel {
+  font-weight: 600;
+}
+
+.squadLabelAlarm {
+  background: #c62828;
+  color: #fff;
+  padding: 4px 10px;
+  border-radius: 8px;
+  font-weight: 800;
+}
+
+.noGps {
+  font-size: 11px;
+  color: #9baccc;
+  margin-left: auto;
+}
+
+.alarmItem {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 10px;
+  margin-bottom: 8px;
+  border-radius: 10px;
+  background: rgba(198, 40, 40, 0.25);
+  border: 2px solid #c62828;
+  cursor: pointer;
+}
+
+.alarmDot {
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: #c62828;
+  border: 3px solid #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 900;
+  font-size: 16px;
+  color: #fff;
+}
+
+.alarmBody {
+  flex: 1;
+  min-width: 0;
+}
+
+.alarmTitle {
+  color: #fff;
+  font-weight: 800;
+  font-size: 15px;
+  margin: 0 0 4px;
+}
+
+.alarmMessage {
+  color: #fff;
+  font-size: 13px;
+  margin: 0 0 6px;
+  line-height: 1.35;
+}
+
+.alarmMeta {
+  color: rgba(255, 255, 255, 0.75);
+  font-size: 11px;
+}
+
+.photoItem {
+  background: rgba(224, 190, 58, 0.16);
+  border-color: #e0be3a;
+}
+
+.photoItem .alarmDot {
+  background: #e0be3a;
+  color: #111;
+  border-color: #fff;
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.65;
+  }
+}
+
+.mapPane {
+  flex: 1;
+  min-height: 0;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #0a1223;
+  position: relative;
+}
+
+.mapPane :global(.sar-map-shell),
+.mapPane :global(.leaflet-container) {
+  position: absolute;
+  inset: 0;
+  height: 100% !important;
+  width: 100% !important;
+  min-height: 0;
+  z-index: 0;
+}
+
+@media (max-width: 700px) {
+  .headerTop {
+    grid-template-columns: 1fr;
+    justify-items: center;
+  }
+
+  .headerCenterCluster {
+    grid-column: auto;
+  }
+
+  .headerLogoWrap,
+  .headerLogoWrapRight {
+    justify-self: center;
+  }
+}

@@ -91,7 +91,7 @@ class OperatorRepository(
         }
 
         if (operator.organizationId != organizationId) {
-            throw TocSarException("Operatore e evento non appartengono allo stesso ente.")
+            throw TocSarException("Operatore e operazione non appartengono allo stesso ente.")
         }
 
         if (hasActiveSession(eventId = eventId, operatorId = operator.id)) {
@@ -158,6 +158,21 @@ class OperatorRepository(
         )
     }
 
+    /** true se la sessione esiste ed è ancora online. */
+    suspend fun sessionIsOnline(sessionId: String): Boolean {
+        val id = sessionId.trim()
+        if (id.isEmpty()) return false
+        val row =
+            rest.getMaybeSingle(
+                table = "squad_sessions",
+                select = "id,is_online",
+                filters = listOf("id" to id),
+            ) { body ->
+                json.decodeFromString<SessionOnlineRow>(body)
+            }
+        return row?.isOnline == true
+    }
+
     suspend fun logoutOperator(session: OperatorBackendSession) {
         val now = nowIso()
         rest.patch(
@@ -174,7 +189,7 @@ class OperatorRepository(
     ) {
         rest.patch(
             table = "squad_sessions",
-            filters = listOf("id" to sessionId),
+            filters = listOf("id" to sessionId, "is_online" to "true"),
             body =
                 PositionPatchBody(
                     lastLatitude = position.latitude,

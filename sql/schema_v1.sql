@@ -160,7 +160,7 @@ where ss.is_online = true;
 
 -- Dati demo (cambiare password in produzione)
 insert into events (title, description, is_active)
-select 'Evento operativo gestSQUADRE', 'Evento demo', true
+select 'Operazione TOC SAR', 'Demo', true
 where not exists (select 1 from events where is_active = true);
 
 insert into golf_courses (course_code, course_name)
