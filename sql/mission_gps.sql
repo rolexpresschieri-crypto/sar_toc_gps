@@ -43,7 +43,7 @@ on storage.objects for select to anon
 using (bucket_id = 'mission-gps');
 
 comment on table mission_gps_files is
-  'Catalogo WP/TRK missione. Upload file in Storage mission-gps, poi insert qui (org_code path es. NVANSMI/AREA.trk).';
+  'Catalogo WP/TRK missione (opzionale). L''app elenca anche i file nel bucket mission-gps sotto NVANSMI/.';
 
 -- Esempio TRK in radice ente:
 -- insert into mission_gps_files (organization_id, kind, file_name, storage_path)
@@ -55,3 +55,6 @@ comment on table mission_gps_files is
 -- insert into mission_gps_files (organization_id, kind, file_name, storage_path)
 -- select id, 'wpt', 'wp_sestriere.wpt', 'NVANSMI/WP_SESTRIERE/wp_sestriere.wpt'
 -- from organizations where org_code = 'NVANSMI';
+--
+-- Esempio TRK in cartella (in app: tap sulla cartella, poi le tracce):
+-- Storage: mission-gps / NVANSMI / TRK_NOVALESA / Zona S1_28K_06.trk

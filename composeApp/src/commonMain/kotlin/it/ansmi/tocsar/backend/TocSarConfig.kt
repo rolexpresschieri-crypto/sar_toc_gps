@@ -15,6 +15,9 @@ data class TocSarConfig(
 
     val storageObjectUrl: String
         get() = supabaseUrl.trimEnd('/') + "/storage/v1/object/"
+
+    val storageListUrl: String
+        get() = supabaseUrl.trimEnd('/') + "/storage/v1/object/list/"
 }
 
 expect fun loadTocSarConfig(): TocSarConfig?

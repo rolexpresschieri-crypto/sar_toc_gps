@@ -146,6 +146,19 @@ internal data class ActiveOperatorSummaryRow(
 )
 
 @Serializable
+internal data class StorageListRequest(
+    val prefix: String,
+    val limit: Int = 1000,
+    val offset: Int = 0,
+)
+
+@Serializable
+internal data class StorageListItem(
+    val name: String,
+    val id: String? = null,
+)
+
+@Serializable
 internal data class MissionGpsFileRow(
     val id: String,
     @SerialName("organization_id") val organizationId: String,

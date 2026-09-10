@@ -130,9 +130,7 @@ internal class SupabaseRestClient(
         bytes: ByteArray,
         contentType: String,
     ) {
-        val encoded = objectPath.trim('/').split('/').joinToString("/") { segment ->
-            segment.replace(Regex("[^A-Za-z0-9._-]"), "_")
-        }
+        val encoded = encodeStorageObjectPath(objectPath)
         val response = http.post("${config.storageObjectUrl}$bucket/$encoded") {
             authHeaders()
             header("x-upsert", "true")
@@ -145,14 +143,35 @@ internal class SupabaseRestClient(
         bucket: String,
         objectPath: String,
     ): String {
-        val encoded = objectPath.trim('/').split('/').joinToString("/") { segment ->
-            segment.replace(Regex("[^A-Za-z0-9._-]"), "_")
-        }
+        val encoded = encodeStorageObjectPath(objectPath)
         val response = http.get("${config.storageObjectUrl}$bucket/$encoded") {
             authHeaders()
         }
         ensureSuccess(response)
         return response.bodyAsText()
+    }
+
+    suspend fun listStorageObjects(
+        bucket: String,
+        prefix: String,
+    ): List<StorageListItem> {
+        val response = http.post("${config.storageListUrl}$bucket") {
+            authHeaders()
+            contentType(ContentType.Application.Json)
+            setBody(
+                StorageListRequest(
+                    prefix = prefix,
+                    limit = 1000,
+                    offset = 0,
+                ),
+            )
+        }
+        ensureSuccess(response)
+        val body = response.bodyAsText()
+        if (body.isBlank() || body == "[]") {
+            return emptyList()
+        }
+        return json.decodeFromString<List<StorageListItem>>(body)
     }
 
     suspend fun <T> getList(
@@ -178,6 +197,30 @@ internal class SupabaseRestClient(
             return emptyList()
         }
         return deserializer(body)
+    }
+
+    private fun encodeStorageObjectPath(objectPath: String): String {
+        return objectPath.trim('/').split('/').filter { it.isNotEmpty() }.joinToString("/") { segment ->
+            buildString {
+                for (byte in segment.encodeToByteArray()) {
+                    val u = byte.toInt() and 0xFF
+                    val c = u.toChar()
+                    if (
+                        c in 'A'..'Z' ||
+                        c in 'a'..'z' ||
+                        c in '0'..'9' ||
+                        c == '-' ||
+                        c == '_' ||
+                        c == '.'
+                    ) {
+                        append(c)
+                    } else {
+                        append('%')
+                        append(u.toString(16).uppercase().padStart(2, '0'))
+                    }
+                }
+            }
+        }
     }
 
     private fun io.ktor.client.request.HttpRequestBuilder.authHeaders() {

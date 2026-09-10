@@ -447,35 +447,53 @@ class OperatorRepository(
         if (orgId.isEmpty()) {
             return MissionGpsContent(emptyList(), emptyList())
         }
-        val rows =
-            rest.getList(
-                table = "mission_gps_files",
-                select = "id,organization_id,event_id,kind,file_name,storage_path,is_enabled",
-                eqFilters =
-                    listOf(
-                        "organization_id" to orgId,
-                        "is_enabled" to "true",
-                    ),
-                order = "file_name.asc",
-            ) { body ->
-                json.decodeFromString<List<MissionGpsFileRow>>(body)
+        val orgCode = runCatching { loadOrganizationCode(orgId) }.getOrNull().orEmpty()
+        val fromStorage =
+            if (orgCode.isNotEmpty()) {
+                runCatching { discoverMissionFiles(orgCode) }.getOrDefault(emptyList())
+            } else {
+                emptyList()
             }
+        val catalogRows =
+            runCatching {
+                rest.getList(
+                    table = "mission_gps_files",
+                    select = "id,organization_id,event_id,kind,file_name,storage_path,is_enabled",
+                    eqFilters =
+                        listOf(
+                            "organization_id" to orgId,
+                            "is_enabled" to "true",
+                        ),
+                    order = "file_name.asc",
+                ) { body ->
+                    json.decodeFromString<List<MissionGpsFileRow>>(body)
+                }
+            }.getOrDefault(emptyList())
         val event = eventId?.trim()?.takeIf { it.isNotEmpty() }
-        val scoped =
-            rows.filter { row ->
+        val fromCatalog =
+            catalogRows.mapNotNull { row ->
                 val fileEvent = row.eventId?.trim()?.takeIf { it.isNotEmpty() }
-                fileEvent == null || fileEvent == event
+                if (fileEvent != null && fileEvent != event) {
+                    return@mapNotNull null
+                }
+                MissionFileRef(
+                    kind = row.kind.trim().lowercase(),
+                    fileName = row.fileName,
+                    storagePath = row.storagePath,
+                )
             }
+        val files = (fromStorage + fromCatalog).distinctBy { it.storagePath.trim('/').lowercase() }
         val waypoints = mutableListOf<WaypointItem>()
         val tracks = mutableListOf<MapTrackOverlay>()
         val colors = listOf("#1565C0", "#00838F", "#6A1B9A", "#EF6C00", "#2E7D32")
         var colorIdx = 0
-        for (row in scoped) {
+        val usedTrkNames = mutableSetOf<String>()
+        for (row in files) {
             val body =
                 runCatching {
                     rest.downloadStorageObject("mission-gps", row.storagePath)
                 }.getOrNull() ?: continue
-            when (row.kind.trim().lowercase()) {
+            when (row.kind) {
                 "wpt" -> {
                     val group = missionFolderFromStoragePath(row.storagePath, row.fileName)
                     waypoints += parseMissionWaypoints(body).map { it.copy(missionGroup = group) }
@@ -483,11 +501,21 @@ class OperatorRepository(
                 "trk" -> {
                     val pts = parseTrkFile(body)
                     if (pts.size >= 2) {
+                        val base = row.fileName.trim().ifBlank { "TRK" }
+                        val uniqueName =
+                            if (usedTrkNames.add(base.lowercase())) {
+                                base
+                            } else {
+                                val prefixed = "${missionFolderFromStoragePath(row.storagePath, base)}/$base"
+                                usedTrkNames.add(prefixed.lowercase())
+                                prefixed
+                            }
                         tracks +=
                             MapTrackOverlay(
-                                name = row.fileName.trim().ifBlank { "TRK" },
+                                name = uniqueName,
                                 points = pts,
                                 colorHex = colors[colorIdx % colors.size],
+                                missionGroup = missionFolderFromStoragePath(row.storagePath, base),
                             )
                         colorIdx++
                     }
@@ -495,6 +523,46 @@ class OperatorRepository(
             }
         }
         return MissionGpsContent(waypoints = waypoints, tracks = tracks)
+    }
+
+    private data class MissionFileRef(
+        val kind: String,
+        val fileName: String,
+        val storagePath: String,
+    )
+
+    private suspend fun discoverMissionFiles(organizationCode: String): List<MissionFileRef> {
+        val root = "${organizationCode.trim().uppercase().trimEnd('/')}/"
+        val out = mutableListOf<MissionFileRef>()
+        suspend fun walk(prefix: String, depth: Int) {
+            if (depth > 5) return
+            val items = rest.listStorageObjects("mission-gps", prefix)
+            for (item in items) {
+                val name = item.name.trim().trimEnd('/')
+                if (name.isEmpty() || name == "." || name == "..") continue
+                val child = "${prefix.trimEnd('/')}/$name"
+                val isFolder = item.id.isNullOrBlank()
+                if (isFolder) {
+                    walk("$child/", depth + 1)
+                } else {
+                    val lower = name.lowercase()
+                    val kind =
+                        when {
+                            lower.endsWith(".trk") -> "trk"
+                            lower.endsWith(".wpt") -> "wpt"
+                            else -> null
+                        } ?: continue
+                    out +=
+                        MissionFileRef(
+                            kind = kind,
+                            fileName = name,
+                            storagePath = child.trim('/'),
+                        )
+                }
+            }
+        }
+        walk(root, 0)
+        return out
     }
 
     suspend fun sendTrackLog(

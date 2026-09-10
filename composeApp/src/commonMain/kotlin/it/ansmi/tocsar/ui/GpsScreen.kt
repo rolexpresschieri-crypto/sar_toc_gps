@@ -1218,6 +1218,7 @@ private fun WpTrkDialog(
     val missionWps = wps.filter { !it.isLocal }
     val localWps = wps.filter { it.isLocal }
     var expandedMissionFolders by remember { mutableStateOf(setOf<String>()) }
+    var expandedTrkFolders by remember { mutableStateOf(setOf<String>()) }
 
     AlertDialog(
         onDismissRequest = { if (!busy) onDismiss() },
@@ -1341,14 +1342,20 @@ private fun WpTrkDialog(
 
                 Spacer(modifier = Modifier.height(10.dp))
                 Text(
-                    "TRACCE MISSIONE (${missionTracks.size}) — flag = MAPPA",
+                    "TRK MISSIONE — cartelle TOC, tap per aprire (flag = MAPPA)",
                     fontWeight = FontWeight.ExtraBold,
                     fontSize = 13.sp,
                 )
                 if (!loading && missionTracks.isEmpty()) {
                     Text("Nessuna traccia di missione sul TOC per questo ente.", color = Color(0xFF616161), fontSize = 13.sp)
                 }
-                missionTracks.forEach { trk ->
+                val missionTrkGroups = missionTracks.groupBy { trk ->
+                    trk.missionGroup?.trim().orEmpty().ifBlank { "TRK" }
+                }
+                missionTrkGroups.entries.sortedBy { it.key }.forEach { (folder, groupTrks) ->
+                    val names = groupTrks.map { it.name }
+                    val allOn = names.isNotEmpty() && names.all { selectedTrk.contains(it) }
+                    val expanded = expandedTrkFolders.contains(folder)
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -1359,26 +1366,85 @@ private fun WpTrkDialog(
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Checkbox(
-                                checked = selectedTrk.contains(trk.name),
+                                checked = allOn,
                                 onCheckedChange = { checked ->
-                                    if (checked) selectedTrk.add(trk.name) else selectedTrk.remove(trk.name)
+                                    if (checked) {
+                                        names.forEach { n ->
+                                            if (!selectedTrk.contains(n)) selectedTrk.add(n)
+                                        }
+                                    } else {
+                                        selectedTrk.removeAll(names)
+                                    }
                                 },
                                 enabled = !busy,
                             )
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(trk.name, fontWeight = FontWeight.Bold)
-                                Text("${trk.points.size} punti · TOC", fontSize = 12.sp, color = Color(0xFF616161))
+                            Column(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clickable(enabled = !busy) {
+                                        expandedTrkFolders =
+                                            if (expanded) {
+                                                expandedTrkFolders - folder
+                                            } else {
+                                                expandedTrkFolders + folder
+                                            }
+                                    },
+                            ) {
+                                Text(
+                                    "${if (expanded) "▾" else "▸"} $folder",
+                                    fontWeight = FontWeight.Bold,
+                                )
+                                Text(
+                                    "${groupTrks.size} traccia${if (groupTrks.size == 1) "" else "e"} · tap per ${if (expanded) "chiudere" else "aprire"}",
+                                    fontSize = 12.sp,
+                                    color = Color(0xFF616161),
+                                )
                             }
                         }
-                        DialogActionFlow {
-                            CompactTextButton(enabled = !busy, onClick = { onInspectTrack(trk.name, trk.points) }, label = "REPORT")
-                            CompactTextButton(
-                                enabled = !busy,
-                                onClick = {
-                                    onShowOnMap(emptyList(), listOf(trk.copy(colorHex = TrackColors[0])))
-                                },
-                                label = "MAPPA",
-                            )
+                        if (expanded) {
+                            groupTrks.sortedBy { it.name }.forEach { trk ->
+                                val label = trk.name.substringBeforeLast('.').ifBlank { trk.name }
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(top = 8.dp),
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Checkbox(
+                                            checked = selectedTrk.contains(trk.name),
+                                            onCheckedChange = { checked ->
+                                                if (checked) selectedTrk.add(trk.name) else selectedTrk.remove(trk.name)
+                                            },
+                                            enabled = !busy,
+                                        )
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text(label, fontWeight = FontWeight.Bold)
+                                            Text(
+                                                "${trk.points.size} punti · TOC",
+                                                fontSize = 12.sp,
+                                                color = Color(0xFF616161),
+                                            )
+                                        }
+                                    }
+                                    DialogActionFlow {
+                                        CompactTextButton(
+                                            enabled = !busy,
+                                            onClick = { onInspectTrack(trk.name, trk.points) },
+                                            label = "REPORT",
+                                        )
+                                        CompactTextButton(
+                                            enabled = !busy,
+                                            onClick = {
+                                                onShowOnMap(
+                                                    emptyList(),
+                                                    listOf(trk.copy(colorHex = TrackColors[0])),
+                                                )
+                                            },
+                                            label = "MAPPA",
+                                        )
+                                    }
+                                }
+                            }
                         }
                     }
                 }

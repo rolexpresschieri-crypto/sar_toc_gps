@@ -44,6 +44,8 @@ data class MapTrackOverlay(
     val name: String,
     val points: List<TrackPoint>,
     val colorHex: String = "#1565C0",
+    /** Cartella Storage (es. NOVALESA). Solo TRK di missione. */
+    val missionGroup: String? = null,
 )
 
 const val AppWaypointPrefix = "ZZ_"
