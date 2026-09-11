@@ -170,6 +170,32 @@ internal data class MissionGpsFileRow(
 )
 
 @Serializable
+internal data class TocPushLogRow(
+    val id: String,
+    val title: String,
+    val body: String,
+    @SerialName("event_id") val eventId: String? = null,
+    @SerialName("session_id") val sessionId: String? = null,
+    @SerialName("squad_id") val squadId: String? = null,
+    @SerialName("created_at") val createdAt: String? = null,
+)
+
+@Serializable
+internal data class TocPushDismissPatchBody(
+    @SerialName("mobile_dismissed_at") val mobileDismissedAt: String,
+)
+
+@Serializable
+internal data class MobileDismissLogInsertBody(
+    @SerialName("event_id") val eventId: String,
+    @SerialName("session_id") val sessionId: String,
+    @SerialName("squad_id") val operatorId: String,
+    @SerialName("squad_code") val operatorCode: String,
+    @SerialName("squad_name") val operatorName: String,
+    @SerialName("panel_message") val panelMessage: String,
+)
+
+@Serializable
 internal data class TrackLogInsertBody(
     @SerialName("organization_id") val organizationId: String,
     @SerialName("event_id") val eventId: String? = null,

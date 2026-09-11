@@ -61,3 +61,10 @@ fun isTocAdminOperator(operatorCode: String): Boolean =
     operatorCode.trim().equals(TocAdminOperatorCode, ignoreCase = true)
 
 fun normalizeOrgCode(code: String): String = code.trim().uppercase()
+
+/** Notifica TOC → telefono ancora aperta sul pannello. */
+data class TocPushMessage(
+    val id: String,
+    val title: String,
+    val body: String,
+)

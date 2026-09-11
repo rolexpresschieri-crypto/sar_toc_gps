@@ -360,6 +360,16 @@
   border-color: #fff;
 }
 
+.tocItem {
+  background: rgba(7, 155, 66, 0.22);
+  border-color: #079b42;
+}
+
+.tocItem .alarmDot {
+  background: #079b42;
+  font-size: 14px;
+}
+
 @keyframes pulse {
   0%,
   100% {
@@ -403,4 +413,53 @@
   .headerLogoWrapRight {
     justify-self: center;
   }
+}
+
+.pushForm {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 10px;
+  flex-shrink: 0;
+}
+
+.pushText {
+  width: 100%;
+  resize: vertical;
+  min-height: 64px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid #3a4a6a;
+  background: #060b16;
+  color: #fff;
+  font: inherit;
+  font-size: 13px;
+}
+
+.pushAll,
+.pushList label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.88);
+}
+
+.pushList {
+  list-style: none;
+  margin: 0;
+  padding: 4px 6px;
+  max-height: 88px;
+  overflow-y: auto;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.25);
+}
+
+.pushList li {
+  margin: 0 0 4px;
+}
+
+.pushForm .btnSmall {
+  align-self: flex-start;
+  margin: 0;
 }

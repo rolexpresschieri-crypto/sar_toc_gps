@@ -56,6 +56,8 @@ fun App() {
     var route by remember { mutableStateOf(AppRoute.Splash) }
     var session by remember { mutableStateOf<OperatorSession?>(null) }
     var tocMessage by remember { mutableStateOf<String?>(null) }
+    var lastTocPushId by remember { mutableStateOf<String?>(null) }
+    var ignoredTocPushId by remember { mutableStateOf<String?>(null) }
     var gpsStatusLabel by remember { mutableStateOf<String?>(null) }
     var loginBusy by remember { mutableStateOf(false) }
     var loginError by remember { mutableStateOf<String?>(null) }
@@ -81,6 +83,10 @@ fun App() {
         OperatorGpsTracking.stop()
         session = null
         gpsStatusLabel = null
+        tocMessage = null
+        lastTocPushId = null
+        ignoredTocPushId = null
+        clearTocPushNotification()
         OperatorSessionStore.saveSessionId(null)
     }
 
@@ -135,6 +141,27 @@ fun App() {
                     toast("Disconnesso dal TOC")
                     return@LaunchedEffect
                 }
+                val current = session
+                if (current != null) {
+                    val pending =
+                        runCatching {
+                            api.loadPendingTocPush(current.operatorId, current.sessionId)
+                        }.getOrNull()
+                    if (pending != null && pending.id != ignoredTocPushId) {
+                        val text =
+                            listOf(pending.title, pending.body)
+                                .filter { it.isNotBlank() }
+                                .joinToString("\n")
+                        tocMessage = text
+                        if (pending.id != lastTocPushId) {
+                            lastTocPushId = pending.id
+                            showTocPushNotification(
+                                pending.title.ifBlank { "TOC SAR" },
+                                pending.body.ifBlank { pending.title },
+                            )
+                        }
+                    }
+                }
             }
             delay(3_000L)
         }
@@ -167,8 +194,20 @@ fun App() {
                         tocMessage = tocMessage,
                         gpsStatusLabel = gpsStatusLabel,
                         onResetNotification = {
+                            val current = session
+                            val api = facade
+                            ignoredTocPushId = lastTocPushId
                             tocMessage = null
-                            toast("Notifica resettata sul telefono")
+                            lastTocPushId = null
+                            clearTocPushNotification()
+                            if (current != null && api != null) {
+                                scope.launch {
+                                    runCatching { api.dismissPendingTocPushes(current.toBackend()) }
+                                    toast("Notifica resettata sul telefono")
+                                }
+                            } else {
+                                toast("Notifica resettata sul telefono")
+                            }
                         },
                         onLogin = {
                             loginError = null

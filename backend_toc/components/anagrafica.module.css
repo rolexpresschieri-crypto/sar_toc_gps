@@ -236,12 +236,32 @@
 }
 
 .fieldRow input[type="text"],
-.fieldRow input:not([type="color"]):not([type="checkbox"]) {
+.fieldRow input:not([type="color"]):not([type="checkbox"]):not([type="radio"]),
+.fieldRow select {
   padding: 10px;
   border-radius: 8px;
   border: 1px solid #3a4a6a;
   background: #060b16;
   color: #fff;
+}
+
+.folderHint {
+  margin: 0 0 12px;
+  font-size: 13px;
+  color: #9baccc;
+  line-height: 1.4;
+}
+
+.folderWarn {
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid #c9a227;
+  background: rgba(224, 190, 58, 0.16);
+  color: #f3d56a;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.4;
 }
 
 .checkLabel {

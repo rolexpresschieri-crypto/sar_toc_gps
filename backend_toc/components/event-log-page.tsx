@@ -9,7 +9,7 @@ import styles from "./event-log-page.module.css";
 
 const PHOTO_BUCKET = "squad-photos";
 
-type LogKind = "notifica" | "foto" | "login" | "logout";
+type LogKind = "notifica" | "foto" | "login" | "logout" | "toc" | "reset";
 
 type LogRow = {
   id: string;
@@ -39,6 +39,12 @@ function kindLabel(kind: LogKind): string {
   }
   if (kind === "logout") {
     return "Logout";
+  }
+  if (kind === "toc") {
+    return "TOC → campo";
+  }
+  if (kind === "reset") {
+    return "Reset notifica";
   }
   return "Notifica";
 }
@@ -95,7 +101,7 @@ export default function EventLogPage() {
       return;
     }
     setLoading(true);
-    const [alarmsRes, photosRes, authRes] = await Promise.all([
+    const [alarmsRes, photosRes, authRes, eventsRes] = await Promise.all([
       supabase
         .from("squad_alarms")
         .select("id, squad_code, squad_name, message, created_at")
@@ -115,6 +121,7 @@ export default function EventLogPage() {
         .eq("organization_id", orgId)
         .order("created_at", { ascending: false })
         .limit(200),
+      supabase.from("events").select("id").eq("organization_id", orgId),
     ]);
 
     const next: LogRow[] = [];
@@ -172,6 +179,47 @@ export default function EventLogPage() {
       }
     } else if (alarmsRes.error && photosRes.error) {
       setStatus(alarmsRes.error.message);
+    }
+    const eventIds = ((eventsRes.data ?? []) as Record<string, unknown>[])
+      .map((e) => String(e.id))
+      .filter(Boolean);
+    if (eventIds.length > 0) {
+      const pushRes = await supabase
+        .from("toc_push_logs")
+        .select("id, squad_code, squad_name, title, body, admin_code, created_at, mobile_dismissed_at")
+        .in("event_id", eventIds)
+        .order("created_at", { ascending: false })
+        .limit(200);
+      if (!pushRes.error) {
+        for (const p of (pushRes.data ?? []) as Record<string, unknown>[]) {
+          const title = String(p.title ?? "").trim();
+          const body = String(p.body ?? "").trim();
+          const admin = String(p.admin_code ?? "").trim();
+          const id = String(p.id);
+          const text = [title, body].filter(Boolean).join(" — ");
+          next.push({
+            id,
+            kind: "toc",
+            createdAt: String(p.created_at),
+            squadCode: String(p.squad_code ?? ""),
+            squadName: String(p.squad_name ?? ""),
+            detail: [admin ? `da ${admin}` : "", text].filter(Boolean).join(" — "),
+            storagePath: null,
+          });
+          const dismissedAt = typeof p.mobile_dismissed_at === "string" ? p.mobile_dismissed_at : "";
+          if (dismissedAt) {
+            next.push({
+              id: `${id}-reset`,
+              kind: "reset",
+              createdAt: dismissedAt,
+              squadCode: String(p.squad_code ?? ""),
+              squadName: String(p.squad_name ?? ""),
+              detail: text ? `Reset notifica — ${text}` : "Reset notifica",
+              storagePath: null,
+            });
+          }
+        }
+      }
     }
     next.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
     setRows(next);
@@ -271,7 +319,7 @@ export default function EventLogPage() {
       <header className={styles.topBar}>
         <div>
           <h1>LOG — {session.organizationCode}</h1>
-          <p className={styles.sub}>Notifiche, foto e login operatori</p>
+          <p className={styles.sub}>Campo, TOC → campo, reset notifica, foto e login</p>
         </div>
         <Link className={styles.backLink} href="/">
           ← Sala operativa

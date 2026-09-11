@@ -8,7 +8,7 @@ Next.js per la sala operativa **TOC SAR**. Stesso Supabase dell’app (non gestS
 - **LOG** `/log`: notifiche, foto (apri/salva JPEG) e login operatori
 - **Config** `/config`: operatori online, visibilità in mappa verso gli altri, log-out forzato
 - **Mappa su schermo grande**: nuova finestra da trascinare sul secondo monitor (`/map-fullscreen`)
-- Anagrafica `/anagrafica`: operatori dell’ente e operazioni (attività). Tabella DB: `events`
+- Anagrafica `/anagrafica`: cartelle associazione, operatori e operazioni. Tabella DB operazioni: `events`
 
 ## Avvio locale
 

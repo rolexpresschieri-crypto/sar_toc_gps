@@ -17,6 +17,7 @@ import it.ansmi.tocsar.R
 import it.ansmi.tocsar.backend.GpsPosition
 import it.ansmi.tocsar.backend.TocSarFacade
 import it.ansmi.tocsar.backend.loadTocSarConfig
+import it.ansmi.tocsar.showTocPushNotification
 import it.ansmi.tocsar.geo.GeoFix
 import it.ansmi.tocsar.geo.GpsPublishPolicy
 import it.ansmi.tocsar.geo.TrackPoint
@@ -169,6 +170,7 @@ class OperatorGpsForegroundService : Service() {
                 }
             sessionWatchJob =
                 serviceScope.launch {
+                    var lastPushId: String? = null
                     while (isActive) {
                         val sid = sessionId ?: break
                         val api = facade ?: break
@@ -176,6 +178,15 @@ class OperatorGpsForegroundService : Service() {
                         if (online == false) {
                             GpsTrackingController.stop(applicationContext)
                             break
+                        }
+                        val pending =
+                            runCatching { api.loadPendingTocPush("", sid) }.getOrNull()
+                        if (pending != null && pending.id != lastPushId) {
+                            lastPushId = pending.id
+                            showTocPushNotification(
+                                pending.title.ifBlank { "TOC SAR" },
+                                pending.body.ifBlank { pending.title },
+                            )
                         }
                         delay(4_000L)
                     }

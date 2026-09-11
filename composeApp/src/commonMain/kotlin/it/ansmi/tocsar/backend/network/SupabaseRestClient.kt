@@ -180,6 +180,7 @@ internal class SupabaseRestClient(
         eqFilters: List<Pair<String, String>> = emptyList(),
         order: String? = null,
         limit: Int? = null,
+        isNullColumns: List<String> = emptyList(),
         deserializer: (String) -> List<T>,
     ): List<T> {
         val response = http.get("${config.restBaseUrl}$table") {
@@ -187,6 +188,9 @@ internal class SupabaseRestClient(
             parameter("select", select)
             eqFilters.forEach { (column, value) ->
                 parameter(column, "eq.$value")
+            }
+            isNullColumns.forEach { column ->
+                parameter(column, "is.null")
             }
             order?.let { parameter("order", it) }
             limit?.let { parameter("limit", it.toString()) }

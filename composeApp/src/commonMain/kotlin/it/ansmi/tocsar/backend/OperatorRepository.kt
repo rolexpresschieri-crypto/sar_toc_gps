@@ -13,8 +13,11 @@ import it.ansmi.tocsar.backend.network.SessionInsertRow
 import it.ansmi.tocsar.backend.network.SessionOnlineRow
 import it.ansmi.tocsar.backend.network.SessionRestoreRow
 import it.ansmi.tocsar.backend.network.FieldPhotoLogInsertBody
+import it.ansmi.tocsar.backend.network.MobileDismissLogInsertBody
 import it.ansmi.tocsar.backend.network.MissionGpsFileRow
 import it.ansmi.tocsar.backend.network.SquadAlarmInsertBody
+import it.ansmi.tocsar.backend.network.TocPushDismissPatchBody
+import it.ansmi.tocsar.backend.network.TocPushLogRow
 import it.ansmi.tocsar.backend.network.TrackLogInsertBody
 import it.ansmi.tocsar.backend.network.SupabaseRestClient
 import it.ansmi.tocsar.geo.MapTrackOverlay
@@ -589,6 +592,118 @@ class OperatorRepository(
                     nPoints = stats.nPoints,
                 ),
         )
+    }
+
+    suspend fun loadPendingTocPush(
+        operatorId: String,
+        sessionId: String? = null,
+    ): TocPushMessage? {
+        val squadId = operatorId.trim()
+        val sid = sessionId?.trim().orEmpty()
+        if (squadId.isEmpty() && sid.isEmpty()) {
+            return null
+        }
+        val bySquad =
+            if (squadId.isNotEmpty()) {
+                fetchPendingTocPushes(eqFilters = listOf("squad_id" to squadId))
+            } else {
+                emptyList()
+            }
+        val bySession =
+            if (sid.isNotEmpty()) {
+                fetchPendingTocPushes(eqFilters = listOf("session_id" to sid))
+            } else {
+                emptyList()
+            }
+        val row =
+            (bySquad + bySession)
+                .distinctBy { it.id }
+                .maxByOrNull { it.createdAt.orEmpty() }
+                ?: return null
+        return TocPushMessage(
+            id = row.id,
+            title = row.title.trim(),
+            body = row.body.trim(),
+        )
+    }
+
+    suspend fun dismissPendingTocPushes(session: OperatorBackendSession) {
+        val pending = loadPendingTocPush(session.operatorId, session.sessionId)
+        val now = nowIso()
+        runCatching {
+            rest.patch(
+                table = "toc_push_logs",
+                filters = listOf("squad_id" to session.operatorId),
+                isNullColumns = listOf("mobile_dismissed_at"),
+                body = TocPushDismissPatchBody(mobileDismissedAt = now),
+            )
+        }
+        if (!session.sessionId.isNullOrBlank()) {
+            runCatching {
+                rest.patch(
+                    table = "toc_push_logs",
+                    filters = listOf("session_id" to session.sessionId),
+                    isNullColumns = listOf("mobile_dismissed_at"),
+                    body = TocPushDismissPatchBody(mobileDismissedAt = now),
+                )
+            }
+        }
+        if (session.eventId.isNotBlank()) {
+            runCatching {
+                rest.insert(
+                    table = "squad_mobile_dismiss_logs",
+                    body =
+                        MobileDismissLogInsertBody(
+                            eventId = session.eventId,
+                            sessionId = session.sessionId,
+                            operatorId = session.operatorId,
+                            operatorCode = session.operatorCode,
+                            operatorName = session.operatorName,
+                            panelMessage =
+                                pending
+                                    ?.let {
+                                        listOf(it.title, it.body)
+                                            .filter { part -> part.isNotBlank() }
+                                            .joinToString(" — ")
+                                    }
+                                    ?.ifBlank { "Reset notifica" }
+                                    ?: "Reset notifica",
+                        ),
+                )
+            }
+        }
+    }
+
+    private suspend fun fetchPendingTocPushes(
+        eqFilters: List<Pair<String, String>>,
+    ): List<TocPushLogRow> {
+        val withDismiss =
+            runCatching {
+                rest.getList(
+                    table = "toc_push_logs",
+                    select = "id,title,body,event_id,session_id,squad_id,created_at",
+                    eqFilters = eqFilters,
+                    isNullColumns = listOf("mobile_dismissed_at"),
+                    order = "created_at.desc",
+                    limit = 5,
+                ) { body ->
+                    json.decodeFromString<List<TocPushLogRow>>(body)
+                }
+            }
+        if (withDismiss.isSuccess) {
+            return withDismiss.getOrDefault(emptyList())
+        }
+        return runCatching {
+            rest.getList(
+                table = "toc_push_logs",
+                select = "id,title,body,event_id,session_id,squad_id,created_at",
+                eqFilters = eqFilters,
+                order = "created_at.desc",
+                limit = 1,
+            ) { body ->
+                json.decodeFromString<List<TocPushLogRow>>(body)
+            }
+        }.getOrDefault(emptyList())
     }
 
     private suspend fun loadOrganizationCode(organizationId: String): String {

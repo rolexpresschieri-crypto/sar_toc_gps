@@ -115,8 +115,7 @@ fun HomeScreen(
                 )
 
                 BodyText(
-                    text = "Reset notifica: solo sul telefono (log «notifica chiusa»). " +
-                        "La chiusura operazione è solo dal TOC.",
+                    text = "Reset notifica: chiude il messaggio TOC sul telefono (log «notifica chiusa»).",
                     fontSize = 12,
                     modifier = Modifier.padding(bottom = 8.dp),
                 )
@@ -348,7 +347,10 @@ private fun NotificationPanel(
         modifier = modifier
             .fillMaxWidth()
             .heightIn(min = 72.dp)
-            .background(TacticalNavy, RoundedCornerShape(10.dp))
+            .background(
+                if (message.isNullOrBlank()) TacticalNavy else TacticalRed,
+                RoundedCornerShape(10.dp),
+            )
             .border(1.dp, Color.White.copy(alpha = 0.28f), RoundedCornerShape(10.dp))
             .padding(horizontal = 14.dp, vertical = 12.dp),
         contentAlignment = Alignment.Center,

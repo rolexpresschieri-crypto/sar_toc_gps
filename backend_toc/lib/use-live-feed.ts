@@ -29,6 +29,17 @@ export type FieldPhoto = {
   session_id: string;
 };
 
+export type OutboundPush = {
+  id: string;
+  squad_code: string;
+  squad_name: string;
+  title: string;
+  body: string;
+  admin_code: string;
+  created_at: string;
+  session_id: string | null;
+};
+
 export function useLiveFeed(
   supabase: ReturnType<typeof getSupabaseBrowserClient>,
   orgId: string | null,
@@ -37,6 +48,7 @@ export function useLiveFeed(
   const [squads, setSquads] = useState<LiveSquad[]>([]);
   const [alarms, setAlarms] = useState<PendingAlarm[]>([]);
   const [photos, setPhotos] = useState<FieldPhoto[]>([]);
+  const [outbound, setOutbound] = useState<OutboundPush[]>([]);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const localAcked = useRef(readAckedPhotoIds());
 
@@ -45,11 +57,12 @@ export function useLiveFeed(
       setSquads([]);
       setAlarms([]);
       setPhotos([]);
+      setOutbound([]);
       return;
     }
     const photoSelect =
       "id, squad_code, squad_name, latitude, longitude, accuracy_m, note, storage_path, created_at, session_id";
-    const [sessionsRes, alarmsRes, photosRes] = await Promise.all([
+    const [sessionsRes, alarmsRes, photosRes, eventsRes] = await Promise.all([
       supabase
         .from("squad_sessions")
         .select(
@@ -72,6 +85,7 @@ export function useLiveFeed(
         .is("acknowledged_at", null)
         .order("created_at", { ascending: false })
         .limit(40),
+      supabase.from("events").select("id").eq("organization_id", orgId),
     ]);
 
     if (sessionsRes.error) {
@@ -119,6 +133,37 @@ export function useLiveFeed(
       });
     }
     setPhotos(nextPhotos);
+
+    const eventIds = ((eventsRes.data ?? []) as Record<string, unknown>[])
+      .map((e) => String(e.id))
+      .filter(Boolean);
+    if (eventIds.length === 0) {
+      setOutbound([]);
+    } else {
+      const pushRes = await supabase
+        .from("toc_push_logs")
+        .select("id, squad_code, squad_name, title, body, admin_code, created_at, session_id")
+        .in("event_id", eventIds)
+        .is("mobile_dismissed_at", null)
+        .order("created_at", { ascending: false })
+        .limit(80);
+      if (pushRes.error) {
+        setOutbound([]);
+      } else {
+        setOutbound(
+          ((pushRes.data ?? []) as Record<string, unknown>[]).map((raw) => ({
+            id: String(raw.id),
+            squad_code: String(raw.squad_code ?? ""),
+            squad_name: String(raw.squad_name ?? ""),
+            title: String(raw.title ?? ""),
+            body: String(raw.body ?? ""),
+            admin_code: String(raw.admin_code ?? ""),
+            created_at: String(raw.created_at),
+            session_id: raw.session_id == null ? null : String(raw.session_id),
+          })),
+        );
+      }
+    }
   }, [supabase, orgId]);
 
   useEffect(() => {
@@ -130,7 +175,17 @@ export function useLiveFeed(
     return () => window.clearInterval(t);
   }, [enabled, supabase, orgId, loadLive]);
 
-  return { squads, alarms, setAlarms, photos, setPhotos, statusMessage, setStatusMessage, loadLive };
+  return {
+    squads,
+    alarms,
+    setAlarms,
+    photos,
+    setPhotos,
+    outbound,
+    statusMessage,
+    setStatusMessage,
+    loadLive,
+  };
 }
 
 export function markPhotoAckedLocally(id: string) {

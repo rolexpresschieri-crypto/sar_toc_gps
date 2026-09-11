@@ -95,4 +95,12 @@ class TocSarFacade(
         trackName: String,
         stats: TrackStats,
     ) = repository.sendTrackLog(session, trackName, stats)
+
+    suspend fun loadPendingTocPush(
+        operatorId: String,
+        sessionId: String? = null,
+    ): TocPushMessage? = repository.loadPendingTocPush(operatorId, sessionId)
+
+    suspend fun dismissPendingTocPushes(session: OperatorBackendSession) =
+        repository.dismissPendingTocPushes(session)
 }
