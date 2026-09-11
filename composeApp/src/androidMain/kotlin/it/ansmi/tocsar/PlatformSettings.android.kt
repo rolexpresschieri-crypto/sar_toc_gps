@@ -12,3 +12,8 @@ actual fun openAppSystemSettings() {
     ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
     context.startActivity(intent)
 }
+
+actual fun unusedAppPermissionHint(): String =
+    "Android: Impostazioni -> TOC SAR -> «Gestisci l'app se inutilizzata» -> " +
+        "disattiva «Rimuovi le autorizzazioni se l'app non viene usata», " +
+        "altrimenti il telefono toglie GPS e notifiche da solo."
