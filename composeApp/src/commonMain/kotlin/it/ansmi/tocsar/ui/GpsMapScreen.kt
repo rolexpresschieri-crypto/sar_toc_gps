@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Text
@@ -50,6 +51,9 @@ import androidx.compose.ui.zIndex
 import it.ansmi.tocsar.geo.MapTrackOverlay
 import it.ansmi.tocsar.geo.TrackPoint
 import it.ansmi.tocsar.geo.WaypointItem
+import it.ansmi.tocsar.geo.COMUNE_BOUNDARY_CATALOG
+import it.ansmi.tocsar.geo.ComuneBoundaryGeom
+import it.ansmi.tocsar.geo.loadComuneBoundaries
 import it.ansmi.tocsar.geo.createCompassGateway
 import it.ansmi.tocsar.geo.createLocationGateway
 import it.ansmi.tocsar.geo.haversineDistanceM
@@ -81,6 +85,8 @@ data class GpsMapModel(
     val liveOperators: List<LiveOperatorPin> = emptyList(),
     val measureA: MapMeasurePoint? = null,
     val measureB: MapMeasurePoint? = null,
+    val comuneBoundaries: List<ComuneBoundaryGeom> = emptyList(),
+    val visibleComuneIds: Set<String> = emptySet(),
 )
 
 /** Punto scelto in mappa per distanza/direzione: operatore, WP o posizione propria. */
@@ -191,7 +197,14 @@ fun GpsMapScreen(
         )
     }
     var layersOpen by remember { mutableStateOf(false) }
+    var confiniOpen by remember { mutableStateOf(false) }
+    var visibleComuneIds by remember { mutableStateOf(setOf<String>()) }
+    var comuneGeoms by remember { mutableStateOf<List<ComuneBoundaryGeom>>(emptyList()) }
     var mapZoom by remember { mutableStateOf(14.0) }
+
+    LaunchedEffect(Unit) {
+        comuneGeoms = loadComuneBoundaries()
+    }
 
     var deviceLat by remember { mutableStateOf<Double?>(null) }
     var deviceLon by remember { mutableStateOf<Double?>(null) }
@@ -254,6 +267,8 @@ fun GpsMapScreen(
         liveOperators = liveOperators,
         measureA = measureA,
         measureB = measureB,
+        comuneBoundaries = comuneGeoms,
+        visibleComuneIds = visibleComuneIds,
     )
     val scale = pickScaleBar(mapZoom, maxBarWidthPx = 120.0)
     val altText = deviceAlt?.takeIf { it.isFinite() && it > 0 }?.let { "${it.roundToInt()} m s.l.m." }
@@ -431,6 +446,49 @@ fun GpsMapScreen(
                         enabled = trailsEnabled,
                         modifier = Modifier.size(22.dp),
                     )
+                }
+                Box {
+                    MapIconButton(
+                        onClick = { confiniOpen = true },
+                        active = visibleComuneIds.isNotEmpty(),
+                    ) {
+                        Text("C", color = if (visibleComuneIds.isNotEmpty()) Color(0xFFFF1A1A) else Color.White, fontSize = 18.sp, fontWeight = FontWeight.ExtraBold)
+                    }
+                    DropdownMenu(
+                        expanded = confiniOpen,
+                        onDismissRequest = { confiniOpen = false },
+                    ) {
+                        DropdownMenuItem(
+                            text = { Text("Tutti i confini", fontWeight = FontWeight.Bold) },
+                            onClick = {
+                                visibleComuneIds = COMUNE_BOUNDARY_CATALOG.map { it.id }.toSet()
+                                followMode = false
+                            },
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Nessuno") },
+                            onClick = { visibleComuneIds = emptySet() },
+                        )
+                        COMUNE_BOUNDARY_CATALOG.forEach { comune ->
+                            val on = comune.id in visibleComuneIds
+                            DropdownMenuItem(
+                                text = {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Checkbox(
+                                            checked = on,
+                                            onCheckedChange = null,
+                                        )
+                                        Text(comune.name)
+                                    }
+                                },
+                                onClick = {
+                                    visibleComuneIds =
+                                        if (on) visibleComuneIds - comune.id else visibleComuneIds + comune.id
+                                    if (!on) followMode = false
+                                },
+                            )
+                        }
+                    }
                 }
             }
 

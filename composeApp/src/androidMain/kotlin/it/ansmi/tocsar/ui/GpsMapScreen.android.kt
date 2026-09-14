@@ -33,6 +33,7 @@ import org.osmdroid.util.GeoPoint
 import org.osmdroid.util.MapTileIndex
 import org.osmdroid.views.MapView
 import org.osmdroid.views.overlay.Marker
+import org.osmdroid.views.overlay.Polygon
 import org.osmdroid.views.overlay.Polyline
 import org.osmdroid.views.overlay.TilesOverlay
 import java.text.SimpleDateFormat
@@ -106,6 +107,8 @@ private class MapRuntimeState {
     var measureLine: Polyline? = null
     var gpsMarker: Marker? = null
     var baseMarker: Marker? = null
+    var comunePolygons: MutableList<Polygon> = mutableListOf()
+    var lastConfiniKey: String? = null
     var onOverlayShare: ((MapOverlayTap) -> Unit)? = null
 }
 
@@ -185,6 +188,7 @@ actual fun PlatformMapLayer(
                 state.lastTrails = trailsEnabled
                 state.lastOverlayKey = staticOverlayKey(model)
                 applyLive(map, followMode, deviceLat, deviceLon, mapOrientationDeg, model, state)
+                applyComuneBoundaries(map, model, state)
                 scheduleFit(map, model, deviceLat, deviceLon, state, onZoomChanged)
             }
         },
@@ -219,6 +223,7 @@ actual fun PlatformMapLayer(
             }
 
             applyLive(map, followMode, deviceLat, deviceLon, mapOrientationDeg, model, state)
+            applyComuneBoundaries(map, model, state)
             reportZoom(map, state, onZoomChanged)
         },
         modifier = modifier,
@@ -276,6 +281,54 @@ private fun applyTrailsOverlay(map: MapView, trailsOverlay: TilesOverlay?, enabl
     map.invalidate()
 }
 
+private fun confiniKey(model: GpsMapModel): String =
+    model.visibleComuneIds.sorted().joinToString(",")
+
+private fun applyComuneBoundaries(map: MapView, model: GpsMapModel, state: MapRuntimeState) {
+    val key = confiniKey(model)
+    if (key == state.lastConfiniKey) return
+    val prevCount = state.lastConfiniKey?.split(',')?.count { it.isNotEmpty() } ?: 0
+    state.lastConfiniKey = key
+    state.comunePolygons.forEach { map.overlays.remove(it) }
+    state.comunePolygons.clear()
+
+    val created = mutableListOf<Polygon>()
+    val allPts = mutableListOf<GeoPoint>()
+    val visible = model.comuneBoundaries.filter { it.id in model.visibleComuneIds }
+    for (comune in visible) {
+        for (rings in comune.polygons) {
+            if (rings.outer.size < 3) continue
+            val outer = rings.outer.map { GeoPoint(it.lat, it.lon) }
+            allPts.addAll(outer)
+            created.add(
+                Polygon().apply {
+                    title = comune.name
+                    points = ArrayList(outer)
+                    fillPaint.color = AndroidColor.argb(36, 255, 26, 26)
+                    outlinePaint.color = AndroidColor.rgb(255, 26, 26)
+                    outlinePaint.strokeWidth = 8f
+                    outlinePaint.isAntiAlias = true
+                    if (rings.holes.isNotEmpty()) {
+                        holes = rings.holes.map { hole -> hole.map { p -> GeoPoint(p.lat, p.lon) } }
+                    }
+                },
+            )
+        }
+    }
+    val trailsIdx = map.overlays.indexOfFirst { it is TilesOverlay }
+    val insertAt = if (trailsIdx >= 0) trailsIdx + 1 else 0
+    created.forEachIndexed { i, poly ->
+        map.overlays.add(insertAt + i, poly)
+        state.comunePolygons.add(poly)
+    }
+    val nextCount = model.visibleComuneIds.size
+    if (nextCount > prevCount && allPts.size >= 2) {
+        map.zoomToBoundingBox(BoundingBox.fromGeoPoints(allPts), true, 48)
+        state.userAdjustedView = true
+    }
+    map.invalidate()
+}
+
 private fun rebuildOverlays(
     map: MapView,
     trailsOverlay: TilesOverlay?,
@@ -299,6 +352,8 @@ private fun rebuildOverlays(
     state.measureLine = null
     state.lastLiveTrailSize = -1
     state.lastLiveOperatorsKey = null
+    state.comunePolygons.clear()
+    state.lastConfiniKey = null
 
     if (trailsEnabled && trailsOverlay != null) {
         map.overlays.add(trailsOverlay)
