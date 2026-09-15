@@ -48,7 +48,7 @@ Login app: **ente + codice operatore + password** (es. demo `NVANSMI` / `LUPO` /
 
 ## Guida utente
 
-PDF per operatori (loghi ANSMI + UCRS, dal log-in al GPS): [`docs/TOC_SAR_Guida_utente.pdf`](docs/TOC_SAR_Guida_utente.pdf).
+PDF unico per operatori (loghi ANSMI + UCRS, Android e iPhone, dal log-in al GPS, confini comunali): [`docs/TOC_SAR_Guida_utente.pdf`](docs/TOC_SAR_Guida_utente.pdf). Le eccezioni iPhone sono nel testo (punti «iPhone —»).
 
 Per rigenerarlo: `python docs/build_guida_utente.py`.
 
