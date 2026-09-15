@@ -20,7 +20,10 @@ import it.ansmi.tocsar.backend.network.TocPushDismissPatchBody
 import it.ansmi.tocsar.backend.network.TocPushLogRow
 import it.ansmi.tocsar.backend.network.TrackLogInsertBody
 import it.ansmi.tocsar.backend.network.SupabaseRestClient
+import it.ansmi.tocsar.geo.ComuneBoundaryGeom
 import it.ansmi.tocsar.geo.MapTrackOverlay
+import it.ansmi.tocsar.geo.nameFromComuneGeoJson
+import it.ansmi.tocsar.geo.parseComuneGeoJson
 import it.ansmi.tocsar.geo.MissionGpsContent
 import it.ansmi.tocsar.geo.TrackStats
 import it.ansmi.tocsar.geo.WaypointItem
@@ -726,9 +729,45 @@ class OperatorRepository(
         return code
     }
 
+    suspend fun loadComuneBoundaries(): List<ComuneBoundaryGeom> {
+        val items =
+            runCatching { rest.listStorageObjects("comune-boundaries", "") }
+                .getOrDefault(emptyList())
+        val fromStorage =
+            items
+                .filter { it.name.endsWith(".geojson", ignoreCase = true) }
+                .mapNotNull { item ->
+                    runCatching {
+                        val raw = rest.downloadStorageObject("comune-boundaries", item.name)
+                        val id = item.name.substringBeforeLast(".").lowercase()
+                        parseComuneGeoJson(id, nameFromComuneGeoJson(raw, id), raw)
+                    }.getOrNull()
+                }
+        if (fromStorage.isNotEmpty()) {
+            return fromStorage.sortedBy { it.name.lowercase() }
+        }
+        return VAL_SUSA_CONFINI_SEED.mapNotNull { (id, name) ->
+            runCatching {
+                val raw = rest.downloadPublicText("$TOC_CONFINI_BASE/$id.geojson")
+                parseComuneGeoJson(id, nameFromComuneGeoJson(raw, name), raw)
+            }.getOrNull()
+        }.sortedBy { it.name.lowercase() }
+    }
+
     companion object {
         private const val ACTION_LOGIN = "login"
         private const val ACTION_LOGOUT = "logout"
+        private const val TOC_CONFINI_BASE = "https://toc-sar.vercel.app/map/confini"
+        private val VAL_SUSA_CONFINI_SEED =
+            listOf(
+                "claviere" to "Claviere",
+                "cesana-torinese" to "Cesana Torinese",
+                "sauze-di-cesana" to "Sauze di Cesana",
+                "sestriere" to "Sestriere",
+                "sauze-d-oulx" to "Sauze d'Oulx",
+                "oulx" to "Oulx",
+                "pragelato" to "Pragelato",
+            )
     }
 }
 

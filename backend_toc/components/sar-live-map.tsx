@@ -4,9 +4,21 @@ import "leaflet/dist/leaflet.css";
 import "./sar-live-map.css";
 import L from "leaflet";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { CircleMarker, MapContainer, Marker, Polyline, Popup, TileLayer, Tooltip, useMap } from "react-leaflet";
+import {
+  CircleMarker,
+  GeoJSON as LeafletGeoJSON,
+  MapContainer,
+  Marker,
+  Polyline,
+  Popup,
+  TileLayer,
+  Tooltip,
+  useMap,
+} from "react-leaflet";
 import { hasCoordinates, type LiveSquad } from "@/lib/live-squads";
 import { getMapTileConfig, type LayerMode } from "@/lib/map-layers";
+import { loadComuneBoundariesWithGeo, type ComuneBoundary } from "@/lib/comune-boundaries";
+import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
 import { fetchTerrainElevationM } from "@/lib/elevation";
 import { isCircleIcon, squadIconMapUrl } from "@/lib/squad-icons";
 
@@ -159,6 +171,30 @@ function FocusLatLng({
   return null;
 }
 
+function FitGeoJson({
+  items,
+  nonce,
+}: {
+  items: GeoJSON.GeoJsonObject[];
+  nonce: number;
+}) {
+  const map = useMap();
+  useEffect(() => {
+    if (items.length === 0) {
+      return;
+    }
+    const group = L.featureGroup(items.map((geo) => L.geoJSON(geo)));
+    const bounds = group.getBounds();
+    if (!bounds.isValid()) {
+      return;
+    }
+    map.fitBounds(bounds, { padding: [36, 36], maxZoom: 14 });
+    // Solo quando l’utente cambia la selezione (nonce), non a ogni poll GPS.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [map, nonce]);
+  return null;
+}
+
 function FitWhenNeeded({ squads }: { squads: LiveSquad[] }) {
   const map = useMap();
   const fitted = useRef(false);
@@ -255,6 +291,40 @@ export default function SarLiveMap({
   const [copied, setCopied] = useState(false);
   const [quotaM, setQuotaM] = useState<number | null>(null);
   const [quotaLoading, setQuotaLoading] = useState(false);
+  const [confiniOpen, setConfiniOpen] = useState(false);
+  const [visibleConfini, setVisibleConfini] = useState<ReadonlySet<string>>(() => new Set());
+  const [comuni, setComuni] = useState<ComuneBoundary[]>([]);
+  const [geoById, setGeoById] = useState<Record<string, GeoJSON.GeoJsonObject>>({});
+  const [fitConfiniNonce, setFitConfiniNonce] = useState(0);
+
+  useEffect(() => {
+    let cancelled = false;
+    const supabase = getSupabaseBrowserClient();
+    if (!supabase) {
+      return;
+    }
+    void loadComuneBoundariesWithGeo(supabase, { fallbackPublic: true })
+      .then((rows) => {
+        if (cancelled) {
+          return;
+        }
+        setComuni(rows.map(({ id, name, path }) => ({ id, name, path })));
+        const next: Record<string, GeoJSON.GeoJsonObject> = {};
+        for (const row of rows) {
+          next[row.id] = row.geo;
+        }
+        setGeoById(next);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setComuni([]);
+          setGeoById({});
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const addRulerPoint = useCallback((latlng: L.LatLng) => {
     setRulerPoints((prev) => [...prev, latlng]);
@@ -308,6 +378,28 @@ export default function SarLiveMap({
     });
   }
 
+  function toggleComune(id: string) {
+    setVisibleConfini((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+        return next;
+      }
+      next.add(id);
+      setFitConfiniNonce((n) => n + 1);
+      return next;
+    });
+  }
+
+  function showAllConfini() {
+    setVisibleConfini(new Set(comuni.filter((c) => geoById[c.id]).map((c) => c.id)));
+    setFitConfiniNonce((n) => n + 1);
+  }
+
+  function hideAllConfini() {
+    setVisibleConfini(new Set());
+  }
+
   function toggleCoord() {
     setCoordOn((on) => {
       if (on) {
@@ -357,6 +449,51 @@ export default function SarLiveMap({
         >
           Coordinate
         </button>
+        <div className="sar-confini-wrap">
+          <button
+            type="button"
+            className={
+              visibleConfini.size > 0 || confiniOpen
+                ? "sar-ruler-btn sar-ruler-btn-on"
+                : "sar-ruler-btn"
+            }
+            onClick={() => setConfiniOpen((open) => !open)}
+            title="Confini comunali"
+          >
+            Confini{visibleConfini.size > 0 ? ` (${visibleConfini.size})` : ""}
+          </button>
+          {confiniOpen ? (
+            <div className="sar-confini-menu">
+              <div className="sar-confini-actions">
+                <button type="button" className="sar-confini-mini" onClick={showAllConfini}>
+                  Tutti
+                </button>
+                <button type="button" className="sar-confini-mini" onClick={hideAllConfini}>
+                  Nessuno
+                </button>
+              </div>
+              {comuni.length === 0 ? (
+                <p className="sar-confini-empty">Nessun comune. Aggiungili in Anagrafica.</p>
+              ) : (
+                comuni.map((comune) => {
+                  const ready = Boolean(geoById[comune.id]);
+                  const on = visibleConfini.has(comune.id);
+                  return (
+                    <label key={comune.id} className="sar-confini-item">
+                      <input
+                        type="checkbox"
+                        checked={on}
+                        disabled={!ready}
+                        onChange={() => toggleComune(comune.id)}
+                      />
+                      {comune.name}
+                    </label>
+                  );
+                })
+              )}
+            </div>
+          ) : null}
+        </div>
         {rulerOn ? (
           <>
             <span className="sar-ruler-distance">
@@ -416,6 +553,30 @@ export default function SarLiveMap({
         <FitWhenNeeded squads={squads} />
         <Recenter squad={selected} nonce={recenterNonce} />
         <FocusLatLng point={focusPoint} nonce={focusNonce} />
+        {comuni.filter((comune) => visibleConfini.has(comune.id) && geoById[comune.id]).map(
+          (comune) => (
+            <LeafletGeoJSON
+              key={comune.id}
+              data={geoById[comune.id]!}
+              pathOptions={{
+                color: "#ff1a1a",
+                weight: 4,
+                opacity: 1,
+                fillColor: "#ff1a1a",
+                fillOpacity: 0.08,
+              }}
+              onEachFeature={(_feature, layer) => {
+                layer.bindPopup(`Comune di ${comune.name}`);
+              }}
+            />
+          ),
+        )}
+        {visibleConfini.size > 0 ? (
+          <FitGeoJson
+            items={comuni.filter((c) => visibleConfini.has(c.id) && geoById[c.id]).map((c) => geoById[c.id]!)}
+            nonce={fitConfiniNonce}
+          />
+        ) : null}
         <MapToolClicks
           rulerOn={rulerOn}
           coordOn={coordOn}

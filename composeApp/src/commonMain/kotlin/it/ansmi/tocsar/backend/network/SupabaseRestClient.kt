@@ -174,6 +174,12 @@ internal class SupabaseRestClient(
         return json.decodeFromString<List<StorageListItem>>(body)
     }
 
+    suspend fun downloadPublicText(url: String): String {
+        val response = http.get(url)
+        ensureSuccess(response)
+        return response.bodyAsText()
+    }
+
     suspend fun <T> getList(
         table: String,
         select: String,

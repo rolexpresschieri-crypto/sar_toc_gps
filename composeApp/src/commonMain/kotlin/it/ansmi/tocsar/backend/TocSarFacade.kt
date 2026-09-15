@@ -90,6 +90,8 @@ class TocSarFacade(
         eventId: String?,
     ) = repository.loadMissionGps(organizationId, eventId)
 
+    suspend fun loadComuneBoundaries() = repository.loadComuneBoundaries()
+
     suspend fun sendTrackLog(
         session: OperatorBackendSession,
         trackName: String,

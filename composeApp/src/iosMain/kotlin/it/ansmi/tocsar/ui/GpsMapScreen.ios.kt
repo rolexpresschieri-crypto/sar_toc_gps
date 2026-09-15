@@ -11,6 +11,7 @@ import androidx.compose.ui.viewinterop.UIKitInteropProperties
 import androidx.compose.ui.viewinterop.UIKitView
 import it.ansmi.tocsar.geo.TrackPoint
 import it.ansmi.tocsar.geo.WaypointItem
+import it.ansmi.tocsar.geo.LatLon
 import it.ansmi.tocsar.geo.splitTrackSegments
 import kotlinx.cinterop.BetaInteropApi
 import kotlinx.cinterop.ExperimentalForeignApi
@@ -43,6 +44,8 @@ import platform.MapKit.MKOverlayLevelAboveRoads
 import platform.MapKit.MKOverlayProtocol
 import platform.MapKit.MKOverlayRenderer
 import platform.MapKit.MKPointAnnotation
+import platform.MapKit.MKPolygon
+import platform.MapKit.MKPolygonRenderer
 import platform.MapKit.MKPolyline
 import platform.MapKit.MKPolylineRenderer
 import platform.MapKit.MKTileOverlay
@@ -73,6 +76,13 @@ private class PolyStyle(
     val width: Double,
 )
 
+private class PolygonStyle(
+    val overlay: MKPolygon,
+    val stroke: UIColor,
+    val fill: UIColor,
+    val width: Double,
+)
+
 private class TaggedPin(
     val annotation: MKPointAnnotation,
     val tap: MapOverlayTap,
@@ -100,10 +110,13 @@ private class IosMapRuntime {
     var liveTrailOverlays: List<MKPolyline> = emptyList()
     var navLine: MKPolyline? = null
     var measureLine: MKPolyline? = null
+    var comuneOverlays: List<MKPolygon> = emptyList()
+    var lastConfiniKey: String? = null
     var pinAnnotations: List<TaggedPin> = emptyList()
     var gpsAnnotation: MKPointAnnotation? = null
     var lastSelectAtMs: Long = 0L
     val polyStyles = mutableListOf<PolyStyle>()
+    val polygonStyles = mutableListOf<PolygonStyle>()
     val delegate = IosMapDelegate(this)
     val tapTarget = IosMapTapTarget(this)
 }
@@ -148,6 +161,14 @@ private class IosMapDelegate(
             return MKPolylineRenderer(overlay).apply {
                 strokeColor = style?.color ?: UIColor.redColor
                 lineWidth = style?.width ?: 4.0
+            }
+        }
+        if (overlay is MKPolygon) {
+            val style = state.polygonStyles.firstOrNull { sameNative(it.overlay, overlay) }
+            return MKPolygonRenderer(overlay).apply {
+                strokeColor = style?.stroke ?: UIColor.redColor
+                fillColor = style?.fill ?: UIColor.colorWithRed(1.0, 0.102, 0.102, alpha = 0.14)
+                lineWidth = style?.width ?: 3.5
             }
         }
         return MKOverlayRenderer(overlay)
@@ -249,6 +270,7 @@ actual fun PlatformMapLayer(
             updateGpsPin(map, state, model, followMode, deviceLat, deviceLon)
             applyHeading(map, state, mapOrientationDeg)
             applyFollowOrFit(map, state, model, followMode, deviceLat, deviceLon)
+            applyComuneBoundaries(map, state, model)
             applySelectionStyle(map, state, model)
             reportZoom(map, state)
         },
@@ -631,6 +653,66 @@ private fun fitIfNeeded(
         animated = false,
     )
     state.lastFitKey = fitKey
+}
+
+@OptIn(ExperimentalForeignApi::class)
+private fun applyComuneBoundaries(map: MKMapView, state: IosMapRuntime, model: GpsMapModel) {
+    val key = model.visibleComuneIds.sorted().joinToString(",")
+    if (key == state.lastConfiniKey) return
+    val prevCount = state.lastConfiniKey?.split(',')?.count { it.isNotEmpty() } ?: 0
+    state.lastConfiniKey = key
+    state.comuneOverlays.forEach { map.removeOverlay(it) }
+    state.polygonStyles.removeAll { style ->
+        state.comuneOverlays.any { sameNative(it, style.overlay) }
+    }
+    val next = mutableListOf<MKPolygon>()
+    val allCoords = mutableListOf<Pair<Double, Double>>()
+    val stroke = UIColor.colorWithRed(1.0, 0.102, 0.102, alpha = 1.0)
+    val fill = UIColor.colorWithRed(1.0, 0.102, 0.102, alpha = 0.14)
+    for (comune in model.comuneBoundaries.filter { it.id in model.visibleComuneIds }) {
+        for (rings in comune.polygons) {
+            val poly = polygonOf(rings.outer) ?: continue
+            rings.outer.forEach { allCoords.add(it.lat to it.lon) }
+            state.polygonStyles.add(PolygonStyle(poly, stroke, fill, 3.5))
+            map.addOverlay(poly, level = MKOverlayLevelAboveRoads)
+            next.add(poly)
+        }
+    }
+    state.comuneOverlays = next
+    if (model.visibleComuneIds.size > prevCount && allCoords.size >= 2) {
+        val minLat = allCoords.minOf { it.first }
+        val maxLat = allCoords.maxOf { it.first }
+        val minLon = allCoords.minOf { it.second }
+        val maxLon = allCoords.maxOf { it.second }
+        val latDelta = ((maxLat - minLat) * 1.35).coerceAtLeast(0.006)
+        val lonDelta = ((maxLon - minLon) * 1.35).coerceAtLeast(0.006)
+        val center = CLLocationCoordinate2DMake((minLat + maxLat) / 2.0, (minLon + maxLon) / 2.0)
+        map.setRegion(
+            MKCoordinateRegionMake(center, MKCoordinateSpanMake(latDelta, lonDelta)),
+            animated = true,
+        )
+        state.userAdjustedView = true
+    }
+}
+
+@OptIn(ExperimentalForeignApi::class)
+private fun polygonOf(points: List<LatLon>): MKPolygon? {
+    if (points.size < 3) return null
+    return memScoped {
+        val arr = allocArray<CLLocationCoordinate2D>(points.size)
+        val stride = sizeOf<CLLocationCoordinate2D>()
+        points.forEachIndexed { i, p ->
+            val dest = interpretCPointer<CLLocationCoordinate2D>(arr.rawValue + stride * i)
+                ?: return@forEachIndexed
+            val src = CLLocationCoordinate2DMake(p.lat, p.lon)
+            platform.posix.memcpy(
+                dest,
+                src.getPointer(this),
+                sizeOf<CLLocationCoordinate2D>().toULong(),
+            )
+        }
+        MKPolygon.polygonWithCoordinates(arr, count = points.size.toULong())
+    }
 }
 
 private fun polylineOf(points: List<TrackPoint>): MKPolyline? {
