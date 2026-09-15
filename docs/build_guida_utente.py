@@ -426,6 +426,11 @@ def build() -> Path:
         "Icona sentiero (zigzag)",
         "Accende/spegne l'overlay dei sentieri (waymarked trails). Bordo giallo = acceso.",
     )
+    pdf.bullet(
+        "C (confini comunali)",
+        "Elenco dei comuni da TOC Anagrafica (Storage). Multi-selezione: bordo rosso vivo sul perimetro. "
+        "«Tutti i confini» / «Nessuno». Se la lista è vuota, i GeoJSON vanno caricati da TOC Anagrafica.",
+    )
     pdf.bullet("Tasto centra (cerchio con punto)", "Centra sulla tua posizione (follow). Dopo un pan a un dito il follow si toglie: ritocca il tasto per riprenderlo.")
     pdf.bullet(
         "X verde / rossa",
