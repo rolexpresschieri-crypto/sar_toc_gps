@@ -9,9 +9,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.viewinterop.UIKitInteropInteractionMode
 import androidx.compose.ui.viewinterop.UIKitInteropProperties
 import androidx.compose.ui.viewinterop.UIKitView
+import it.ansmi.tocsar.geo.ComunePolygonRings
+import it.ansmi.tocsar.geo.LatLon
 import it.ansmi.tocsar.geo.TrackPoint
 import it.ansmi.tocsar.geo.WaypointItem
-import it.ansmi.tocsar.geo.LatLon
 import it.ansmi.tocsar.geo.splitTrackSegments
 import kotlinx.cinterop.BetaInteropApi
 import kotlinx.cinterop.ExperimentalForeignApi
@@ -112,6 +113,7 @@ private class IosMapRuntime {
     var measureLine: MKPolyline? = null
     var comuneOverlays: List<MKPolygon> = emptyList()
     var lastConfiniKey: String? = null
+    var lastVisibleComuneCount: Int = 0
     var pinAnnotations: List<TaggedPin> = emptyList()
     var gpsAnnotation: MKPointAnnotation? = null
     var lastSelectAtMs: Long = 0L
@@ -371,6 +373,8 @@ private fun applyTiles(
     state.tileOverlays = next
     state.lastBasemap = basemap
     state.lastTrails = trailsEnabled
+    // Stesso livello delle tile: va rimesse i confini sopra dopo il cambio strato.
+    state.lastConfiniKey = null
 }
 
 private fun staticOverlayKey(model: GpsMapModel): String =
@@ -655,12 +659,24 @@ private fun fitIfNeeded(
     state.lastFitKey = fitKey
 }
 
+private fun confiniKey(model: GpsMapModel): String =
+    buildString {
+        append(model.visibleComuneIds.sorted().joinToString(","))
+        append('|')
+        append(
+            model.comuneBoundaries
+                .filter { it.id in model.visibleComuneIds }
+                .joinToString(";") { "${it.id}:${it.polygons.size}" },
+        )
+    }
+
 @OptIn(ExperimentalForeignApi::class)
 private fun applyComuneBoundaries(map: MKMapView, state: IosMapRuntime, model: GpsMapModel) {
-    val key = model.visibleComuneIds.sorted().joinToString(",")
+    val key = confiniKey(model)
     if (key == state.lastConfiniKey) return
-    val prevCount = state.lastConfiniKey?.split(',')?.count { it.isNotEmpty() } ?: 0
+    val prevVisible = state.lastVisibleComuneCount
     state.lastConfiniKey = key
+    state.lastVisibleComuneCount = model.visibleComuneIds.size
     state.comuneOverlays.forEach { map.removeOverlay(it) }
     state.polygonStyles.removeAll { style ->
         state.comuneOverlays.any { sameNative(it, style.overlay) }
@@ -671,7 +687,7 @@ private fun applyComuneBoundaries(map: MKMapView, state: IosMapRuntime, model: G
     val fill = UIColor.colorWithRed(1.0, 0.102, 0.102, alpha = 0.14)
     for (comune in model.comuneBoundaries.filter { it.id in model.visibleComuneIds }) {
         for (rings in comune.polygons) {
-            val poly = polygonOf(rings.outer) ?: continue
+            val poly = polygonOf(rings) ?: continue
             rings.outer.forEach { allCoords.add(it.lat to it.lon) }
             state.polygonStyles.add(PolygonStyle(poly, stroke, fill, 3.5))
             map.addOverlay(poly, level = MKOverlayLevelAboveRoads)
@@ -679,7 +695,7 @@ private fun applyComuneBoundaries(map: MKMapView, state: IosMapRuntime, model: G
         }
     }
     state.comuneOverlays = next
-    if (model.visibleComuneIds.size > prevCount && allCoords.size >= 2) {
+    if (model.visibleComuneIds.size > prevVisible && allCoords.size >= 2) {
         val minLat = allCoords.minOf { it.first }
         val maxLat = allCoords.maxOf { it.first }
         val minLon = allCoords.minOf { it.second }
@@ -696,7 +712,19 @@ private fun applyComuneBoundaries(map: MKMapView, state: IosMapRuntime, model: G
 }
 
 @OptIn(ExperimentalForeignApi::class)
-private fun polygonOf(points: List<LatLon>): MKPolygon? {
+private fun polygonOf(rings: ComunePolygonRings): MKPolygon? {
+    if (rings.outer.size < 3) return null
+    val interiors = rings.holes.mapNotNull { hole ->
+        if (hole.size < 3) null else polygonFromCoords(hole, interiorPolygons = null)
+    }
+    return polygonFromCoords(rings.outer, interiors.takeIf { it.isNotEmpty() })
+}
+
+@OptIn(ExperimentalForeignApi::class)
+private fun polygonFromCoords(
+    points: List<LatLon>,
+    interiorPolygons: List<MKPolygon>?,
+): MKPolygon? {
     if (points.size < 3) return null
     return memScoped {
         val arr = allocArray<CLLocationCoordinate2D>(points.size)
@@ -711,7 +739,15 @@ private fun polygonOf(points: List<LatLon>): MKPolygon? {
                 sizeOf<CLLocationCoordinate2D>().toULong(),
             )
         }
-        MKPolygon.polygonWithCoordinates(arr, count = points.size.toULong())
+        if (interiorPolygons.isNullOrEmpty()) {
+            MKPolygon.polygonWithCoordinates(arr, count = points.size.toULong())
+        } else {
+            MKPolygon.polygonWithCoordinates(
+                arr,
+                count = points.size.toULong(),
+                interiorPolygons = interiorPolygons,
+            )
+        }
     }
 }
 

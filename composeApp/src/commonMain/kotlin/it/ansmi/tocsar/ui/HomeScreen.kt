@@ -36,6 +36,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import it.ansmi.tocsar.openAppSystemSettings
+import it.ansmi.tocsar.unusedAppPermissionHint
 import it.ansmi.tocsar.ui.theme.TacticalDisabled
 import it.ansmi.tocsar.ui.theme.TacticalFrame
 import it.ansmi.tocsar.ui.theme.TacticalGreen
@@ -59,11 +60,6 @@ private val WhiteBodyStyle = TextStyle(
     fontWeight = FontWeight.SemiBold,
     shadow = Shadow(color = Color.Black, blurRadius = 8f),
 )
-
-private const val UnusedAppHint =
-    "Android: Impostazioni -> TOC SAR -> «Gestisci l'app se inutilizzata» -> " +
-        "disattiva «Rimuovi le autorizzazioni se l'app non viene usata», " +
-        "altrimenti il telefono toglie GPS e notifiche da solo."
 
 data class OperatorSession(
     val sessionId: String,
@@ -163,7 +159,7 @@ fun HomeScreen(
                         )
                     }
                     BodyText(
-                        text = UnusedAppHint,
+                        text = unusedAppPermissionHint(),
                         fontSize = 12,
                         color = TacticalYellow,
                         modifier = Modifier.padding(bottom = 8.dp),

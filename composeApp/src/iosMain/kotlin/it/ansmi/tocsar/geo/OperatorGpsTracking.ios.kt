@@ -3,6 +3,8 @@ package it.ansmi.tocsar.geo
 import it.ansmi.tocsar.backend.GpsPosition
 import it.ansmi.tocsar.backend.TocSarFacade
 import it.ansmi.tocsar.backend.loadTocSarConfig
+import it.ansmi.tocsar.requestTocPushPermission
+import it.ansmi.tocsar.showTocPushNotification
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -66,6 +68,7 @@ private object IosGpsRuntime {
         if (id.isEmpty()) return false
         this.sessionId = id
         statusLabel = "GPS: in attesa di permesso…"
+        requestTocPushPermission()
         scope.launch {
             if (!location.ensurePermission()) {
                 statusLabel = "Login ok · concedi permesso GPS per tracking TOC"
@@ -149,12 +152,22 @@ private object IosGpsRuntime {
         sessionWatch =
             scope.launch {
                 val api = facade ?: return@launch
+                var lastPushId: String? = null
                 while (isActive && sessionId != null) {
                     val sid = sessionId ?: break
                     val online = runCatching { api.sessionIsOnline(sid) }.getOrNull()
                     if (online == false) {
                         withContext(Dispatchers.Main) { stop() }
                         break
+                    }
+                    val pending =
+                        runCatching { api.loadPendingTocPush("", sid) }.getOrNull()
+                    if (pending != null && pending.id != lastPushId) {
+                        lastPushId = pending.id
+                        showTocPushNotification(
+                            pending.title.ifBlank { "TOC SAR" },
+                            pending.body.ifBlank { pending.title },
+                        )
                     }
                     delay(4_000L)
                 }
