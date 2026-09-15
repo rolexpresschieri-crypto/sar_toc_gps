@@ -51,9 +51,7 @@ import androidx.compose.ui.zIndex
 import it.ansmi.tocsar.geo.MapTrackOverlay
 import it.ansmi.tocsar.geo.TrackPoint
 import it.ansmi.tocsar.geo.WaypointItem
-import it.ansmi.tocsar.geo.COMUNE_BOUNDARY_CATALOG
 import it.ansmi.tocsar.geo.ComuneBoundaryGeom
-import it.ansmi.tocsar.geo.loadComuneBoundaries
 import it.ansmi.tocsar.geo.createCompassGateway
 import it.ansmi.tocsar.geo.createLocationGateway
 import it.ansmi.tocsar.geo.haversineDistanceM
@@ -202,10 +200,6 @@ fun GpsMapScreen(
     var comuneGeoms by remember { mutableStateOf<List<ComuneBoundaryGeom>>(emptyList()) }
     var mapZoom by remember { mutableStateOf(14.0) }
 
-    LaunchedEffect(Unit) {
-        comuneGeoms = loadComuneBoundaries()
-    }
-
     var deviceLat by remember { mutableStateOf<Double?>(null) }
     var deviceLon by remember { mutableStateOf<Double?>(null) }
     var deviceAcc by remember { mutableStateOf<Float?>(null) }
@@ -219,6 +213,11 @@ fun GpsMapScreen(
 
     val facade = remember { loadTocSarConfig()?.let { TocSarFacade(it) } }
     val selfCode = model.navigatorLabel.trim().uppercase().ifBlank { "GPS" }
+
+    LaunchedEffect(facade) {
+        val api = facade ?: return@LaunchedEffect
+        comuneGeoms = runCatching { api.loadComuneBoundaries() }.getOrDefault(emptyList())
+    }
 
     LaunchedEffect(facade, selfCode, model.organizationId) {
         val api = facade ?: return@LaunchedEffect
@@ -461,7 +460,7 @@ fun GpsMapScreen(
                         DropdownMenuItem(
                             text = { Text("Tutti i confini", fontWeight = FontWeight.Bold) },
                             onClick = {
-                                visibleComuneIds = COMUNE_BOUNDARY_CATALOG.map { it.id }.toSet()
+                                visibleComuneIds = comuneGeoms.map { it.id }.toSet()
                                 followMode = false
                             },
                         )
@@ -469,7 +468,13 @@ fun GpsMapScreen(
                             text = { Text("Nessuno") },
                             onClick = { visibleComuneIds = emptySet() },
                         )
-                        COMUNE_BOUNDARY_CATALOG.forEach { comune ->
+                        if (comuneGeoms.isEmpty()) {
+                            DropdownMenuItem(
+                                text = { Text("Nessun comune. Aggiungili da TOC Anagrafica.") },
+                                onClick = { confiniOpen = false },
+                            )
+                        }
+                        comuneGeoms.forEach { comune ->
                             val on = comune.id in visibleComuneIds
                             DropdownMenuItem(
                                 text = {

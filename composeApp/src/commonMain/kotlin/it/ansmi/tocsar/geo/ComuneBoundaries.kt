@@ -8,14 +8,6 @@ import kotlinx.serialization.json.double
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
-import org.jetbrains.compose.resources.ExperimentalResourceApi
-import tocsar.composeapp.generated.resources.Res
-
-data class ComuneBoundaryInfo(
-    val id: String,
-    val name: String,
-    val fileName: String,
-)
 
 data class LatLon(
     val lat: Double,
@@ -33,26 +25,18 @@ data class ComuneBoundaryGeom(
     val polygons: List<ComunePolygonRings>,
 )
 
-val COMUNE_BOUNDARY_CATALOG: List<ComuneBoundaryInfo> = listOf(
-    ComuneBoundaryInfo("claviere", "Claviere", "claviere.geojson"),
-    ComuneBoundaryInfo("cesana-torinese", "Cesana Torinese", "cesana-torinese.geojson"),
-    ComuneBoundaryInfo("sauze-di-cesana", "Sauze di Cesana", "sauze-di-cesana.geojson"),
-    ComuneBoundaryInfo("sestriere", "Sestriere", "sestriere.geojson"),
-    ComuneBoundaryInfo("sauze-d-oulx", "Sauze d'Oulx", "sauze-d-oulx.geojson"),
-    ComuneBoundaryInfo("oulx", "Oulx", "oulx.geojson"),
-    ComuneBoundaryInfo("pragelato", "Pragelato", "pragelato.geojson"),
-)
-
 private val geoJson = Json { ignoreUnknownKeys = true }
 
-@OptIn(ExperimentalResourceApi::class)
-suspend fun loadComuneBoundaries(): List<ComuneBoundaryGeom> =
-    COMUNE_BOUNDARY_CATALOG.mapNotNull { info ->
-        runCatching {
-            val bytes = Res.readBytes("files/confini/${info.fileName}")
-            parseComuneGeoJson(info.id, info.name, bytes.decodeToString())
-        }.getOrNull()
+fun nameFromComuneGeoJson(raw: String, fallback: String): String {
+    val root = runCatching { geoJson.parseToJsonElement(raw).jsonObject }.getOrNull() ?: return fallback
+    val direct = root["properties"]?.jsonObject?.get("name")?.jsonPrimitive?.contentOrNull?.trim()
+    if (!direct.isNullOrEmpty()) {
+        return direct
     }
+    val first = root["features"]?.jsonArray?.firstOrNull()?.jsonObject
+    val named = first?.get("properties")?.jsonObject?.get("name")?.jsonPrimitive?.contentOrNull?.trim()
+    return named?.takeIf { it.isNotEmpty() } ?: fallback
+}
 
 fun parseComuneGeoJson(id: String, name: String, raw: String): ComuneBoundaryGeom {
     val root = geoJson.parseToJsonElement(raw).jsonObject

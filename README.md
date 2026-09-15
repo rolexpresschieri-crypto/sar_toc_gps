@@ -36,6 +36,7 @@ App KMP (Compose Multiplatform) per operatori SAR / unità cinofile.
     17. `mission_gps.sql` (WP/TRK di missione per ente, al posto dello Google Sheet)
     18. `squad_track_logs.sql` (riepilogo TRK salvata: distanza, tempo, velocità, dislivello)
     19. `operator_folders.sql` (cartelle anagrafica associazione, distinte dall’ente di login)
+    20. `comune_boundaries.sql` (bucket Storage confini comunali, gestiti da TOC Anagrafica)
 3. Abilita Realtime sulle tabelle come in gestSQUADRE.
 4. Config app: copia `supabase-config.example.json` → `supabase-config.local.json` (URL + publishable key).
 5. Firebase: progetto **dedicato** TOC SAR per FCM (push).

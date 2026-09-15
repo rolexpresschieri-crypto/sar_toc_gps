@@ -29,6 +29,13 @@ import {
   downloadOperationPdf,
   type OperationMeta,
 } from "@/lib/operation-report";
+import {
+  deleteComuneBoundary,
+  loadComuneBoundariesWithGeo,
+  seedValSusaConfini,
+  uploadComuneBoundary,
+  type ComuneBoundary,
+} from "@/lib/comune-boundaries";
 import styles from "./anagrafica.module.css";
 
 type FolderRow = {
@@ -103,6 +110,9 @@ function friendlyError(err: unknown, fallback: string): string {
   if (lower.includes("folder_id") || lower.includes("operator_folders")) {
     return "Esegui sql/operator_folders.sql in Supabase, poi ricarica.";
   }
+  if (lower.includes("comune-boundaries") || lower.includes("bucket not found")) {
+    return "Esegui sql/comune_boundaries.sql in Supabase, poi ricarica.";
+  }
   return msg || fallback;
 }
 
@@ -135,6 +145,9 @@ export default function AnagraficaPage() {
   const [operationTitle, setOperationTitle] = useState("");
   const [operationDescription, setOperationDescription] = useState("");
   const [operationActivateNow, setOperationActivateNow] = useState(true);
+  const [comuni, setComuni] = useState<ComuneBoundary[]>([]);
+  const [comuneName, setComuneName] = useState("");
+  const [comuneFile, setComuneFile] = useState<File | null>(null);
 
   useEffect(() => {
     setSupabase(getSupabaseBrowserClient());
@@ -253,6 +266,19 @@ export default function AnagraficaPage() {
     setOperations((data ?? []) as OperationRow[]);
   }, [supabase, orgId]);
 
+  const refreshComuni = useCallback(async () => {
+    if (!supabase) {
+      setComuni([]);
+      return;
+    }
+    try {
+      const rows = await loadComuneBoundariesWithGeo(supabase);
+      setComuni(rows.map(({ id, name, path }) => ({ id, name, path })));
+    } catch {
+      setComuni([]);
+    }
+  }, [supabase]);
+
   useEffect(() => {
     if (!session || !supabase || !orgId) {
       setSquads([]);
@@ -266,6 +292,7 @@ export default function AnagraficaPage() {
       let loaded = await refreshFolders();
       let squadRows = await refreshSquads();
       await refreshOperations();
+      await refreshComuni();
 
       const homeName = DEFAULT_FOLDER_NAME.toLowerCase();
       let home: FolderRow | null =
@@ -319,7 +346,7 @@ export default function AnagraficaPage() {
       });
       setLoading(false);
     })();
-  }, [session, supabase, orgId, refreshFolders, refreshSquads, refreshOperations]);
+  }, [session, supabase, orgId, refreshFolders, refreshSquads, refreshOperations, refreshComuni]);
 
   function resetSquadForm() {
     setSquadEditingId(null);
@@ -847,6 +874,65 @@ export default function AnagraficaPage() {
     }
   }
 
+  async function handleComuneSubmit(e: FormEvent) {
+    e.preventDefault();
+    if (!supabase || !comuneFile) {
+      return;
+    }
+    setBusy(true);
+    setFormError(null);
+    try {
+      const text = await comuneFile.text();
+      const geo = JSON.parse(text) as unknown;
+      await uploadComuneBoundary(supabase, comuneName, geo);
+      setComuneName("");
+      setComuneFile(null);
+      setToast("Confini comunali salvati su Storage. Visibili in mappa TOC e sull’app.");
+      await refreshComuni();
+    } catch (err) {
+      setFormError(friendlyError(err, "Errore salvataggio confini comunali."));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleSeedConfini() {
+    if (!supabase) {
+      return;
+    }
+    setBusy(true);
+    setFormError(null);
+    try {
+      const n = await seedValSusaConfini(supabase);
+      setToast(`${n} comuni Val Susa caricati su Storage.`);
+      await refreshComuni();
+    } catch (err) {
+      setFormError(friendlyError(err, "Errore import comuni Val Susa."));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleDeleteComune(row: ComuneBoundary) {
+    if (!supabase) {
+      return;
+    }
+    if (!window.confirm(`Eliminare i confini di «${row.name}» dallo Storage?`)) {
+      return;
+    }
+    setBusy(true);
+    setFormError(null);
+    try {
+      await deleteComuneBoundary(supabase, row.path);
+      setToast("Confini comunali eliminati.");
+      await refreshComuni();
+    } catch (err) {
+      setFormError(friendlyError(err, "Errore eliminazione confini."));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   if (!authChecked || !session) {
     return <div className={styles.root}>Caricamento…</div>;
   }
@@ -1313,6 +1399,84 @@ export default function AnagraficaPage() {
                           type="button"
                           className={styles.btnDanger}
                           onClick={() => void handleDeleteOperation(row)}
+                          disabled={busy}
+                        >
+                          Elimina
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </section>
+
+          <section className={styles.panel}>
+            <div className={styles.panelHeader}>
+              <div className={styles.panelHeaderText}>
+                <h2>Confini comunali</h2>
+                <p>
+                  Solo da qui: carica un GeoJSON e i confini arrivano sulla mappa TOC e sull’app,
+                  senza nuova APK. Prima volta: in Supabase SQL Editor esegui{" "}
+                  <code>sql/comune_boundaries.sql</code>, poi «Importa i 7 comuni Val Susa».
+                </p>
+              </div>
+            </div>
+            <form className={styles.form} onSubmit={(e) => void handleComuneSubmit(e)}>
+              <div className={styles.fieldRow}>
+                <label>
+                  Nome comune
+                  <input
+                    value={comuneName}
+                    onChange={(e) => setComuneName(e.target.value)}
+                    disabled={busy}
+                    placeholder="Es. Bardonecchia"
+                    required
+                  />
+                </label>
+                <label>
+                  File GeoJSON
+                  <input
+                    type="file"
+                    accept=".geojson,.json,application/geo+json,application/json"
+                    disabled={busy}
+                    onChange={(e) => setComuneFile(e.target.files?.[0] ?? null)}
+                    required
+                  />
+                </label>
+              </div>
+              <div className={styles.formActions}>
+                <button type="submit" className={styles.btnPrimary} disabled={busy || !comuneFile}>
+                  Aggiungi confini
+                </button>
+                <button type="button" onClick={() => void handleSeedConfini()} disabled={busy}>
+                  Importa i 7 comuni Val Susa
+                </button>
+              </div>
+            </form>
+            {comuni.length === 0 ? (
+              <p className={styles.empty}>
+                Nessun comune su Storage. Importa i 7 della Val Susa o carica un GeoJSON.
+              </p>
+            ) : (
+              <table className={styles.table}>
+                <thead>
+                  <tr>
+                    <th>Comune</th>
+                    <th>File</th>
+                    <th />
+                  </tr>
+                </thead>
+                <tbody>
+                  {comuni.map((row) => (
+                    <tr key={row.path}>
+                      <td>{row.name}</td>
+                      <td>{row.path}</td>
+                      <td className={styles.rowActions}>
+                        <button
+                          type="button"
+                          className={styles.btnDanger}
+                          onClick={() => void handleDeleteComune(row)}
                           disabled={busy}
                         >
                           Elimina

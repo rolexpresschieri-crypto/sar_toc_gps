@@ -17,7 +17,8 @@ import {
 } from "react-leaflet";
 import { hasCoordinates, type LiveSquad } from "@/lib/live-squads";
 import { getMapTileConfig, type LayerMode } from "@/lib/map-layers";
-import { COMUNE_BOUNDARIES } from "@/lib/comune-boundaries";
+import { loadComuneBoundariesWithGeo, type ComuneBoundary } from "@/lib/comune-boundaries";
+import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
 import { fetchTerrainElevationM } from "@/lib/elevation";
 import { isCircleIcon, squadIconMapUrl } from "@/lib/squad-icons";
 
@@ -292,32 +293,34 @@ export default function SarLiveMap({
   const [quotaLoading, setQuotaLoading] = useState(false);
   const [confiniOpen, setConfiniOpen] = useState(false);
   const [visibleConfini, setVisibleConfini] = useState<ReadonlySet<string>>(() => new Set());
+  const [comuni, setComuni] = useState<ComuneBoundary[]>([]);
   const [geoById, setGeoById] = useState<Record<string, GeoJSON.GeoJsonObject>>({});
   const [fitConfiniNonce, setFitConfiniNonce] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
-    void Promise.all(
-      COMUNE_BOUNDARIES.map(async (comune) => {
-        const res = await fetch(comune.file);
-        if (!res.ok) {
-          return null;
+    const supabase = getSupabaseBrowserClient();
+    if (!supabase) {
+      return;
+    }
+    void loadComuneBoundariesWithGeo(supabase, { fallbackPublic: true })
+      .then((rows) => {
+        if (cancelled) {
+          return;
         }
-        const geo = (await res.json()) as GeoJSON.GeoJsonObject;
-        return [comune.id, geo] as const;
-      }),
-    ).then((rows) => {
-      if (cancelled) {
-        return;
-      }
-      const next: Record<string, GeoJSON.GeoJsonObject> = {};
-      for (const row of rows) {
-        if (row) {
-          next[row[0]] = row[1];
+        setComuni(rows.map(({ id, name, path }) => ({ id, name, path })));
+        const next: Record<string, GeoJSON.GeoJsonObject> = {};
+        for (const row of rows) {
+          next[row.id] = row.geo;
         }
-      }
-      setGeoById(next);
-    });
+        setGeoById(next);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setComuni([]);
+          setGeoById({});
+        }
+      });
     return () => {
       cancelled = true;
     };
@@ -389,7 +392,7 @@ export default function SarLiveMap({
   }
 
   function showAllConfini() {
-    setVisibleConfini(new Set(COMUNE_BOUNDARIES.filter((c) => geoById[c.id]).map((c) => c.id)));
+    setVisibleConfini(new Set(comuni.filter((c) => geoById[c.id]).map((c) => c.id)));
     setFitConfiniNonce((n) => n + 1);
   }
 
@@ -469,21 +472,25 @@ export default function SarLiveMap({
                   Nessuno
                 </button>
               </div>
-              {COMUNE_BOUNDARIES.map((comune) => {
-                const ready = Boolean(geoById[comune.id]);
-                const on = visibleConfini.has(comune.id);
-                return (
-                  <label key={comune.id} className="sar-confini-item">
-                    <input
-                      type="checkbox"
-                      checked={on}
-                      disabled={!ready}
-                      onChange={() => toggleComune(comune.id)}
-                    />
-                    {comune.name}
-                  </label>
-                );
-              })}
+              {comuni.length === 0 ? (
+                <p className="sar-confini-empty">Nessun comune. Aggiungili in Anagrafica.</p>
+              ) : (
+                comuni.map((comune) => {
+                  const ready = Boolean(geoById[comune.id]);
+                  const on = visibleConfini.has(comune.id);
+                  return (
+                    <label key={comune.id} className="sar-confini-item">
+                      <input
+                        type="checkbox"
+                        checked={on}
+                        disabled={!ready}
+                        onChange={() => toggleComune(comune.id)}
+                      />
+                      {comune.name}
+                    </label>
+                  );
+                })
+              )}
             </div>
           ) : null}
         </div>
@@ -546,7 +553,7 @@ export default function SarLiveMap({
         <FitWhenNeeded squads={squads} />
         <Recenter squad={selected} nonce={recenterNonce} />
         <FocusLatLng point={focusPoint} nonce={focusNonce} />
-        {COMUNE_BOUNDARIES.filter((comune) => visibleConfini.has(comune.id) && geoById[comune.id]).map(
+        {comuni.filter((comune) => visibleConfini.has(comune.id) && geoById[comune.id]).map(
           (comune) => (
             <LeafletGeoJSON
               key={comune.id}
@@ -566,9 +573,7 @@ export default function SarLiveMap({
         )}
         {visibleConfini.size > 0 ? (
           <FitGeoJson
-            items={COMUNE_BOUNDARIES.filter((c) => visibleConfini.has(c.id) && geoById[c.id]).map(
-              (c) => geoById[c.id]!,
-            )}
+            items={comuni.filter((c) => visibleConfini.has(c.id) && geoById[c.id]).map((c) => geoById[c.id]!)}
             nonce={fitConfiniNonce}
           />
         ) : null}
