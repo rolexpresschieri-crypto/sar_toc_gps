@@ -43,6 +43,8 @@ private fun CLLocation.toGeoFix(): GeoFix {
         timestampMs = timestampMs,
         provider = "gps",
         hasAltitude = altOk,
+        speedMps = if (speed >= 0) speed.toFloat() else null,
+        courseDeg = if (course >= 0) course.toFloat() else null,
     )
 }
 

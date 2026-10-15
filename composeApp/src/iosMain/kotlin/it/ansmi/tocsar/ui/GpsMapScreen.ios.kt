@@ -27,8 +27,6 @@ import platform.CoreGraphics.CGPoint
 import platform.CoreLocation.CLLocationCoordinate2D
 import platform.CoreLocation.CLLocationCoordinate2DMake
 import platform.Foundation.NSDate
-import platform.Foundation.NSDateFormatter
-import platform.Foundation.NSLocale
 import platform.Foundation.NSSelectorFromString
 import platform.MapKit.MKAnnotationProtocol
 import platform.MapKit.MKAnnotationView
@@ -203,13 +201,6 @@ private class IosMapDelegate(
         mapView.deselectAnnotation(ann, animated = false)
         tapForAnnotation(state, ann)?.let { emitTap(state, it) }
     }
-}
-
-actual fun currentFixClock(): String {
-    val fmt = NSDateFormatter()
-    fmt.dateFormat = "dd/MM/yyyy HH:mm"
-    fmt.locale = NSLocale(localeIdentifier = "it_IT")
-    return fmt.stringFromDate(NSDate())
 }
 
 @OptIn(ExperimentalForeignApi::class)

@@ -36,17 +36,11 @@ import org.osmdroid.views.overlay.Marker
 import org.osmdroid.views.overlay.Polygon
 import org.osmdroid.views.overlay.Polyline
 import org.osmdroid.views.overlay.TilesOverlay
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 
 private const val NavLineId = "NAV_TO_BASE"
 private const val GpsMarkerId = "GPS_FIX"
 private const val BaseMarkerId = "BASE_TARGET"
 private const val LiveTrailId = "TRK_LIVE"
-
-actual fun currentFixClock(): String =
-    SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.ITALY).format(Date())
 
 private val OpenTopoSource = XYTileSource(
     "OpenTopoMap",

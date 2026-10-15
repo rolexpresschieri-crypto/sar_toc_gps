@@ -14,6 +14,10 @@ data class GeoFix(
     /** es. "gps", "network", "fused" */
     val provider: String = "",
     val hasAltitude: Boolean = false,
+    /** Metri al secondo. Null se il fix non riporta la velocità. */
+    val speedMps: Float? = null,
+    /** Direzione di movimento, gradi da nord in senso orario. Null se assente. */
+    val courseDeg: Float? = null,
 ) {
     val isGpsProvider: Boolean
         get() = provider.contains("gps", ignoreCase = true)

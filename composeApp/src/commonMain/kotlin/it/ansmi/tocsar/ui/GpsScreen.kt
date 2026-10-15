@@ -152,6 +152,10 @@ fun GpsScreen(
     var trkRecording by remember { mutableStateOf(OperatorGpsTracking.isTrkRecording()) }
     var showCalib by remember { mutableStateOf(false) }
     var showInsWp by remember { mutableStateOf(false) }
+    var wpSeedLat by remember { mutableStateOf("") }
+    var wpSeedLon by remember { mutableStateOf("") }
+    var wpSeedAlt by remember { mutableStateOf("") }
+    var wpSeedAcc by remember { mutableStateOf<Float?>(null) }
     var showSaveTrk by remember { mutableStateOf(false) }
     var showWpTrk by remember { mutableStateOf(false) }
     var showMap by remember { mutableStateOf(false) }
@@ -494,6 +498,10 @@ fun GpsScreen(
                         onClick = { toggleTrk() },
                     )
                     GpsActionButton("INS WP", Color(0xFFFF9021), Modifier.weight(1f)) {
+                        wpSeedLat = latBase
+                        wpSeedLon = lonBase
+                        wpSeedAlt = altBase
+                        wpSeedAcc = accBase
                         showInsWp = true
                     }
                 }
@@ -648,6 +656,13 @@ fun GpsScreen(
                         is MapOverlayTap.Self -> { /* selezione misura: gestita in GpsMapScreen */ }
                     }
                 },
+                onInsertWaypoint = { lat, lon, alt, acc ->
+                    wpSeedLat = lat.formatCoord6()
+                    wpSeedLon = lon.formatCoord6()
+                    wpSeedAlt = alt?.formatAlt0().orEmpty()
+                    wpSeedAcc = acc
+                    showInsWp = true
+                },
                 onSaveOperatorWaypoint = { pin ->
                     scope.launch {
                         val wp = WaypointItem(
@@ -752,10 +767,10 @@ fun GpsScreen(
     if (showInsWp) {
         InsertWaypointDialog(
             operatorPrefix = operatorPrefix,
-            initialLat = latBase,
-            initialLon = lonBase,
-            initialAlt = altBase,
-            initialAcc = accBase,
+            initialLat = wpSeedLat,
+            initialLon = wpSeedLon,
+            initialAlt = wpSeedAlt,
+            initialAcc = wpSeedAcc,
             location = location,
             onDismiss = { showInsWp = false },
             onSaved = { wp, _ ->

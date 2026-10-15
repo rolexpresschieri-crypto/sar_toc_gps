@@ -189,6 +189,8 @@ private fun Location.toFix(): GeoFix {
         timestampMs = time,
         provider = provider.orEmpty(),
         hasAltitude = altOk,
+        speedMps = if (hasSpeed() && speed >= 0f) speed else null,
+        courseDeg = if (hasBearing()) bearing else null,
     )
 }
 

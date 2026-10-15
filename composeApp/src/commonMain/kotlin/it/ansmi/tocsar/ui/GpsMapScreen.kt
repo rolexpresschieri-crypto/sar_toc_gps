@@ -15,8 +15,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
@@ -45,9 +46,11 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
+import it.ansmi.tocsar.readBatteryPercent
 import it.ansmi.tocsar.geo.MapTrackOverlay
 import it.ansmi.tocsar.geo.TrackPoint
 import it.ansmi.tocsar.geo.WaypointItem
@@ -63,6 +66,9 @@ import androidx.compose.runtime.LaunchedEffect
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlin.math.PI
+import kotlin.time.TimeMark
+import kotlin.time.TimeSource
+import kotlin.time.Duration.Companion.seconds
 import kotlin.math.cos
 import kotlin.math.pow
 import kotlin.math.roundToInt
@@ -154,6 +160,12 @@ enum class MapBasemap {
         }
 }
 
+/** Sotto questa velocità la rotta GPS è rumorosa: si usa la bussola. ~4 km/h. */
+private const val CourseMinSpeedMps = 1.1f
+
+/** Dopo l'ultima rotta valida la mappa non torna subito alla bussola (semaforo, coda). */
+private val GpsCourseHold = 20.seconds
+
 private val ScaleMetricSteps = listOf(
     15_000_000, 8_000_000, 4_000_000, 2_000_000, 1_000_000,
     500_000, 250_000, 100_000, 50_000, 25_000, 15_000, 8_000,
@@ -161,7 +173,8 @@ private val ScaleMetricSteps = listOf(
 )
 
 /**
- * Mappa rientro: titolo MAPPA, freccia fissa in alto, mappa che ruota sotto.
+ * Mappa a schermo intero: controlli in overlay, striscia stato in basso.
+ * La freccia resta in alto e la mappa ruota sotto.
  */
 @Composable
 fun GpsMapScreen(
@@ -169,6 +182,8 @@ fun GpsMapScreen(
     onBack: () -> Unit,
     onOverlayShare: (MapOverlayTap) -> Unit = {},
     onSaveOperatorWaypoint: (LiveOperatorPin) -> Unit = {},
+    /** Posizione GPS corrente → dialogo waypoint già usato da INS WP. */
+    onInsertWaypoint: (latitude: Double, longitude: Double, altitudeM: Double?, accuracyM: Float?) -> Unit = { _, _, _, _ -> },
     /** Coppia tua posizione + destinazione: avvia distanza/bearing/freccia sullo schermo GPS. */
     onNavigateFromSelf: (MapMeasurePoint) -> Unit = {},
     onNavigateToWaypoint: (WaypointItem) -> Unit = {},
@@ -195,6 +210,7 @@ fun GpsMapScreen(
         )
     }
     var layersOpen by remember { mutableStateOf(false) }
+    var showCoords by remember { mutableStateOf(true) }
     var confiniOpen by remember { mutableStateOf(false) }
     var visibleComuneIds by remember { mutableStateOf(setOf<String>()) }
     var comuneGeoms by remember { mutableStateOf<List<ComuneBoundaryGeom>>(emptyList()) }
@@ -205,7 +221,9 @@ fun GpsMapScreen(
     var deviceAcc by remember { mutableStateOf<Float?>(null) }
     var deviceAlt by remember { mutableStateOf<Double?>(null) }
     var deviceSpeed by remember { mutableStateOf<Float?>(null) }
-    var deviceFixLabel by remember { mutableStateOf<String?>(null) }
+    var gpsCourse by remember { mutableStateOf<Double?>(null) }
+    var gpsCourseMark by remember { mutableStateOf<TimeMark?>(null) }
+    var batteryPct by remember { mutableStateOf(readBatteryPercent()) }
     var heading by remember { mutableStateOf<Double?>(null) }
     var liveOperators by remember { mutableStateOf<List<LiveOperatorPin>>(emptyList()) }
     var measureA by remember { mutableStateOf<MapMeasurePoint?>(null) }
@@ -249,8 +267,18 @@ fun GpsMapScreen(
             deviceLon = fix.longitude
             deviceAcc = fix.accuracyM
             deviceAlt = fix.altitude
-            deviceSpeed = null
-            deviceFixLabel = currentFixClock()
+            // In auto la bussola è spesso capovolta. La rotta GPS segue la strada.
+            if (fix.isGpsProvider) {
+                deviceSpeed = fix.speedMps
+                val course = fix.courseDeg
+                val speed = fix.speedMps ?: 0f
+                if (course != null && speed >= CourseMinSpeedMps) {
+                    gpsCourse = smoothHeading(gpsCourse, course.toDouble(), 0.55)
+                    gpsCourseMark = TimeSource.Monotonic.markNow()
+                }
+            } else if (fix.speedMps != null && deviceSpeed == null) {
+                deviceSpeed = fix.speedMps
+            }
         }
         val stopCompass = compass.watchHeading { heading = it }
         onDispose {
@@ -259,8 +287,19 @@ fun GpsMapScreen(
         }
     }
 
-    // Navigatore: freccia fissa verso l'alto → ruota la mappa sotto
-    val mapRotation = if (northDynamic) -(heading ?: 0.0).toFloat() else 0f
+    LaunchedEffect(Unit) {
+        while (isActive) {
+            batteryPct = readBatteryPercent()
+            delay(20_000L)
+        }
+    }
+
+    // In movimento la prua è la rotta GPS (direzione reale). Da fermo, la bussola.
+    val gpsCourseFresh = gpsCourseMark?.elapsedNow()?.let { it < GpsCourseHold } == true
+    val useGpsCourse = northDynamic && gpsCourse != null && gpsCourseFresh
+    val mapHeading = if (useGpsCourse) gpsCourse else heading
+    // Freccia fissa verso l'alto → ruota la mappa sotto
+    val mapRotation = if (northDynamic) -(mapHeading ?: 0.0).toFloat() else 0f
     val markerLabel = selfCode
     val mapModel = model.copy(
         liveOperators = liveOperators,
@@ -270,7 +309,7 @@ fun GpsMapScreen(
         visibleComuneIds = visibleComuneIds,
     )
     val scale = pickScaleBar(mapZoom, maxBarWidthPx = 120.0)
-    val altText = deviceAlt?.takeIf { it.isFinite() && it > 0 }?.let { "${it.roundToInt()} m s.l.m." }
+    val altitudeM = deviceAlt?.takeIf { it.isFinite() && it > 0.0 }
     val selfSelected = measureA is MapMeasurePoint.Self || measureB is MapMeasurePoint.Self
 
     fun selectMeasure(point: MapMeasurePoint) {
@@ -309,52 +348,12 @@ fun GpsMapScreen(
     Column(
         modifier = modifier
             .fillMaxSize()
-            .background(Color(0xFFF5F5F5))
-            .windowInsetsPadding(WindowInsets.safeDrawing),
+            .background(Color(0xFF101418)),
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(Color(0xFF1565C0))
-                .padding(horizontal = 4.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                text = "←",
-                color = Color.White,
-                fontSize = 22.sp,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier
-                    .clip(RoundedCornerShape(8.dp))
-                    .clickable(onClick = onBack)
-                    .padding(horizontal = 12.dp, vertical = 6.dp),
-            )
-            Text(
-                text = "MAPPA",
-                color = Color.White,
-                fontSize = 20.sp,
-                fontWeight = FontWeight.Bold,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.weight(1f),
-            )
-            if (model.liveRecording) {
-                Text(
-                    "REC",
-                    color = Color(0xFFFF8A80),
-                    fontWeight = FontWeight.ExtraBold,
-                    modifier = Modifier.padding(end = 8.dp),
-                )
-            } else {
-                Spacer(modifier = Modifier.width(40.dp))
-            }
-        }
-
         Box(
             modifier = Modifier
                 .weight(1f)
-                .fillMaxWidth()
-                .padding(12.dp)
-                .clip(RoundedCornerShape(16.dp)),
+                .fillMaxWidth(),
         ) {
             PlatformMapLayer(
                 basemap = basemap,
@@ -370,12 +369,16 @@ fun GpsMapScreen(
                 modifier = Modifier.fillMaxSize(),
             )
 
-            // Scala outdoor: testo + segmento + quota
+            // Scala outdoor: testo + segmento. La quota è nella striscia in basso.
             if (scale != null) {
                 Column(
                     modifier = Modifier
                         .align(Alignment.TopCenter)
-                        .padding(top = 10.dp),
+                        .windowInsetsPadding(WindowInsets.statusBars)
+                        .padding(top = 8.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(Color.White.copy(alpha = 0.88f))
+                        .padding(horizontal = 8.dp, vertical = 4.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
                     Text(
@@ -386,10 +389,6 @@ fun GpsMapScreen(
                     )
                     Spacer(modifier = Modifier.height(3.dp))
                     ScaleBarSegment(barWidthDp = scale.barPx.toFloat().coerceIn(24f, 120f))
-                    if (altText != null) {
-                        Spacer(modifier = Modifier.height(3.dp))
-                        Text(altText, color = Color.Black, fontSize = 12.sp)
-                    }
                     val bLat = model.baseLat
                     val bLon = model.baseLon
                     if (bLat != null && bLon != null && deviceLat != null && deviceLon != null) {
@@ -409,32 +408,63 @@ fun GpsMapScreen(
                 }
             }
 
-            Row(
+            Column(
                 modifier = Modifier
                     .align(Alignment.TopStart)
-                    .padding(12.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    .windowInsetsPadding(WindowInsets.statusBars)
+                    .padding(10.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                Box {
-                    MapIconButton(onClick = { layersOpen = true }) {
-                        Text("⧉", color = Color.White, fontSize = 18.sp)
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    MapIconButton(onClick = onBack) {
+                        Text("←", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
                     }
-                    DropdownMenu(expanded = layersOpen, onDismissRequest = { layersOpen = false }) {
-                        MapBasemap.entries.forEach { option ->
-                            DropdownMenuItem(
-                                text = {
-                                    Text(
-                                        option.menuLabel,
-                                        fontWeight = if (option == basemap) FontWeight.Bold else FontWeight.Normal,
-                                    )
-                                },
-                                onClick = {
-                                    basemap = option
-                                    layersOpen = false
-                                },
-                            )
+                    if (model.liveRecording) {
+                        Text(
+                            "REC",
+                            color = Color.White,
+                            fontWeight = FontWeight.ExtraBold,
+                            fontSize = 12.sp,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(Color(0xFFCE2B37))
+                                .padding(horizontal = 8.dp, vertical = 4.dp),
+                        )
+                    }
+                }
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.Top,
+            ) {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Box {
+                        MapIconButton(onClick = { layersOpen = true }) {
+                            Text("⧉", color = Color.White, fontSize = 18.sp)
+                        }
+                        DropdownMenu(expanded = layersOpen, onDismissRequest = { layersOpen = false }) {
+                            MapBasemap.entries.forEach { option ->
+                                DropdownMenuItem(
+                                    text = {
+                                        Text(
+                                            option.menuLabel,
+                                            fontWeight = if (option == basemap) FontWeight.Bold else FontWeight.Normal,
+                                        )
+                                    },
+                                    onClick = {
+                                        basemap = option
+                                        layersOpen = false
+                                    },
+                                )
+                            }
                         }
                     }
+                    OrangeWpButton(
+                        onClick = { showCoords = !showCoords },
+                        dimmed = !showCoords,
+                    )
                 }
                 // Icona vettoriale (non emoji): contrasto alto su fondo scuro
                 MapIconButton(
@@ -496,17 +526,27 @@ fun GpsMapScreen(
                     }
                 }
             }
+            }
 
             CompassOverlayCard(
-                heading = heading,
+                heading = if (northDynamic) mapHeading else heading,
+                gpsCourse = useGpsCourse,
                 modifier = Modifier
                     .align(Alignment.TopEnd)
+                    .windowInsetsPadding(WindowInsets.statusBars)
                     .padding(10.dp),
             )
 
             Row(
                 modifier = Modifier
                     .align(Alignment.BottomStart)
+                    .then(
+                        if (showCoords) {
+                            Modifier
+                        } else {
+                            Modifier.windowInsetsPadding(WindowInsets.navigationBars)
+                        },
+                    )
                     .padding(12.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically,
@@ -575,19 +615,6 @@ fun GpsMapScreen(
                 )
             }
 
-            if (deviceLat != null && deviceLon != null) {
-                PositionOverlayCard(
-                    lat = deviceLat!!,
-                    lon = deviceLon!!,
-                    accuracyM = deviceAcc,
-                    speedMps = deviceSpeed,
-                    fixLabel = deviceFixLabel,
-                    modifier = Modifier
-                        .align(Alignment.BottomEnd)
-                        .padding(14.dp),
-                )
-            }
-
             val a = measureA
             if (a != null) {
                 MapMeasureCard(
@@ -602,7 +629,8 @@ fun GpsMapScreen(
                     },
                     modifier = Modifier
                         .align(Alignment.TopStart)
-                        .padding(start = 12.dp, top = 56.dp)
+                        .windowInsetsPadding(WindowInsets.statusBars)
+                        .padding(start = 12.dp, top = 168.dp)
                         .zIndex(8f),
                 )
             } else if (model.overlayWaypoints.isNotEmpty() || model.baseLat != null) {
@@ -613,7 +641,8 @@ fun GpsMapScreen(
                     fontWeight = FontWeight.SemiBold,
                     modifier = Modifier
                         .align(Alignment.TopStart)
-                        .padding(start = 12.dp, top = 56.dp)
+                        .windowInsetsPadding(WindowInsets.statusBars)
+                        .padding(start = 12.dp, top = 168.dp)
                         .zIndex(8f)
                         .clip(RoundedCornerShape(10.dp))
                         .background(Color.Black.copy(alpha = 0.72f))
@@ -638,6 +667,27 @@ fun GpsMapScreen(
                     .padding(horizontal = 6.dp, vertical = 2.dp),
             )
         }
+
+        if (showCoords) LiveStatusBar(
+            callsign = selfCode,
+            lat = deviceLat,
+            lon = deviceLon,
+            accuracyM = deviceAcc,
+            speedMps = deviceSpeed,
+            altitudeM = altitudeM,
+            batteryPct = batteryPct,
+            onSaveWaypoint = {
+                val lat = deviceLat
+                val lon = deviceLon
+                if (lat != null && lon != null) {
+                    onInsertWaypoint(lat, lon, altitudeM, deviceAcc)
+                }
+            },
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(Color(0xFFFFE14A))
+                .windowInsetsPadding(WindowInsets.navigationBars),
+        )
     }
 }
 
@@ -788,6 +838,23 @@ private fun cardinalIt16(bearing: Double): String {
 }
 
 @Composable
+private fun OrangeWpButton(
+    onClick: () -> Unit,
+    dimmed: Boolean = false,
+) {
+    Box(
+        modifier = Modifier
+            .size(44.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(if (dimmed) Color(0xFFFF9021).copy(alpha = 0.45f) else Color(0xFFFF9021))
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text("WP", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.ExtraBold)
+    }
+}
+
+@Composable
 private fun MapIconButton(
     onClick: () -> Unit,
     active: Boolean = false,
@@ -842,7 +909,11 @@ private fun TrailsPathIcon(enabled: Boolean, modifier: Modifier = Modifier) {
 }
 
 @Composable
-private fun CompassOverlayCard(heading: Double?, modifier: Modifier = Modifier) {
+private fun CompassOverlayCard(
+    heading: Double?,
+    gpsCourse: Boolean,
+    modifier: Modifier = Modifier,
+) {
     val h = heading
     Column(
         modifier = modifier
@@ -854,7 +925,11 @@ private fun CompassOverlayCard(heading: Double?, modifier: Modifier = Modifier) 
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Text("NORD", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.ExtraBold)
-        Text("magnetico", color = Color(0xFFBDBDBD), fontSize = 8.sp)
+        Text(
+            if (gpsCourse) "rotta GPS" else "magnetico",
+            color = if (gpsCourse) Color(0xFF90CAF9) else Color(0xFFBDBDBD),
+            fontSize = 8.sp,
+        )
         Spacer(modifier = Modifier.height(4.dp))
         // Freccia verso il NORD magnetico reale (come TocAppBuild: angolo = -heading)
         Canvas(modifier = Modifier.size(34.dp).rotate(-((h ?: 0.0).toFloat()))) {
@@ -874,7 +949,11 @@ private fun CompassOverlayCard(heading: Double?, modifier: Modifier = Modifier) 
             fontSize = 12.sp,
             fontWeight = FontWeight.Bold,
         )
-        Text("prua", color = Color(0xFFBDBDBD), fontSize = 8.sp)
+        Text(
+            if (gpsCourse) "rotta" else "prua",
+            color = Color(0xFFBDBDBD),
+            fontSize = 8.sp,
+        )
     }
 }
 
@@ -894,54 +973,160 @@ private fun ScaleBarSegment(barWidthDp: Float) {
     }
 }
 
+private val StatusBlue = Color(0xFF0D47A1)
+private val StatusGreen = Color(0xFF1B5E20)
+private val StatusLabel = Color(0xFF4A3800)
+private val StatusValue = Color(0xFF1A1200)
+
 @Composable
-private fun PositionOverlayCard(
-    lat: Double,
-    lon: Double,
+private fun LiveStatusBar(
+    callsign: String,
+    lat: Double?,
+    lon: Double?,
     accuracyM: Float?,
     speedMps: Float?,
-    fixLabel: String?,
+    altitudeM: Double?,
+    batteryPct: Int?,
+    onSaveWaypoint: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val speedKmh = speedMps?.let { maxOf(0.0, it * 3.6) }
-    Column(
-        modifier = modifier
-            .width(182.dp)
-            .clip(RoundedCornerShape(14.dp))
-            .background(Color.Black.copy(alpha = 0.66f))
-            .border(1.dp, Color.White.copy(alpha = 0.15f), RoundedCornerShape(14.dp))
-            .padding(horizontal = 10.dp, vertical = 8.dp),
-    ) {
-        Text(
-            "POSIZIONE ATTUALE",
-            color = Color.White,
-            fontSize = 10.sp,
-            fontWeight = FontWeight.ExtraBold,
+    val canSave = lat != null && lon != null
+    val batteryColor = when {
+        batteryPct == null -> StatusLabel
+        batteryPct <= 15 -> Color(0xFFD32F2F)
+        else -> StatusGreen
+    }
+    Column(modifier = modifier) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(2.dp)
+                .background(Color(0xFFE6B000)),
         )
-        Spacer(modifier = Modifier.height(5.dp))
-        Text(
-            "${((lat * 100000).roundToInt() / 100000.0)}, ${((lon * 100000).roundToInt() / 100000.0)}",
-            color = Color(0xFFE0E0E0),
-            fontSize = 11.sp,
-            fontWeight = FontWeight.Bold,
-        )
-        Text(
-            "Acc: ${accuracyM?.roundToInt()?.let { "$it m" } ?: "n/d"}",
-            color = Color(0xFFE0E0E0),
-            fontSize = 10.sp,
-        )
-        Text(
-            "Vel: ${speedKmh?.let { "${(it * 10).roundToInt() / 10.0} km/h" } ?: "n/d"}",
-            color = Color(0xFFE0E0E0),
-            fontSize = 10.sp,
-        )
-        Text(
-            "Fix: ${fixLabel ?: "n/d"}",
-            color = Color(0xFFE0E0E0),
-            fontSize = 10.sp,
-        )
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = 12.dp, end = 10.dp, top = 12.dp, bottom = 14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Row(modifier = Modifier.fillMaxWidth()) {
+                    StatusCell(
+                        label = "SIGLA",
+                        value = callsign,
+                        modifier = Modifier.weight(0.8f),
+                    )
+                    StatusCell(
+                        label = "POSIZIONE",
+                        value = if (lat != null && lon != null) {
+                            "${formatStatusCoord(lat)}, ${formatStatusCoord(lon)}"
+                        } else {
+                            "—"
+                        },
+                        subtitle = accuracyM?.roundToInt()?.let { "±$it m" },
+                        valueSize = 20.sp,
+                        modifier = Modifier.weight(1.35f),
+                    )
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+                Row(modifier = Modifier.fillMaxWidth()) {
+                    StatusCell(
+                        label = "VEL.",
+                        value = formatStatusSpeed(speedMps),
+                        valueColor = StatusBlue,
+                        modifier = Modifier.weight(1f),
+                    )
+                    StatusCell(
+                        label = "QUOTA",
+                        value = altitudeM?.let { formatStatusAltitude(it) } ?: "—",
+                        valueColor = StatusBlue,
+                        modifier = Modifier.weight(1f),
+                    )
+                    StatusCell(
+                        label = "BATT.",
+                        value = batteryPct?.let { "$it%" } ?: "—",
+                        valueColor = batteryColor,
+                        modifier = Modifier.weight(0.8f),
+                    )
+                }
+            }
+            Box(
+                modifier = Modifier
+                    .padding(start = 8.dp)
+                    .size(56.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(if (canSave) Color(0xFFFF9021) else Color(0xFFBDBDBD))
+                    .clickable(enabled = canSave, onClick = onSaveWaypoint),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    "WP",
+                    color = Color.White,
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                )
+            }
+        }
     }
 }
+
+@Composable
+private fun StatusCell(
+    label: String,
+    value: String,
+    modifier: Modifier = Modifier,
+    valueColor: Color = StatusValue,
+    valueSize: TextUnit = 22.sp,
+    subtitle: String? = null,
+) {
+    Column(modifier = modifier.padding(end = 6.dp)) {
+        Text(
+            label,
+            color = StatusLabel,
+            fontSize = 14.sp,
+            fontWeight = FontWeight.Bold,
+            maxLines = 1,
+        )
+        Text(
+            value,
+            color = valueColor,
+            fontSize = valueSize,
+            fontWeight = FontWeight.ExtraBold,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+        if (subtitle != null) {
+            Text(
+                subtitle,
+                color = Color(0xFF4A3800),
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+            )
+        }
+    }
+}
+
+private fun smoothHeading(previous: Double?, sample: Double, alpha: Double): Double {
+    if (previous == null) return (sample % 360.0 + 360.0) % 360.0
+    var delta = (sample - previous) % 360.0
+    if (delta > 180.0) delta -= 360.0
+    if (delta < -180.0) delta += 360.0
+    return (previous + delta * alpha).mod(360.0)
+}
+
+private fun formatStatusCoord(value: Double): String {
+    val scaled = (value * 100_000.0).roundToInt() / 100_000.0
+    return scaled.toString()
+}
+
+private fun formatStatusSpeed(speedMps: Float?): String {
+    if (speedMps == null || !speedMps.isFinite() || speedMps < 0f) return "—"
+    val tenth = (speedMps * 3.6 * 10.0).roundToInt()
+    return if (tenth % 10 == 0) "${tenth / 10}km/h" else "${tenth / 10.0}km/h"
+}
+
+private fun formatStatusAltitude(meters: Double): String = "${meters.roundToInt()}m"
 
 private data class ScalePick(val metricM: Int, val barPx: Double)
 
@@ -1015,5 +1200,3 @@ internal fun GpsMapModel.selectedWaypointNames(): Set<String> =
         (measureA as? MapMeasurePoint.Waypoint)?.wp?.name,
         (measureB as? MapMeasurePoint.Waypoint)?.wp?.name,
     ).map { it.uppercase() }.toSet()
-
-expect fun currentFixClock(): String
