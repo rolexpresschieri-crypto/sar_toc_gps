@@ -57,7 +57,10 @@ import it.ansmi.tocsar.geo.WaypointItem
 import it.ansmi.tocsar.geo.ComuneBoundaryGeom
 import it.ansmi.tocsar.geo.createCompassGateway
 import it.ansmi.tocsar.geo.createLocationGateway
+import it.ansmi.tocsar.geo.TravelCourse
+import it.ansmi.tocsar.geo.acceptFix
 import it.ansmi.tocsar.geo.haversineDistanceM
+import it.ansmi.tocsar.geo.isFresh
 import it.ansmi.tocsar.geo.bearingDeg
 import it.ansmi.tocsar.backend.LiveOperatorPin
 import it.ansmi.tocsar.backend.TocSarFacade
@@ -66,9 +69,6 @@ import androidx.compose.runtime.LaunchedEffect
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlin.math.PI
-import kotlin.time.TimeMark
-import kotlin.time.TimeSource
-import kotlin.time.Duration.Companion.seconds
 import kotlin.math.cos
 import kotlin.math.pow
 import kotlin.math.roundToInt
@@ -160,12 +160,6 @@ enum class MapBasemap {
         }
 }
 
-/** Sotto questa velocità la rotta GPS è rumorosa: si usa la bussola. ~4 km/h. */
-private const val CourseMinSpeedMps = 1.1f
-
-/** Dopo l'ultima rotta valida la mappa non torna subito alla bussola (semaforo, coda). */
-private val GpsCourseHold = 20.seconds
-
 private val ScaleMetricSteps = listOf(
     15_000_000, 8_000_000, 4_000_000, 2_000_000, 1_000_000,
     500_000, 250_000, 100_000, 50_000, 25_000, 15_000, 8_000,
@@ -221,8 +215,7 @@ fun GpsMapScreen(
     var deviceAcc by remember { mutableStateOf<Float?>(null) }
     var deviceAlt by remember { mutableStateOf<Double?>(null) }
     var deviceSpeed by remember { mutableStateOf<Float?>(null) }
-    var gpsCourse by remember { mutableStateOf<Double?>(null) }
-    var gpsCourseMark by remember { mutableStateOf<TimeMark?>(null) }
+    var travelCourse by remember { mutableStateOf<TravelCourse?>(null) }
     var batteryPct by remember { mutableStateOf(readBatteryPercent()) }
     var heading by remember { mutableStateOf<Double?>(null) }
     var liveOperators by remember { mutableStateOf<List<LiveOperatorPin>>(emptyList()) }
@@ -270,12 +263,7 @@ fun GpsMapScreen(
             // In auto la bussola è spesso capovolta. La rotta GPS segue la strada.
             if (fix.isGpsProvider) {
                 deviceSpeed = fix.speedMps
-                val course = fix.courseDeg
-                val speed = fix.speedMps ?: 0f
-                if (course != null && speed >= CourseMinSpeedMps) {
-                    gpsCourse = smoothHeading(gpsCourse, course.toDouble(), 0.55)
-                    gpsCourseMark = TimeSource.Monotonic.markNow()
-                }
+                travelCourse = travelCourse.acceptFix(fix)
             } else if (fix.speedMps != null && deviceSpeed == null) {
                 deviceSpeed = fix.speedMps
             }
@@ -295,9 +283,8 @@ fun GpsMapScreen(
     }
 
     // In movimento la prua è la rotta GPS (direzione reale). Da fermo, la bussola.
-    val gpsCourseFresh = gpsCourseMark?.elapsedNow()?.let { it < GpsCourseHold } == true
-    val useGpsCourse = northDynamic && gpsCourse != null && gpsCourseFresh
-    val mapHeading = if (useGpsCourse) gpsCourse else heading
+    val useGpsCourse = northDynamic && travelCourse.isFresh()
+    val mapHeading = if (useGpsCourse) travelCourse?.degrees else heading
     // Freccia fissa verso l'alto → ruota la mappa sotto
     val mapRotation = if (northDynamic) -(mapHeading ?: 0.0).toFloat() else 0f
     val markerLabel = selfCode
@@ -1105,14 +1092,6 @@ private fun StatusCell(
             )
         }
     }
-}
-
-private fun smoothHeading(previous: Double?, sample: Double, alpha: Double): Double {
-    if (previous == null) return (sample % 360.0 + 360.0) % 360.0
-    var delta = (sample - previous) % 360.0
-    if (delta > 180.0) delta -= 360.0
-    if (delta < -180.0) delta += 360.0
-    return (previous + delta * alpha).mod(360.0)
 }
 
 private fun formatStatusCoord(value: Double): String {

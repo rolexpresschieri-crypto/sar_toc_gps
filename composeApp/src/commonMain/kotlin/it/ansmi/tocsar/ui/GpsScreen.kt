@@ -68,7 +68,10 @@ import it.ansmi.tocsar.geo.MapTrackOverlay
 import it.ansmi.tocsar.geo.TrackListItem
 import it.ansmi.tocsar.geo.TrackPoint
 import it.ansmi.tocsar.geo.WaypointItem
+import it.ansmi.tocsar.geo.TravelCourse
+import it.ansmi.tocsar.geo.acceptFix
 import it.ansmi.tocsar.geo.bearingDeg
+import it.ansmi.tocsar.geo.isFresh
 import it.ansmi.tocsar.geo.createCompassGateway
 import it.ansmi.tocsar.geo.createGpsLocalStore
 import it.ansmi.tocsar.geo.createLocationGateway
@@ -148,6 +151,7 @@ fun GpsScreen(
     var bearingToBase by remember { mutableStateOf<Double?>(null) }
     var arrowRotation by remember { mutableStateOf(0.0) }
     var heading by remember { mutableStateOf<Double?>(null) }
+    var travelCourse by remember { mutableStateOf<TravelCourse?>(null) }
     var isGoMode by remember { mutableStateOf(false) }
     var trkRecording by remember { mutableStateOf(OperatorGpsTracking.isTrkRecording()) }
     var showCalib by remember { mutableStateOf(false) }
@@ -180,16 +184,24 @@ fun GpsScreen(
     DisposableEffect(Unit) {
         val stop = compass.watchHeading { h ->
             heading = h
-            val b = bearingToBase
-            if (isGoMode && b != null && h != null) {
-                arrowRotation = relativeArrowDeg(b, h)
-            }
+        }
+        val stopCourse = location.watchFixes(2f) { fix ->
+            travelCourse = travelCourse.acceptFix(fix)
         }
         onDispose {
             stop()
+            stopCourse()
             stopGoWatch?.invoke()
             // Non fermare TRK: continua nel foreground service (tasca / schermo spento)
         }
+    }
+
+    val useGpsCourse = travelCourse.isFresh()
+    val travelHeading = if (useGpsCourse) travelCourse?.degrees else heading
+    val headingLabel = if (useGpsCourse) {
+        "Rotta: ${travelHeading?.let { "${it.toInt()}°" } ?: "-"}"
+    } else {
+        "Nord: ${travelHeading?.let { "${it.toInt()}°" } ?: "-"}"
     }
 
     LaunchedEffect(trkRecording) {
@@ -216,6 +228,10 @@ fun GpsScreen(
         if (bearing != null && head != null) {
             arrowRotation = relativeArrowDeg(bearing, head)
         }
+    }
+
+    LaunchedEffect(isGoMode, bearingToBase, travelHeading) {
+        if (isGoMode) updateArrow(bearingToBase, travelHeading)
     }
 
     fun toast(msg: String) {
@@ -314,9 +330,7 @@ fun GpsScreen(
                 altPtg = fix.altitude.formatAlt0()
                 accPtg = fix.accuracyM
                 distanceM = haversineDistanceM(fix.latitude, fix.longitude, lat, lon)
-                val b = bearingDeg(fix.latitude, fix.longitude, lat, lon)
-                bearingToBase = b
-                updateArrow(b, heading)
+                bearingToBase = bearingDeg(fix.latitude, fix.longitude, lat, lon)
             }
             toast("Navigazione verso $name")
         }
@@ -341,9 +355,7 @@ fun GpsScreen(
                 altPtg = fix.altitude.formatAlt0()
                 accPtg = fix.accuracyM
                 distanceM = haversineDistanceM(fix.latitude, fix.longitude, latB, lonB)
-                val b = bearingDeg(fix.latitude, fix.longitude, latB, lonB)
-                bearingToBase = b
-                updateArrow(b, heading)
+                bearingToBase = bearingDeg(fix.latitude, fix.longitude, latB, lonB)
             }
             toast("Navigazione verso BASE attiva")
         }
@@ -573,7 +585,7 @@ fun GpsScreen(
                                 contentDescription = null,
                                 modifier = Modifier
                                     .fillMaxSize()
-                                    .rotate(-((heading ?: 0.0).toFloat())),
+                                    .rotate(-((travelHeading ?: 0.0).toFloat())),
                                 contentScale = ContentScale.Fit,
                             )
                             Box(
@@ -585,7 +597,7 @@ fun GpsScreen(
                                     .background(Color.Black.copy(alpha = 0.75f)),
                             )
                             Text(
-                                text = "Nord: ${heading?.let { "${it.toInt()}°" } ?: "-"}",
+                                text = headingLabel,
                                 fontSize = 22.sp,
                                 fontWeight = FontWeight.ExtraBold,
                                 color = Color.Black,
@@ -598,7 +610,7 @@ fun GpsScreen(
                 } else {
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text = "Nord: ${heading?.let { "${it.toInt()}°" } ?: "-"}",
+                        text = headingLabel,
                         color = fg,
                         fontSize = 22.sp,
                         fontWeight = FontWeight.Bold,
