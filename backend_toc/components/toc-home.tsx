@@ -566,6 +566,7 @@ export default function TocHome() {
                 layerMode={layerMode}
                 focusPoint={focusPoint}
                 focusNonce={focusNonce}
+                organizationCode={session.organizationCode}
               />
             </div>
           </section>

@@ -1,4 +1,5 @@
 -- Confini comunali GeoJSON (gestiti dalla TOC Anagrafica, letti da sala e app).
+-- I file stanno in comune-boundaries/<CODICE_ENTE>/nome.geojson (es. NVANSMI/oulx.geojson).
 -- Eseguire in Supabase → SQL Editor.
 
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)

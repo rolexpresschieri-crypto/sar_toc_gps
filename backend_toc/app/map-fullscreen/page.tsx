@@ -139,6 +139,7 @@ function MapFullscreenContent() {
           recenterNonce={recenterNonce}
           onSelect={selectSquad}
           layerMode={layerMode}
+          organizationCode={session.organizationCode}
         />
       </div>
       <div className={styles.chips}>

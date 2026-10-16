@@ -225,9 +225,14 @@ fun GpsMapScreen(
     val facade = remember { loadTocSarConfig()?.let { TocSarFacade(it) } }
     val selfCode = model.navigatorLabel.trim().uppercase().ifBlank { "GPS" }
 
-    LaunchedEffect(facade) {
+    LaunchedEffect(facade, model.organizationId) {
         val api = facade ?: return@LaunchedEffect
-        comuneGeoms = runCatching { api.loadComuneBoundaries() }.getOrDefault(emptyList())
+        val orgId = model.organizationId.trim()
+        if (orgId.isEmpty()) {
+            comuneGeoms = emptyList()
+            return@LaunchedEffect
+        }
+        comuneGeoms = runCatching { api.loadComuneBoundaries(orgId) }.getOrDefault(emptyList())
     }
 
     LaunchedEffect(facade, selfCode, model.organizationId) {

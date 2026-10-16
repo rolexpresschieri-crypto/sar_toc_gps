@@ -54,7 +54,8 @@ async function main() {
       geo.features[0].properties = { ...(geo.features[0].properties || {}), name };
     }
     const body = Buffer.from(JSON.stringify(geo));
-    const { error } = await supabase.storage.from("comune-boundaries").upload(file, body, {
+    const dest = `NVANSMI/${file}`;
+    const { error } = await supabase.storage.from("comune-boundaries").upload(dest, body, {
       contentType: "application/geo+json",
       upsert: true,
     });

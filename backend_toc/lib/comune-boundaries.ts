@@ -97,8 +97,21 @@ function assertBoundaryGeometry(geo: unknown) {
   walk(root);
 }
 
-export async function listComuneBoundaries(supabase: SupabaseClient): Promise<ComuneBoundary[]> {
-  const { data, error } = await supabase.storage.from(CONFINI_BUCKET).list("", { limit: 200 });
+/** Cartella Storage dell'ente, stesso schema di mission-gps/NVANSMI. */
+export function orgStorageFolder(orgCode: string): string {
+  const folder = orgCode.trim().toUpperCase().replace(/[^A-Z0-9._-]/g, "");
+  if (!folder) {
+    throw new Error("Ente mancante.");
+  }
+  return folder;
+}
+
+export async function listComuneBoundaries(
+  supabase: SupabaseClient,
+  orgCode: string,
+): Promise<ComuneBoundary[]> {
+  const folder = orgStorageFolder(orgCode);
+  const { data, error } = await supabase.storage.from(CONFINI_BUCKET).list(folder, { limit: 200 });
   if (error) {
     throw error;
   }
@@ -106,7 +119,7 @@ export async function listComuneBoundaries(supabase: SupabaseClient): Promise<Co
     .filter((item) => item.name.toLowerCase().endsWith(".geojson") && item.id)
     .map((item) => {
       const id = item.name.replace(/\.geojson$/i, "");
-      return { id, name: id, path: item.name };
+      return { id, name: id, path: `${folder}/${item.name}` };
     })
     .sort((a, b) => a.name.localeCompare(b.name, "it"));
 }
@@ -122,44 +135,23 @@ export async function downloadComuneGeoJson(
   return JSON.parse(await data.text()) as GeoJSON.GeoJsonObject;
 }
 
-async function loadPublicSeedConfini(): Promise<Array<ComuneBoundary & { geo: GeoJSON.GeoJsonObject }>> {
-  const rows: Array<ComuneBoundary & { geo: GeoJSON.GeoJsonObject }> = [];
-  for (const seed of VAL_SUSA_CONFINI_SEED) {
-    const res = await fetch(seed.file);
-    if (!res.ok) {
-      continue;
-    }
-    const geo = (await res.json()) as GeoJSON.GeoJsonObject;
-    rows.push({ id: seed.id, name: seed.name, path: seed.file, geo });
-  }
-  return rows.sort((a, b) => a.name.localeCompare(b.name, "it"));
-}
-
 export async function loadComuneBoundariesWithGeo(
   supabase: SupabaseClient,
-  options: { fallbackPublic?: boolean } = {},
+  orgCode: string,
 ): Promise<Array<ComuneBoundary & { geo: GeoJSON.GeoJsonObject }>> {
-  try {
-    const listed = await listComuneBoundaries(supabase);
-    const rows: Array<ComuneBoundary & { geo: GeoJSON.GeoJsonObject }> = [];
-    for (const item of listed) {
-      const geo = await downloadComuneGeoJson(supabase, item.path);
-      rows.push({ ...item, name: nameFromGeoJson(geo, item.id), geo });
-    }
-    if (rows.length > 0 || !options.fallbackPublic) {
-      rows.sort((a, b) => a.name.localeCompare(b.name, "it"));
-      return rows;
-    }
-  } catch {
-    if (!options.fallbackPublic) {
-      throw new Error("Bucket comune-boundaries assente. Esegui sql/comune_boundaries.sql.");
-    }
+  const listed = await listComuneBoundaries(supabase, orgCode);
+  const rows: Array<ComuneBoundary & { geo: GeoJSON.GeoJsonObject }> = [];
+  for (const item of listed) {
+    const geo = await downloadComuneGeoJson(supabase, item.path);
+    rows.push({ ...item, name: nameFromGeoJson(geo, item.id), geo });
   }
-  return loadPublicSeedConfini();
+  rows.sort((a, b) => a.name.localeCompare(b.name, "it"));
+  return rows;
 }
 
 export async function uploadComuneBoundary(
   supabase: SupabaseClient,
+  orgCode: string,
   name: string,
   geo: unknown,
   slugHint?: string,
@@ -167,7 +159,7 @@ export async function uploadComuneBoundary(
   assertBoundaryGeometry(geo);
   const named = name.trim() || nameFromGeoJson(geo, "Comune");
   const slug = slugifyComune(slugHint || named);
-  const path = `${slug}.geojson`;
+  const path = `${orgStorageFolder(orgCode)}/${slug}.geojson`;
   const body = JSON.stringify(withComuneName(geo as Record<string, unknown>, named));
   const blob = new Blob([body], { type: "application/geo+json" });
   const { error } = await supabase.storage.from(CONFINI_BUCKET).upload(path, blob, {
@@ -187,7 +179,10 @@ export async function deleteComuneBoundary(supabase: SupabaseClient, path: strin
   }
 }
 
-export async function seedValSusaConfini(supabase: SupabaseClient): Promise<number> {
+export async function seedValSusaConfini(
+  supabase: SupabaseClient,
+  orgCode: string,
+): Promise<number> {
   let n = 0;
   for (const seed of VAL_SUSA_CONFINI_SEED) {
     const res = await fetch(seed.file);
@@ -195,7 +190,7 @@ export async function seedValSusaConfini(supabase: SupabaseClient): Promise<numb
       throw new Error(`File seed non trovato: ${seed.name}`);
     }
     const geo = (await res.json()) as unknown;
-    await uploadComuneBoundary(supabase, seed.name, geo, seed.id);
+    await uploadComuneBoundary(supabase, orgCode, seed.name, geo, seed.id);
     n += 1;
   }
   return n;

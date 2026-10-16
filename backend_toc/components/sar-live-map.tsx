@@ -268,6 +268,7 @@ export default function SarLiveMap({
   layerMode = "standard",
   focusPoint = null,
   focusNonce = 0,
+  organizationCode,
 }: {
   squads: LiveSquad[];
   selectedSessionId: string | null;
@@ -277,6 +278,7 @@ export default function SarLiveMap({
   layerMode?: LayerMode;
   focusPoint?: { lat: number; lng: number } | null;
   focusNonce?: number;
+  organizationCode: string;
 }) {
   const selected = useMemo(
     () => squads.find((s) => s.sessionId === selectedSessionId) ?? null,
@@ -303,7 +305,11 @@ export default function SarLiveMap({
     if (!supabase) {
       return;
     }
-    void loadComuneBoundariesWithGeo(supabase, { fallbackPublic: true })
+    const orgCode = organizationCode.trim();
+    if (!orgCode) {
+      return;
+    }
+    void loadComuneBoundariesWithGeo(supabase, orgCode)
       .then((rows) => {
         if (cancelled) {
           return;
@@ -324,7 +330,7 @@ export default function SarLiveMap({
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [organizationCode]);
 
   const addRulerPoint = useCallback((latlng: L.LatLng) => {
     setRulerPoints((prev) => [...prev, latlng]);

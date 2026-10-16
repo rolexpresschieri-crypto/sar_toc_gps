@@ -267,17 +267,18 @@ export default function AnagraficaPage() {
   }, [supabase, orgId]);
 
   const refreshComuni = useCallback(async () => {
-    if (!supabase) {
+    const orgCode = session?.organizationCode?.trim() ?? "";
+    if (!supabase || !orgCode) {
       setComuni([]);
       return;
     }
     try {
-      const rows = await loadComuneBoundariesWithGeo(supabase);
+      const rows = await loadComuneBoundariesWithGeo(supabase, orgCode);
       setComuni(rows.map(({ id, name, path }) => ({ id, name, path })));
     } catch {
       setComuni([]);
     }
-  }, [supabase]);
+  }, [supabase, session?.organizationCode]);
 
   useEffect(() => {
     if (!session || !supabase || !orgId) {
@@ -876,7 +877,7 @@ export default function AnagraficaPage() {
 
   async function handleComuneSubmit(e: FormEvent) {
     e.preventDefault();
-    if (!supabase || !comuneFile) {
+    if (!supabase || !session || !comuneFile) {
       return;
     }
     setBusy(true);
@@ -884,7 +885,7 @@ export default function AnagraficaPage() {
     try {
       const text = await comuneFile.text();
       const geo = JSON.parse(text) as unknown;
-      await uploadComuneBoundary(supabase, comuneName, geo);
+      await uploadComuneBoundary(supabase, session.organizationCode, comuneName, geo);
       setComuneName("");
       setComuneFile(null);
       setToast("Confini comunali salvati su Storage. Visibili in mappa TOC e sull’app.");
@@ -897,13 +898,13 @@ export default function AnagraficaPage() {
   }
 
   async function handleSeedConfini() {
-    if (!supabase) {
+    if (!supabase || !session) {
       return;
     }
     setBusy(true);
     setFormError(null);
     try {
-      const n = await seedValSusaConfini(supabase);
+      const n = await seedValSusaConfini(supabase, session.organizationCode);
       setToast(`${n} comuni Val Susa caricati su Storage.`);
       await refreshComuni();
     } catch (err) {
