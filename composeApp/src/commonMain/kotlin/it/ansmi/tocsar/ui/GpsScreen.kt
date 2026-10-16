@@ -76,7 +76,7 @@ import it.ansmi.tocsar.geo.createCompassGateway
 import it.ansmi.tocsar.geo.createGpsLocalStore
 import it.ansmi.tocsar.geo.createLocationGateway
 import it.ansmi.tocsar.geo.encodeTrkFile
-import it.ansmi.tocsar.geo.encodeWaypointFile
+import it.ansmi.tocsar.geo.encodeWaypointGpx
 import it.ansmi.tocsar.geo.reverseTrackPoints
 import it.ansmi.tocsar.geo.formatAlt0
 import it.ansmi.tocsar.geo.formatCoord6
@@ -1234,11 +1234,10 @@ private fun WpTrkDialog(
     }
 
     fun shareWp(wp: WaypointItem) {
-        val body = encodeWaypointFile(wp.name, wp.lat, wp.lon, wp.alt)
         sharePlainText(
             subject = "Waypoint ${wp.name}",
-            text = body,
-            fileNameHint = "${safeGpsFileStem(wp.name)}.wpt.txt",
+            text = encodeWaypointGpx(wp.name, wp.lat, wp.lon, wp.alt),
+            fileNameHint = "${safeGpsFileStem(wp.name)}.gpx",
         )
     }
 
@@ -1454,6 +1453,17 @@ private fun WpTrkDialog(
                                         }
                                     }
                                     DialogActionFlow {
+                                        CompactTextButton(
+                                            enabled = !busy,
+                                            onClick = {
+                                                sharePlainText(
+                                                    subject = "Traccia ${trk.name}",
+                                                    text = encodeTrkFile(trk.points),
+                                                    fileNameHint = "${safeGpsFileStem(trk.name)}.trk",
+                                                )
+                                            },
+                                            label = "Invia",
+                                        )
                                         CompactTextButton(
                                             enabled = !busy,
                                             onClick = { onInspectTrack(trk.name, trk.points) },

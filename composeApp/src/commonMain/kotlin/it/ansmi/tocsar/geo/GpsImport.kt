@@ -13,7 +13,11 @@ suspend fun importGpsFileContent(
         looksLikeWaypointContent(body) -> {
             val parsed = parseWaypointFile(body)
                 ?: return "File WP non valido"
-            val name = importedGpsNameFromWaypointBody(body, fileName)
+            val name = if (body.contains("<wpt", ignoreCase = true)) {
+                parsed.name
+            } else {
+                importedGpsNameFromWaypointBody(body, fileName)
+            }
             store.upsertWaypoint(parsed.copy(name = name, isLocal = true))
             "Importato WP $name"
         }
@@ -24,7 +28,7 @@ suspend fun importGpsFileContent(
             store.upsertTrack(name, encodeTrkFile(pts))
             "Importata traccia $name"
         }
-        else -> "Formato non riconosciuto (.trk / WP .wpt.txt)"
+        else -> "Formato non riconosciuto (.trk / WP .gpx)"
     }
 }
 

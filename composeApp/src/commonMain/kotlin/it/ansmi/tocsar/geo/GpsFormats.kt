@@ -147,6 +147,48 @@ fun parseTrkLine(line: String): TrackPoint? {
     return null
 }
 
+/** GPX 1.1: Garmin, OsmAnd, Locus, Organic Maps, Google Earth. */
+fun encodeWaypointGpx(name: String, lat: Double, lon: Double, alt: Double?): String {
+    val safe = xmlEscape(name.trim())
+    val ele = if (alt != null) "\n    <ele>${alt.formatAlt0()}</ele>" else ""
+    return buildString {
+        append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n")
+        append("<gpx version=\"1.1\" creator=\"TocSar\" xmlns=\"http://www.topografix.com/GPX/1/1\">\n")
+        append("  <wpt lat=\"").append(lat.formatCoord6())
+        append("\" lon=\"").append(lon.formatCoord6()).append("\">")
+        append(ele).append('\n')
+        append("    <name>").append(safe).append("</name>\n")
+        append("  </wpt>\n")
+        append("</gpx>\n")
+    }
+}
+
+fun parseGpxWaypoint(raw: String): WaypointItem? {
+    val wpt = Regex(
+        """<wpt\b([^>]*)>([\s\S]*?)</wpt>""",
+        RegexOption.IGNORE_CASE,
+    ).find(raw) ?: return null
+    val attrs = wpt.groupValues[1]
+    val body = wpt.groupValues[2]
+    val lat = attr(attrs, "lat")?.let { parseCoord(it) } ?: return null
+    val lon = attr(attrs, "lon")?.let { parseCoord(it) } ?: return null
+    val name = Regex("""<name>([\s\S]*?)</name>""", RegexOption.IGNORE_CASE)
+        .find(body)?.groupValues?.get(1)?.trim()?.let { xmlUnescape(it) }
+    val ele = Regex("""<ele>([\s\S]*?)</ele>""", RegexOption.IGNORE_CASE)
+        .find(body)?.groupValues?.get(1)?.let { parseCoord(it.trim()) }
+    return WaypointItem(formatAppWaypointName(name?.takeIf { it.isNotBlank() } ?: "WP"), lat, lon, ele)
+}
+
+private fun attr(tag: String, key: String): String? =
+    Regex("""\b${Regex.escape(key)}\s*=\s*"([^"]*)"""", RegexOption.IGNORE_CASE)
+        .find(tag)?.groupValues?.get(1)
+
+private fun xmlEscape(s: String): String =
+    s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;")
+
+private fun xmlUnescape(s: String): String =
+    s.replace("&quot;", "\"").replace("&gt;", ">").replace("&lt;", "<").replace("&amp;", "&")
+
 fun encodeWaypointFile(name: String, lat: Double, lon: Double, alt: Double?): String {
     val a = alt?.formatAlt0() ?: ""
     return buildString {
@@ -158,6 +200,7 @@ fun encodeWaypointFile(name: String, lat: Double, lon: Double, alt: Double?): St
 }
 
 fun parseWaypointFile(raw: String): WaypointItem? {
+    parseGpxWaypoint(raw)?.let { return it }
     parseWaypointLabeledLines(raw)?.let { return it }
     for (line in raw.lineSequence()) {
         val t = line.trim()
@@ -210,6 +253,7 @@ private fun parseWaypointLabeledLines(raw: String): WaypointItem? {
 }
 
 fun looksLikeWaypointContent(raw: String): Boolean {
+    if (Regex("""<wpt\b""", RegexOption.IGNORE_CASE).containsMatchIn(raw)) return true
     if (Regex("""^\s*lat\s*=""", setOf(RegexOption.MULTILINE, RegexOption.IGNORE_CASE)).containsMatchIn(raw) &&
         Regex("""^\s*(lon|log|long)\s*=""", setOf(RegexOption.MULTILINE, RegexOption.IGNORE_CASE)).containsMatchIn(raw)
     ) {
