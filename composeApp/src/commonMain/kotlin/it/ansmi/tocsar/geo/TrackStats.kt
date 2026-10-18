@@ -85,6 +85,18 @@ fun estimateDurationMs(distanceHorizM: Double, elevGainM: Double, elevLossM: Dou
     return (hours * 3_600_000.0).toLong().coerceAtLeast(0L)
 }
 
+/** Lunghezza in pianta, senza i tratti segnati come buco GPS. */
+fun trackHorizDistanceM(points: List<TrackPoint>): Double {
+    var sum = 0.0
+    for (i in 1 until points.size) {
+        if (points[i].gapBefore) continue
+        val prev = points[i - 1]
+        val cur = points[i]
+        sum += haversineDistanceM(prev.lat, prev.lon, cur.lat, cur.lon)
+    }
+    return sum
+}
+
 fun formatTrackDistance(distanceM: Double): String =
     if (distanceM >= 1000.0) {
         "${(kotlin.math.round(distanceM / 10.0) / 100.0)} km"

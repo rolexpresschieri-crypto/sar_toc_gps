@@ -80,6 +80,7 @@ import it.ansmi.tocsar.geo.encodeWaypointGpx
 import it.ansmi.tocsar.geo.reverseTrackPoints
 import it.ansmi.tocsar.geo.formatAlt0
 import it.ansmi.tocsar.geo.formatCoord6
+import it.ansmi.tocsar.geo.countsAsTravelStep
 import it.ansmi.tocsar.geo.haversineDistanceM
 import it.ansmi.tocsar.geo.importGpsFileContent
 import it.ansmi.tocsar.geo.loadAllWaypoints
@@ -102,6 +103,8 @@ import it.ansmi.tocsar.geo.safeGpsFileStem
 import it.ansmi.tocsar.geo.sanitizeGpsStem
 import it.ansmi.tocsar.geo.saveCompassHeadingOffset
 import it.ansmi.tocsar.geo.OperatorGpsTracking
+import it.ansmi.tocsar.geo.trackHorizDistanceM
+import it.ansmi.tocsar.epochMs
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -154,6 +157,16 @@ fun GpsScreen(
     var travelCourse by remember { mutableStateOf<TravelCourse?>(null) }
     var isGoMode by remember { mutableStateOf(false) }
     var trkRecording by remember { mutableStateOf(OperatorGpsTracking.isTrkRecording()) }
+    var tripRunning by remember { mutableStateOf(false) }
+    var tripLinked by remember { mutableStateOf(false) }
+    var tripStartMs by remember { mutableStateOf(0L) }
+    var tripElapsedMs by remember { mutableStateOf(0L) }
+    var tripDistM by remember { mutableStateOf(0.0) }
+    var tripFrozenElapsed by remember { mutableStateOf(0L) }
+    var tripFrozenDist by remember { mutableStateOf(0.0) }
+    /** Distanza di traccia da ignorare dopo un azzeramento, mentre il TRK continua. */
+    var tripDistBase by remember { mutableStateOf(0.0) }
+    val manualTrip = remember { ManualTrip() }
     var showCalib by remember { mutableStateOf(false) }
     var showInsWp by remember { mutableStateOf(false) }
     var wpSeedLat by remember { mutableStateOf("") }
@@ -187,6 +200,10 @@ fun GpsScreen(
         }
         val stopCourse = location.watchFixes(2f) { fix ->
             travelCourse = travelCourse.acceptFix(fix)
+            if (manualTrip.running) {
+                manualTrip.onFix(fix.latitude, fix.longitude, fix.accuracyM, fix.speedMps)
+                tripDistM = manualTrip.distM
+            }
         }
         onDispose {
             stop()
@@ -204,15 +221,108 @@ fun GpsScreen(
         "Nord: ${travelHeading?.let { "${it.toInt()}°" } ?: "-"}"
     }
 
-    LaunchedEffect(trkRecording) {
-        if (!trkRecording) return@LaunchedEffect
-        while (isActive && OperatorGpsTracking.isTrkRecording()) {
-            val pts = OperatorGpsTracking.trkPointsSnapshot()
-            trackPoints.clear()
-            trackPoints.addAll(pts)
-            delay(1_000L)
+    fun armTripFromTrack() {
+        manualTrip.running = false
+        val start = OperatorGpsTracking.trkStartedAtMs().takeIf { it > 0L } ?: epochMs()
+        tripStartMs = start
+        tripElapsedMs = (epochMs() - start).coerceAtLeast(0L)
+        tripDistM = trackHorizDistanceM(trackPoints)
+        tripDistBase = 0.0
+        tripLinked = true
+        tripRunning = true
+    }
+
+    fun freezeTrip() {
+        if (!tripRunning) return
+        tripFrozenElapsed = if (tripStartMs > 0L) (epochMs() - tripStartMs).coerceAtLeast(0L) else tripElapsedMs
+        tripFrozenDist = if (tripLinked) {
+            (trackHorizDistanceM(trackPoints) - tripDistBase).coerceAtLeast(0.0)
+        } else {
+            manualTrip.distM
         }
-        trkRecording = OperatorGpsTracking.isTrkRecording()
+        tripDistBase = 0.0
+        tripRunning = false
+        tripLinked = false
+        manualTrip.running = false
+    }
+
+    fun resetTrip() {
+        manualTrip.running = false
+        manualTrip.reset()
+        tripRunning = false
+        tripLinked = false
+        tripStartMs = 0L
+        tripElapsedMs = 0L
+        tripDistM = 0.0
+        tripFrozenElapsed = 0L
+        tripFrozenDist = 0.0
+        tripDistBase = 0.0
+    }
+
+    /** Azzera TIME e DIST. Se è in marcia, riparte da zero; se è fermo, resta a zero. */
+    fun resetTripClock() {
+        val now = epochMs()
+        if (tripRunning && tripLinked) {
+            tripStartMs = now
+            tripElapsedMs = 0L
+            tripDistBase = trackHorizDistanceM(trackPoints)
+            return
+        }
+        if (tripRunning) {
+            manualTrip.reset()
+            manualTrip.running = true
+            tripStartMs = now
+            tripElapsedMs = 0L
+            tripDistM = 0.0
+            tripDistBase = 0.0
+            return
+        }
+        manualTrip.reset()
+        tripStartMs = 0L
+        tripElapsedMs = 0L
+        tripDistM = 0.0
+        tripDistBase = 0.0
+        tripFrozenElapsed = 0L
+        tripFrozenDist = 0.0
+    }
+
+    fun toggleTrip() {
+        if (tripRunning) {
+            freezeTrip()
+            return
+        }
+        manualTrip.carry(tripFrozenDist.coerceAtLeast(0.0))
+        manualTrip.running = true
+        tripLinked = false
+        tripDistBase = 0.0
+        val carriedMs = tripFrozenElapsed.coerceAtLeast(0L)
+        tripStartMs = epochMs() - carriedMs
+        tripElapsedMs = carriedMs
+        tripDistM = manualTrip.distM
+        tripRunning = true
+    }
+
+    LaunchedEffect(trkRecording) {
+        if (trkRecording) {
+            armTripFromTrack()
+            while (isActive && OperatorGpsTracking.isTrkRecording()) {
+                val pts = OperatorGpsTracking.trkPointsSnapshot()
+                trackPoints.clear()
+                trackPoints.addAll(pts)
+                delay(1_000L)
+            }
+            trkRecording = OperatorGpsTracking.isTrkRecording()
+        } else if (tripRunning) {
+            freezeTrip()
+        }
+    }
+
+    LaunchedEffect(tripRunning, tripStartMs) {
+        if (!tripRunning || tripStartMs <= 0L) return@LaunchedEffect
+        while (isActive) {
+            tripElapsedMs = (epochMs() - tripStartMs).coerceAtLeast(0L)
+            delay(200L)
+        }
     }
 
     // Sync stato se si rientra in GPS con TRK già attivo in service
@@ -249,6 +359,7 @@ fun GpsScreen(
         accBase = null; accPtg = null
         distanceM = null; bearingToBase = null
         isGoMode = false; trkRecording = false
+        resetTrip()
         trackPoints.clear()
         selectedWpId = null
         overlayWaypoints = emptyList()
@@ -654,6 +765,19 @@ fun GpsScreen(
                     organizationId = organizationId?.trim().orEmpty(),
                 ),
                 // Solo chiude la mappa — non torna alla Home
+                tripRunning = tripRunning,
+                tripLinked = tripLinked,
+                tripElapsedMs = if (tripRunning) tripElapsedMs else tripFrozenElapsed,
+                tripDistM = if (tripRunning && !tripLinked) {
+                    tripDistM
+                } else if (tripRunning) {
+                    (trackHorizDistanceM(trackPoints) - tripDistBase).coerceAtLeast(0.0)
+                } else {
+                    tripFrozenDist
+                },
+                tripDistBase = tripDistBase,
+                onToggleTrip = { toggleTrip() },
+                onResetTrip = { resetTripClock() },
                 onBack = { showMap = false },
                 onNavigateFromSelf = { dest ->
                     startNavigateTo(dest.label, dest.latitude, dest.longitude, dest.altitudeM)
@@ -1982,6 +2106,45 @@ private fun formatLocalTrackName(freeName: String, operatorPrefix: String): Stri
 
 /** Spazi → _; toglie caratteri strani; senza estensione .trk/.txt. */
 private fun sanitizeLocalGpsStem(raw: String): String = sanitizeGpsStem(raw)
+
+/** Cronometro manuale ST: somma gli spostamenti GPS da quando è premuto. */
+private class ManualTrip {
+    var running: Boolean = false
+    var distM: Double = 0.0
+    private var lastLat = Double.NaN
+    private var lastLon = Double.NaN
+
+    fun reset() {
+        distM = 0.0
+        lastLat = Double.NaN
+        lastLon = Double.NaN
+    }
+
+    /** Riprende il totale già percorso, senza sommare lo spostamento fatto da fermo. */
+    fun carry(dist: Double) {
+        distM = dist.coerceAtLeast(0.0)
+        lastLat = Double.NaN
+        lastLon = Double.NaN
+    }
+
+    fun onFix(lat: Double, lon: Double, accuracyM: Float, speedMps: Float?) {
+        if (!running) return
+        if (lastLat.isNaN() || lastLon.isNaN()) {
+            lastLat = lat
+            lastLon = lon
+            return
+        }
+        val step = haversineDistanceM(lastLat, lastLon, lat, lon)
+        if (countsAsTravelStep(step, accuracyM, speedMps)) {
+            distM += step
+            lastLat = lat
+            lastLon = lon
+        } else if (step > 300.0) {
+            lastLat = lat
+            lastLon = lon
+        }
+    }
+}
 
 /** Relative heading to target, same as TocAppBuild: ((bearing - heading + 540) % 360) - 180 */
 private fun relativeArrowDeg(bearingToTarget: Double, headingDeg: Double): Double =

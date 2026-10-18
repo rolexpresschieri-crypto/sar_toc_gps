@@ -4,8 +4,10 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -36,6 +38,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
@@ -59,7 +62,9 @@ import it.ansmi.tocsar.geo.createCompassGateway
 import it.ansmi.tocsar.geo.createLocationGateway
 import it.ansmi.tocsar.geo.TravelCourse
 import it.ansmi.tocsar.geo.acceptFix
+import it.ansmi.tocsar.geo.countsAsTravelStep
 import it.ansmi.tocsar.geo.haversineDistanceM
+import it.ansmi.tocsar.geo.trackHorizDistanceM
 import it.ansmi.tocsar.geo.isFresh
 import it.ansmi.tocsar.geo.bearingDeg
 import it.ansmi.tocsar.backend.LiveOperatorPin
@@ -173,6 +178,13 @@ private val ScaleMetricSteps = listOf(
 @Composable
 fun GpsMapScreen(
     model: GpsMapModel,
+    tripRunning: Boolean = false,
+    tripLinked: Boolean = false,
+    tripElapsedMs: Long = 0L,
+    tripDistM: Double = 0.0,
+    tripDistBase: Double = 0.0,
+    onToggleTrip: () -> Unit = {},
+    onResetTrip: () -> Unit = {},
     onBack: () -> Unit,
     onOverlayShare: (MapOverlayTap) -> Unit = {},
     onSaveOperatorWaypoint: (LiveOperatorPin) -> Unit = {},
@@ -269,8 +281,6 @@ fun GpsMapScreen(
             if (fix.isGpsProvider) {
                 deviceSpeed = fix.speedMps
                 travelCourse = travelCourse.acceptFix(fix)
-            } else if (fix.speedMps != null && deviceSpeed == null) {
-                deviceSpeed = fix.speedMps
             }
         }
         val stopCompass = compass.watchHeading { heading = it }
@@ -660,14 +670,24 @@ fun GpsMapScreen(
             )
         }
 
+        val odoDist = if (tripRunning && tripLinked) {
+            (liveTrailDistanceM(model.liveTrail, deviceLat, deviceLon, deviceAcc, deviceSpeed) - tripDistBase)
+                .coerceAtLeast(0.0)
+        } else {
+            tripDistM
+        }
         if (showCoords) LiveStatusBar(
             callsign = selfCode,
             lat = deviceLat,
             lon = deviceLon,
             accuracyM = deviceAcc,
-            speedMps = deviceSpeed,
             altitudeM = altitudeM,
             batteryPct = batteryPct,
+            odoRunning = tripRunning,
+            elapsedMs = tripElapsedMs,
+            distanceM = odoDist,
+            onToggleOdo = onToggleTrip,
+            onResetOdo = onResetTrip,
             onSaveWaypoint = {
                 val lat = deviceLat
                 val lon = deviceLon
@@ -976,9 +996,13 @@ private fun LiveStatusBar(
     lat: Double?,
     lon: Double?,
     accuracyM: Float?,
-    speedMps: Float?,
     altitudeM: Double?,
     batteryPct: Int?,
+    odoRunning: Boolean,
+    elapsedMs: Long,
+    distanceM: Double,
+    onToggleOdo: () -> Unit,
+    onResetOdo: () -> Unit,
     onSaveWaypoint: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -995,18 +1019,22 @@ private fun LiveStatusBar(
                 .height(2.dp)
                 .background(Color(0xFFE6B000)),
         )
-        Row(
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(start = 12.dp, end = 10.dp, top = 12.dp, bottom = 14.dp),
-            verticalAlignment = Alignment.CenterVertically,
+                .padding(start = 10.dp, end = 10.dp, top = 16.dp, bottom = 18.dp),
         ) {
-            Column(modifier = Modifier.weight(1f)) {
+            // Larghezze minime del testo pieno: sigla 8 lettere, coordinate, "100%".
+            BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+                val siglaW = maxWidth * 0.24f
+                val battW = maxWidth * 0.18f
+                val posW = maxWidth - siglaW - battW
                 Row(modifier = Modifier.fillMaxWidth()) {
                     StatusCell(
                         label = "SIGLA",
                         value = callsign,
-                        modifier = Modifier.weight(0.8f),
+                        valueSize = 26.sp,
+                        modifier = Modifier.width(siglaW),
                     )
                     StatusCell(
                         label = "POSIZIONE",
@@ -1017,48 +1045,103 @@ private fun LiveStatusBar(
                         },
                         subtitle = accuracyM?.roundToInt()?.let { "±$it m" },
                         valueSize = 20.sp,
-                        modifier = Modifier.weight(1.35f),
-                    )
-                }
-                Spacer(modifier = Modifier.height(8.dp))
-                Row(modifier = Modifier.fillMaxWidth()) {
-                    StatusCell(
-                        label = "VEL.",
-                        value = formatStatusSpeed(speedMps),
-                        valueColor = StatusBlue,
-                        modifier = Modifier.weight(1f),
-                    )
-                    StatusCell(
-                        label = "QUOTA",
-                        value = altitudeM?.let { formatStatusAltitude(it) } ?: "—",
-                        valueColor = StatusBlue,
-                        modifier = Modifier.weight(1f),
+                        modifier = Modifier.width(posW),
                     )
                     StatusCell(
                         label = "BATT.",
                         value = batteryPct?.let { "$it%" } ?: "—",
                         valueColor = batteryColor,
-                        modifier = Modifier.weight(0.8f),
+                        valueSize = 26.sp,
+                        align = TextAlign.End,
+                        modifier = Modifier.width(battW),
                     )
                 }
             }
-            Box(
-                modifier = Modifier
-                    .padding(start = 8.dp)
-                    .size(56.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(if (canSave) Color(0xFFFF9021) else Color(0xFFBDBDBD))
-                    .clickable(enabled = canSave, onClick = onSaveWaypoint),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(
-                    "WP",
-                    color = Color.White,
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.ExtraBold,
+            Spacer(modifier = Modifier.height(12.dp))
+            // I numeri stanno solo fra i due tasti: non possono disegnarsi sopra ST o WP.
+            Box(modifier = Modifier.fillMaxWidth()) {
+                val st = 56.dp
+                val wp = 60.dp
+                val gap = 8.dp
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(start = st + gap, end = wp + gap)
+                        .clipToBounds(),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    StatusCell(
+                        label = "QUOTA",
+                        value = altitudeM?.let { formatStatusAltitude(it) } ?: "—",
+                        valueColor = StatusBlue,
+                        valueSize = 22.sp,
+                        align = TextAlign.Center,
+                        modifier = Modifier.weight(0.85f),
+                    )
+                    StatusCell(
+                        label = "TIME",
+                        value = formatElapsedHms(elapsedMs),
+                        valueColor = if (odoRunning) StatusBlue else StatusValue,
+                        valueSize = 20.sp,
+                        align = TextAlign.Center,
+                        onLongClick = onResetOdo,
+                        modifier = Modifier.weight(1.05f),
+                    )
+                    StatusCell(
+                        label = "DIST",
+                        value = formatOdoMeters(distanceM),
+                        valueColor = if (odoRunning) StatusBlue else StatusValue,
+                        valueSize = 18.sp,
+                        align = TextAlign.Center,
+                        modifier = Modifier.weight(1.15f),
+                    )
+                }
+                TripToggleButton(
+                    running = odoRunning,
+                    onClick = onToggleOdo,
+                    onLongClick = onResetOdo,
+                    size = st,
+                    modifier = Modifier.align(Alignment.CenterStart).zIndex(2f),
                 )
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.CenterEnd)
+                        .zIndex(2f)
+                        .size(wp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(if (canSave) Color(0xFFFF9021) else Color(0xFFBDBDBD))
+                        .clickable(enabled = canSave, onClick = onSaveWaypoint),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        "WP",
+                        color = Color.White,
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                    )
+                }
             }
         }
+    }
+}
+
+@Composable
+private fun TripToggleButton(
+    running: Boolean,
+    onClick: () -> Unit,
+    onLongClick: () -> Unit = {},
+    size: androidx.compose.ui.unit.Dp = 46.dp,
+    modifier: Modifier = Modifier,
+) {
+    Box(
+        modifier = modifier
+            .size(size)
+            .clip(RoundedCornerShape(12.dp))
+            .background(if (running) Color(0xFFCE2B37) else Color(0xFF00838F))
+            .combinedClickable(onClick = onClick, onLongClick = onLongClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text("ST", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.ExtraBold)
     }
 }
 
@@ -1070,33 +1153,80 @@ private fun StatusCell(
     valueColor: Color = StatusValue,
     valueSize: TextUnit = 22.sp,
     subtitle: String? = null,
+    align: TextAlign = TextAlign.Start,
+    onLongClick: (() -> Unit)? = null,
 ) {
-    Column(modifier = modifier.padding(end = 6.dp)) {
+    Column(
+        modifier = modifier
+            .clipToBounds()
+            .padding(horizontal = 2.dp)
+            .then(
+                if (onLongClick != null) {
+                    Modifier.combinedClickable(onClick = {}, onLongClick = onLongClick)
+                } else {
+                    Modifier
+                },
+            ),
+        horizontalAlignment = when (align) {
+            TextAlign.Center -> Alignment.CenterHorizontally
+            TextAlign.End, TextAlign.Right -> Alignment.End
+            else -> Alignment.Start
+        },
+    ) {
         Text(
             label,
             color = StatusLabel,
-            fontSize = 14.sp,
+            fontSize = 15.sp,
             fontWeight = FontWeight.Bold,
             maxLines = 1,
+            softWrap = false,
+            textAlign = align,
+            overflow = TextOverflow.Clip,
         )
-        Text(
-            value,
+        FittedValue(
+            text = value,
             color = valueColor,
-            fontSize = valueSize,
-            fontWeight = FontWeight.ExtraBold,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
+            preferred = valueSize,
+            align = align,
         )
         if (subtitle != null) {
             Text(
                 subtitle,
                 color = Color(0xFF4A3800),
-                fontSize = 15.sp,
+                fontSize = 16.sp,
                 fontWeight = FontWeight.Bold,
                 maxLines = 1,
+                softWrap = false,
+                overflow = TextOverflow.Clip,
             )
         }
     }
+}
+
+/** Resta dentro la colonna: se non entra, si riduce. Non esce sul tasto accanto. */
+@Composable
+private fun FittedValue(
+    text: String,
+    color: Color,
+    preferred: TextUnit,
+    align: TextAlign,
+) {
+    var size by remember(text, preferred) { mutableStateOf(preferred) }
+    Text(
+        text,
+        color = color,
+        fontSize = size,
+        fontWeight = FontWeight.ExtraBold,
+        maxLines = 1,
+        softWrap = false,
+        textAlign = align,
+        overflow = TextOverflow.Clip,
+        onTextLayout = { result ->
+            if (result.hasVisualOverflow && size.value > 13f) {
+                size = (size.value * 0.92f).sp
+            }
+        },
+    )
 }
 
 private fun formatStatusCoord(value: Double): String {
@@ -1104,13 +1234,41 @@ private fun formatStatusCoord(value: Double): String {
     return scaled.toString()
 }
 
-private fun formatStatusSpeed(speedMps: Float?): String {
-    if (speedMps == null || !speedMps.isFinite() || speedMps < 0f) return "—"
-    val tenth = (speedMps * 3.6 * 10.0).roundToInt()
-    return if (tenth % 10 == 0) "${tenth / 10}km/h" else "${tenth / 10.0}km/h"
+private fun formatStatusAltitude(meters: Double): String = "${meters.roundToInt()}m"
+
+private fun formatElapsedHms(elapsedMs: Long): String {
+    val total = (elapsedMs / 1000L).coerceAtLeast(0L)
+    val h = total / 3600L
+    val m = (total % 3600L) / 60L
+    val s = total % 60L
+    return "${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}"
 }
 
-private fun formatStatusAltitude(meters: Double): String = "${meters.roundToInt()}m"
+/** Metri con migliaia «.» e un decimale «,» — es. mt. 1.234,5 */
+private fun formatOdoMeters(meters: Double): String {
+    val safe = if (meters.isFinite() && meters > 0.0) meters else 0.0
+    val tenths = (safe * 10.0).roundToInt()
+    val whole = tenths / 10
+    val frac = tenths % 10
+    val grouped = whole.toString().reversed().chunked(3).joinToString(".").reversed()
+    return "mt. $grouped,$frac"
+}
+
+private fun liveTrailDistanceM(
+    points: List<TrackPoint>,
+    lat: Double?,
+    lon: Double?,
+    accuracyM: Float?,
+    speedMps: Float?,
+): Double {
+    var sum = trackHorizDistanceM(points)
+    val last = points.lastOrNull() ?: return sum
+    if (lat != null && lon != null) {
+        val tail = haversineDistanceM(last.lat, last.lon, lat, lon)
+        if (countsAsTravelStep(tail, accuracyM, speedMps)) sum += tail
+    }
+    return sum
+}
 
 private data class ScalePick(val metricM: Int, val barPx: Double)
 

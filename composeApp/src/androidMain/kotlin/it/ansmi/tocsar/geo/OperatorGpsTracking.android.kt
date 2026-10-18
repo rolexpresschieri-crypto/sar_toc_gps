@@ -33,6 +33,8 @@ actual object OperatorGpsTracking {
 
     actual fun isTrkRecording(): Boolean = GpsTrackingRuntime.trkRecording
 
+    actual fun trkStartedAtMs(): Long = GpsTrackingRuntime.trkStartedAtMs
+
     actual fun trkPointCount(): Int = GpsTrackingRuntime.trkCount()
 
     actual fun trkPointsSnapshot(): List<TrackPoint> = GpsTrackingRuntime.trkSnapshot()

@@ -252,6 +252,8 @@ actual object OperatorGpsTracking {
 
     actual fun isTrkRecording(): Boolean = IosGpsRuntime.trkRecording
 
+    actual fun trkStartedAtMs(): Long = IosGpsRuntime.trkStartedAtMs
+
     actual fun trkPointCount(): Int = IosGpsRuntime.trkCount()
 
     actual fun trkPointsSnapshot(): List<TrackPoint> = IosGpsRuntime.trkSnapshot()

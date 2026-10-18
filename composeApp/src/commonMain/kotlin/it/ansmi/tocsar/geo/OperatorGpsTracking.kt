@@ -10,6 +10,8 @@ expect object OperatorGpsTracking {
     /** Ferma TRK: punti + durata da START (ms). */
     fun stopTrkRecording(): TrkRecordingResult
     fun isTrkRecording(): Boolean
+    /** Epoch ms di START TRK, 0 se non è in registrazione. */
+    fun trkStartedAtMs(): Long
     fun trkPointCount(): Int
     fun trkPointsSnapshot(): List<TrackPoint>
     fun statusLabel(): String?

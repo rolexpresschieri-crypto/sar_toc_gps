@@ -6,3 +6,5 @@ import java.util.Locale
 
 actual fun currentTimeHm(): String =
     SimpleDateFormat("HH:mm", Locale.ITALY).format(Date())
+
+actual fun epochMs(): Long = System.currentTimeMillis()
