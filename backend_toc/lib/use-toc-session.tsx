@@ -173,7 +173,6 @@ export function TocLoginForm({
           <button className={styles.loginBtn} type="submit" disabled={loginBusy}>
             {loginBusy ? "Accesso…" : "Accedi"}
           </button>
-          <p className={styles.loginHint}>Come l&apos;app: ente + codice + password</p>
           {statusMessage ? <p className={styles.message}>{statusMessage}</p> : null}
         </form>
       </div>

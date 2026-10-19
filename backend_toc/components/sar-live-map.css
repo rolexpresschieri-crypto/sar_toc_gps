@@ -149,6 +149,47 @@
   accent-color: #ff1a1a;
 }
 
+.sar-mission-menu {
+  max-height: 320px;
+  overflow: auto;
+  min-width: 240px;
+}
+
+.sar-mission-folder {
+  background: none;
+  border: none;
+  color: inherit;
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+  padding: 0;
+  text-align: left;
+}
+
+.sar-mission-file {
+  padding-left: 22px;
+  font-weight: 600;
+}
+
+.sar-trk-label.leaflet-div-icon {
+  background: none;
+  border: none;
+}
+
+.sar-trk-label span {
+  display: inline-block;
+  transform: translate(-50%, -130%);
+  padding: 2px 7px;
+  border: 2px solid;
+  border-radius: 5px;
+  background: rgba(10, 18, 35, 0.92);
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.2;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
 .sar-confini-actions {
   display: flex;
   gap: 6px;

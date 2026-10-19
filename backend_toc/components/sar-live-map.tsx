@@ -3,7 +3,7 @@
 import "leaflet/dist/leaflet.css";
 import "./sar-live-map.css";
 import L from "leaflet";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   CircleMarker,
   GeoJSON as LeafletGeoJSON,
@@ -18,6 +18,19 @@ import {
 import { hasCoordinates, type LiveSquad } from "@/lib/live-squads";
 import { getMapTileConfig, type LayerMode } from "@/lib/map-layers";
 import { loadComuneBoundariesWithGeo, type ComuneBoundary } from "@/lib/comune-boundaries";
+import {
+  downloadMissionText,
+  listMissionCatalog,
+  parseMissionTrk,
+  parseMissionWpt,
+  type MissionCatalogFolder,
+  type MissionWaypoint,
+} from "@/lib/mission-gps";
+import {
+  readMissionSelection,
+  subscribeMissionSelection,
+  writeMissionSelection,
+} from "@/lib/mission-map-selection";
 import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
 import { fetchTerrainElevationM } from "@/lib/elevation";
 import { isCircleIcon, squadIconMapUrl } from "@/lib/squad-icons";
@@ -166,6 +179,51 @@ function FocusLatLng({
       return;
     }
     map.flyTo([point.lat, point.lng], Math.max(map.getZoom(), 16), { duration: 0.45 });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [map, nonce]);
+  return null;
+}
+
+const TRACK_COLORS = ["#1565C0", "#00838F", "#6A1B9A", "#EF6C00", "#2E7D32"];
+
+function trackLabelAnchor(segments: Array<Array<[number, number]>>): [number, number] | null {
+  let best: Array<[number, number]> | null = null;
+  for (const segment of segments) {
+    if (!best || segment.length > best.length) {
+      best = segment;
+    }
+  }
+  if (!best || best.length === 0) {
+    return null;
+  }
+  return best[Math.floor((best.length - 1) / 2)] ?? null;
+}
+
+function trackNameIcon(name: string, color: string): L.DivIcon {
+  return L.divIcon({
+    className: "sar-trk-label",
+    html: `<span style="border-color:${color};color:${color}">${escapeHtml(name)}</span>`,
+    iconSize: [0, 0],
+    iconAnchor: [0, 0],
+  });
+}
+
+type LoadedMission =
+  | { kind: "trk"; name: string; segments: Array<Array<[number, number]>> }
+  | { kind: "wpt"; points: MissionWaypoint[] };
+
+function FitLatLngs({ positions, nonce }: { positions: Array<[number, number]>; nonce: number }) {
+  const map = useMap();
+  useEffect(() => {
+    if (positions.length === 0) {
+      return;
+    }
+    const bounds = L.latLngBounds(positions.map(([lat, lon]) => L.latLng(lat, lon)));
+    if (!bounds.isValid()) {
+      return;
+    }
+    map.fitBounds(bounds, { padding: [36, 36], maxZoom: 15 });
+    // Solo quando l’utente seleziona WP/TRK.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [map, nonce]);
   return null;
@@ -331,6 +389,202 @@ export default function SarLiveMap({
       cancelled = true;
     };
   }, [organizationCode]);
+
+  const [missionOpen, setMissionOpen] = useState(false);
+  const [missionFolders, setMissionFolders] = useState<MissionCatalogFolder[]>([]);
+  const [missionExpanded, setMissionExpanded] = useState<ReadonlySet<string>>(() => new Set());
+  const [missionSelected, setMissionSelected] = useState<ReadonlySet<string>>(() =>
+    readMissionSelection(organizationCode),
+  );
+  const [missionLoaded, setMissionLoaded] = useState<Record<string, LoadedMission>>({});
+  const [missionFitNonce, setMissionFitNonce] = useState(0);
+  const missionSelectedRef = useRef(missionSelected);
+
+  function sameSelection(current: ReadonlySet<string>, paths: readonly string[]): boolean {
+    if (current.size !== paths.length) {
+      return false;
+    }
+    return paths.every((path) => current.has(path));
+  }
+
+  function commitMissionSelection(next: Set<string>) {
+    missionSelectedRef.current = next;
+    setMissionSelected(next);
+    writeMissionSelection(organizationCode, next);
+    setMissionFitNonce((n) => n + 1);
+  }
+
+  useEffect(() => {
+    const stored = readMissionSelection(organizationCode);
+    missionSelectedRef.current = stored;
+    setMissionSelected(stored);
+    return subscribeMissionSelection(organizationCode, (paths) => {
+      if (sameSelection(missionSelectedRef.current, paths)) {
+        return;
+      }
+      const next = new Set(paths);
+      missionSelectedRef.current = next;
+      setMissionSelected(next);
+      setMissionFitNonce((n) => n + 1);
+    });
+  }, [organizationCode]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const supabase = getSupabaseBrowserClient();
+    const orgCode = organizationCode.trim();
+    if (!supabase || !orgCode) {
+      return;
+    }
+    void listMissionCatalog(supabase, orgCode)
+      .then((rows) => {
+        if (!cancelled) {
+          setMissionFolders(rows);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setMissionFolders([]);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [organizationCode]);
+
+  useEffect(() => {
+    const supabase = getSupabaseBrowserClient();
+    if (!supabase) {
+      return;
+    }
+    const missing = [...missionSelected].filter((path) => !missionLoaded[path]);
+    if (missing.length === 0) {
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      const next: Record<string, LoadedMission> = {};
+      for (const path of missing) {
+        const file = missionFolders.flatMap((folder) => folder.files).find((item) => item.path === path);
+        if (!file) {
+          continue;
+        }
+        try {
+          const text = await downloadMissionText(supabase, path);
+          if (file.kind === "trk") {
+            next[path] = { kind: "trk", name: file.name, segments: parseMissionTrk(text) };
+          } else {
+            next[path] = { kind: "wpt", points: parseMissionWpt(text) };
+          }
+        } catch {
+          next[path] = file.kind === "trk"
+            ? { kind: "trk", name: file.name, segments: [] }
+            : { kind: "wpt", points: [] };
+        }
+      }
+      if (!cancelled && Object.keys(next).length > 0) {
+        setMissionLoaded((prev) => ({ ...prev, ...next }));
+        setMissionFitNonce((n) => n + 1);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [missionSelected, missionFolders, missionLoaded]);
+
+  function toggleMissionFile(path: string) {
+    const next = new Set(missionSelectedRef.current);
+    if (next.has(path)) {
+      next.delete(path);
+    } else {
+      next.add(path);
+    }
+    commitMissionSelection(next);
+  }
+
+  function toggleMissionFolder(folder: MissionCatalogFolder) {
+    const paths = folder.files.map((file) => file.path);
+    const allOn = paths.length > 0 && paths.every((path) => missionSelectedRef.current.has(path));
+    const next = new Set(missionSelectedRef.current);
+    for (const path of paths) {
+      if (allOn) {
+        next.delete(path);
+      } else {
+        next.add(path);
+      }
+    }
+    commitMissionSelection(next);
+    setMissionExpanded((prev) => new Set(prev).add(folder.name));
+  }
+
+  const missionPositions = useMemo(() => {
+    const positions: Array<[number, number]> = [];
+    for (const path of missionSelected) {
+      const item = missionLoaded[path];
+      if (!item) {
+        continue;
+      }
+      if (item.kind === "trk") {
+        for (const segment of item.segments) {
+          positions.push(...segment);
+        }
+      } else {
+        for (const wp of item.points) {
+          positions.push([wp.lat, wp.lon]);
+        }
+      }
+    }
+    return positions;
+  }, [missionSelected, missionLoaded]);
+
+  const missionDraw = useMemo(() => {
+    const tracks: Array<{
+      path: string;
+      name: string;
+      segments: Array<Array<[number, number]>>;
+      color: string;
+    }> = [];
+    const waypoints: Array<{ key: string; name: string; lat: number; lon: number }> = [];
+    let colorIndex = 0;
+    for (const group of missionFolders) {
+      for (const file of group.files) {
+        if (!missionSelected.has(file.path)) {
+          continue;
+        }
+        const item = missionLoaded[file.path];
+        if (!item) {
+          continue;
+        }
+        if (item.kind === "trk") {
+          tracks.push({
+            path: file.path,
+            name: file.name.replace(/\.trk$/i, ""),
+            segments: item.segments,
+            color: TRACK_COLORS[colorIndex % TRACK_COLORS.length]!,
+          });
+          colorIndex += 1;
+        } else {
+          item.points.forEach((wp, index) => {
+            waypoints.push({
+              key: `${file.path}:${index}`,
+              name: wp.name,
+              lat: wp.lat,
+              lon: wp.lon,
+            });
+          });
+        }
+      }
+    }
+    return { tracks, waypoints };
+  }, [missionFolders, missionSelected, missionLoaded]);
+
+  const trackNameIcons = useMemo(() => {
+    const icons: Record<string, L.DivIcon> = {};
+    for (const track of missionDraw.tracks) {
+      icons[track.path] = trackNameIcon(track.name, track.color);
+    }
+    return icons;
+  }, [missionDraw.tracks]);
 
   const addRulerPoint = useCallback((latlng: L.LatLng) => {
     setRulerPoints((prev) => [...prev, latlng]);
@@ -500,6 +754,73 @@ export default function SarLiveMap({
             </div>
           ) : null}
         </div>
+        <div className="sar-confini-wrap">
+          <button
+            type="button"
+            className={
+              missionSelected.size > 0 || missionOpen
+                ? "sar-ruler-btn sar-ruler-btn-on"
+                : "sar-ruler-btn"
+            }
+            onClick={() => setMissionOpen((open) => !open)}
+            title="Waypoint e tracce di missione"
+          >
+            WP &amp; TRK{missionSelected.size > 0 ? ` (${missionSelected.size})` : ""}
+          </button>
+          {missionOpen ? (
+            <div className="sar-confini-menu sar-mission-menu">
+              {missionFolders.length === 0 ? (
+                <p className="sar-confini-empty">Nessun file. Caricali in Anagrafica.</p>
+              ) : (
+                missionFolders.map((group) => {
+                  const paths = group.files.map((file) => file.path);
+                  const allOn = paths.length > 0 && paths.every((path) => missionSelected.has(path));
+                  const expanded = missionExpanded.has(group.name);
+                  return (
+                    <div key={group.name}>
+                      <div className="sar-confini-item">
+                        <input
+                          type="checkbox"
+                          checked={allOn}
+                          onChange={() => toggleMissionFolder(group)}
+                        />
+                        <button
+                          type="button"
+                          className="sar-mission-folder"
+                          onClick={() =>
+                            setMissionExpanded((prev) => {
+                              const next = new Set(prev);
+                              if (next.has(group.name)) {
+                                next.delete(group.name);
+                              } else {
+                                next.add(group.name);
+                              }
+                              return next;
+                            })
+                          }
+                        >
+                          {expanded ? "▾" : "▸"} {group.name}
+                        </button>
+                      </div>
+                      {expanded
+                        ? group.files.map((file) => (
+                            <label key={file.path} className="sar-confini-item sar-mission-file">
+                              <input
+                                type="checkbox"
+                                checked={missionSelected.has(file.path)}
+                                onChange={() => toggleMissionFile(file.path)}
+                              />
+                              {file.name}
+                            </label>
+                          ))
+                        : null}
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          ) : null}
+        </div>
         {rulerOn ? (
           <>
             <span className="sar-ruler-distance">
@@ -582,6 +903,43 @@ export default function SarLiveMap({
             items={comuni.filter((c) => visibleConfini.has(c.id) && geoById[c.id]).map((c) => geoById[c.id]!)}
             nonce={fitConfiniNonce}
           />
+        ) : null}
+        {missionDraw.tracks.map((track) => {
+          const labelAt = trackLabelAnchor(track.segments);
+          return (
+            <Fragment key={track.path}>
+              {track.segments.map((segment, index) => (
+                <Polyline
+                  key={`${track.path}:${index}`}
+                  positions={segment}
+                  pathOptions={{ color: track.color, weight: 4, opacity: 0.9 }}
+                />
+              ))}
+              {labelAt && trackNameIcons[track.path] ? (
+                <Marker
+                  position={labelAt}
+                  icon={trackNameIcons[track.path]}
+                  interactive={false}
+                  keyboard={false}
+                />
+              ) : null}
+            </Fragment>
+          );
+        })}
+        {missionDraw.waypoints.map((wp) => (
+          <CircleMarker
+            key={wp.key}
+            center={[wp.lat, wp.lon]}
+            radius={7}
+            pathOptions={{ color: "#E65100", fillColor: "#FF9021", fillOpacity: 1, weight: 2 }}
+          >
+            <Tooltip permanent direction="top" offset={[0, -6]}>
+              {wp.name}
+            </Tooltip>
+          </CircleMarker>
+        ))}
+        {missionPositions.length > 0 ? (
+          <FitLatLngs positions={missionPositions} nonce={missionFitNonce} />
         ) : null}
         <MapToolClicks
           rulerOn={rulerOn}

@@ -25,6 +25,11 @@ export function canManageAnagrafica(session: AdminSessionData | null): boolean {
   return session?.role === "admin";
 }
 
+/** Solo un login il cui codice inizia con ADMIN_ gestisce gli accessi al backend. */
+export function canManageBackendUsers(code: string | null | undefined): boolean {
+  return (code ?? "").trim().toUpperCase().startsWith("ADMIN_");
+}
+
 export function normalizeOrgCode(value: string): string {
   return value.trim().toUpperCase();
 }

@@ -36,6 +36,7 @@ import {
   uploadComuneBoundary,
   type ComuneBoundary,
 } from "@/lib/comune-boundaries";
+import MissionGpsPanel from "@/components/mission-gps-panel";
 import styles from "./anagrafica.module.css";
 
 type FolderRow = {
@@ -187,8 +188,8 @@ export default function AnagraficaPage() {
       ? squads.filter((s) => s.folder_id === selectedFolder.id)
       : [];
 
-  function enteName(row: SquadRow): string {
-    return folders.find((f) => f.id === row.folder_id)?.folder_name.trim() || "—";
+  function enteName(_row: SquadRow): string {
+    return session?.organizationCode?.trim() || "—";
   }
 
   function activeCount(folderId: string): number {
@@ -209,7 +210,7 @@ export default function AnagraficaPage() {
       }
       return surnameSortKey(a.squad_name).localeCompare(surnameSortKey(b.squad_name), "it");
     });
-  }, [folderSquads, folders]);
+  }, [folderSquads, session?.organizationCode]);
 
   const refreshFolders = useCallback(async (): Promise<FolderRow[]> => {
     if (!supabase || !orgId) {
@@ -1286,6 +1287,10 @@ export default function AnagraficaPage() {
               </table>
             )}
           </section>
+
+          {supabase && session.organizationCode ? (
+            <MissionGpsPanel supabase={supabase} orgCode={session.organizationCode} />
+          ) : null}
 
           <section className={styles.panel}>
             <div className={styles.panelHeader}>

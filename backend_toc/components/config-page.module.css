@@ -252,3 +252,102 @@
   background: #c62828;
   color: #fff;
 }
+
+.form {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 14px;
+  flex-shrink: 0;
+}
+
+.formRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #c8d4ee;
+  flex: 1;
+  min-width: 140px;
+}
+
+.field input {
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid #1a3066;
+  background: #0c1018;
+  color: #fff;
+  font-size: 14px;
+}
+
+.checkField {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  min-width: 180px;
+}
+
+.formActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.primaryBtn,
+.secondaryBtn,
+.toggleBtn {
+  border: none;
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-weight: 800;
+  cursor: pointer;
+  color: #fff;
+}
+
+.primaryBtn {
+  background: #079b42;
+}
+
+.secondaryBtn {
+  background: #3a4a6a;
+}
+
+.toggleBtn {
+  background: #14295d;
+}
+
+.primaryBtn:disabled,
+.secondaryBtn:disabled,
+.toggleBtn:disabled {
+  opacity: 0.55;
+  cursor: wait;
+}
+
+.cardActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.statusOn {
+  color: #81c784;
+  font-weight: 800;
+  font-size: 12px;
+  margin: 0;
+}
+
+.statusOff {
+  color: #ff8a80;
+  font-weight: 800;
+  font-size: 12px;
+  margin: 0;
+}

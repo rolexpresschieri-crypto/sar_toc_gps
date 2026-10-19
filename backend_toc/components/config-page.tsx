@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import {
   ADMIN_SESSION_STORAGE_KEY,
-  canManageAnagrafica,
+  canManageBackendUsers,
   type AdminSessionData,
 } from "@/lib/admin-auth";
 import {
@@ -54,7 +54,6 @@ export default function ConfigPage() {
   }, []);
 
   const orgId = session?.organizationId ?? null;
-  const canManage = canManageAnagrafica(session);
 
   const refresh = useCallback(async () => {
     if (!supabase || !orgId) {
@@ -89,21 +88,21 @@ export default function ConfigPage() {
     return () => window.clearTimeout(t);
   }, [toast]);
 
-  async function setTocOnly(row: OnlineOperatorRow, tocOnly: boolean) {
-    if (!supabase || !orgId || !canManage) {
+  async function setVisible(row: OnlineOperatorRow, visible: boolean) {
+    if (!supabase || !orgId) {
       return;
     }
     setBusyId(row.sessionId);
     try {
-      const error = await setPeerVisible(supabase, row.sessionId, orgId, !tocOnly);
+      const error = await setPeerVisible(supabase, row.sessionId, orgId, visible);
       if (error) {
         setStatus(error);
         return;
       }
       setToast(
-        tocOnly
-          ? `${row.squadCode}: visibile solo al TOC`
-          : `${row.squadCode}: visibile a tutti gli operatori`,
+        visible
+          ? `${row.squadCode}: visibile agli altri operatori`
+          : `${row.squadCode}: nascosto, lo vede solo il TOC`,
       );
       await refresh();
     } finally {
@@ -112,7 +111,7 @@ export default function ConfigPage() {
   }
 
   async function confirmForceLogout() {
-    if (!supabase || !orgId || !confirmTarget || !canManage) {
+    if (!supabase || !orgId || !confirmTarget) {
       return;
     }
     const target = confirmTarget;
@@ -139,10 +138,15 @@ export default function ConfigPage() {
     <div className={styles.root}>
       <header className={styles.topBar}>
         <div>
-          <h1>Config — {session.organizationCode}</h1>
-          <p className={styles.sub}>Operatori online · visibilità mappa · log-out forzato</p>
+          <h1>Operatori online — {session.organizationCode}</h1>
+          <p className={styles.sub}>Come in app: visibilità in mappa e log-out forzato. Ogni utente di questo ente può farlo.</p>
         </div>
         <div className={styles.nav}>
+          {canManageBackendUsers(session.code) ? (
+            <Link className={styles.backLink} href="/utenti">
+              Utenti backend
+            </Link>
+          ) : null}
           <Link className={styles.backLink} href="/">
             ← Sala operativa
           </Link>
@@ -150,15 +154,11 @@ export default function ConfigPage() {
       </header>
       <section className={styles.panel}>
         <p className={styles.hint}>
-          Di default il flag è acceso: visibile solo al TOC (e a LUPO in app). Togli il flag se deve
-          comparire anche sulla mappa degli altri operatori. Un log-out forzato toglie l’operatore
-          dalla mappa finché non fa di nuovo Log-in.
+          Flag acceso: l&apos;operatore compare sulla mappa degli altri. Spento: lo vede solo il TOC
+          (e LUPO in app). Forza log-out lo toglie dalla mappa finché non fa di nuovo Log-in.
         </p>
         {toast ? <p className={styles.toast}>{toast}</p> : null}
         {status ? <p className={styles.error}>{status}</p> : null}
-        {!canManage ? (
-          <p className={styles.hint}>Accesso in sola lettura: flag e log-out sono riservati all’admin TOC.</p>
-        ) : null}
         <div className={styles.list}>
           {loading && rows.length === 0 ? (
             <p className={styles.empty}>Caricamento…</p>
@@ -185,22 +185,20 @@ export default function ConfigPage() {
                   <label className={styles.flagRow}>
                     <input
                       type="checkbox"
-                      checked={!row.peerVisible}
-                      disabled={!canManage || busy}
-                      onChange={(e) => void setTocOnly(row, e.target.checked)}
+                      checked={row.peerVisible}
+                      disabled={busy}
+                      onChange={(e) => void setVisible(row, e.target.checked)}
                     />
-                    <span
-                      className={
-                        canManage ? styles.flagLabel : `${styles.flagLabel} ${styles.flagLabelDisabled}`
-                      }
-                    >
-                      {row.peerVisible ? "Visibile a tutti gli operatori" : "Solo TOC"}
+                    <span className={styles.flagLabel}>
+                      {row.peerVisible
+                        ? "Visibile in mappa (agli altri operatori)"
+                        : "Nascosto: solo il TOC lo vede in mappa"}
                     </span>
                   </label>
                   <button
                     type="button"
                     className={styles.logoutBtn}
-                    disabled={!canManage || busy}
+                    disabled={busy}
                     onClick={() => setConfirmTarget(row)}
                   >
                     {busy ? "…" : "Forza log-out"}

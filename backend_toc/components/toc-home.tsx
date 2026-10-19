@@ -9,6 +9,7 @@ import { layerOptions, type LayerMode } from "@/lib/map-layers";
 import { openExternalMapWindow } from "@/lib/open-external-map";
 import { markPhotoAckedLocally, useLiveFeed, type FieldPhoto } from "@/lib/use-live-feed";
 import { TocLoginForm, useTocSession } from "@/lib/use-toc-session";
+import { canManageBackendUsers } from "@/lib/admin-auth";
 import styles from "./toc-home.module.css";
 
 const SarLiveMap = dynamic(() => import("@/components/sar-live-map"), {
@@ -265,8 +266,13 @@ export default function TocHome() {
             LOG
           </Link>
           <Link className={`${styles.btn} ${styles.btnYellow}`} href="/config">
-            Config
+            Operatori online
           </Link>
+          {canManageBackendUsers(session.code) ? (
+            <Link className={`${styles.btn} ${styles.btnYellow}`} href="/utenti">
+              Utenti backend
+            </Link>
+          ) : null}
           <button
             className={`${styles.btn} ${styles.btnYellow}`}
             type="button"
