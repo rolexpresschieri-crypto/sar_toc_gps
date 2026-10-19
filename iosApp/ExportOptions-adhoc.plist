@@ -4,6 +4,8 @@
 <dict>
 	<key>method</key>
 	<string>ad-hoc</string>
+	<key>teamID</key>
+	<string>9GZ3AN39J2</string>
 	<key>signingStyle</key>
 	<string>automatic</string>
 	<key>compileBitcode</key>
