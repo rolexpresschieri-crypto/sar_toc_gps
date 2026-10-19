@@ -24,6 +24,9 @@ import it.ansmi.tocsar.backend.loadTocSarConfig
 import it.ansmi.tocsar.geo.createGpsLocalStore
 import it.ansmi.tocsar.geo.importGpsFileContent
 import it.ansmi.tocsar.geo.OperatorGpsTracking
+import it.ansmi.tocsar.geo.createLocationGateway
+import it.ansmi.tocsar.epochMs
+import it.ansmi.tocsar.ui.GpsFieldSession
 import it.ansmi.tocsar.ui.SendNotifyScreen
 import it.ansmi.tocsar.ui.SendPhotoScreen
 import it.ansmi.tocsar.ui.GpsScreen
@@ -33,6 +36,7 @@ import it.ansmi.tocsar.ui.OnlineOperatorsScreen
 import it.ansmi.tocsar.ui.OperatorSession
 import it.ansmi.tocsar.ui.SplashScreen
 import it.ansmi.tocsar.ui.VegetatoBackground
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.isActive
@@ -81,6 +85,7 @@ fun App() {
 
     fun clearSessionLocal() {
         OperatorGpsTracking.stop()
+        GpsFieldSession.clearAll()
         session = null
         gpsStatusLabel = null
         tocMessage = null
@@ -179,6 +184,30 @@ fun App() {
                 toast(msg)
             }
             delay(700L)
+        }
+    }
+
+    val odoLocation = remember { createLocationGateway() }
+    LaunchedEffect(GpsFieldSession.manualArmed) {
+        if (!GpsFieldSession.manualArmed) return@LaunchedEffect
+        val stop = odoLocation.watchFixes(2f) { fix ->
+            GpsFieldSession.onTravelFix(fix.latitude, fix.longitude, fix.accuracyM, fix.speedMps)
+        }
+        try {
+            awaitCancellation()
+        } finally {
+            stop()
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        while (isActive) {
+            GpsFieldSession.trkActive = OperatorGpsTracking.isTrkRecording()
+            if (GpsFieldSession.tripRunning && GpsFieldSession.tripStartMs > 0L) {
+                GpsFieldSession.tripElapsedMs =
+                    (epochMs() - GpsFieldSession.tripStartMs).coerceAtLeast(0L)
+            }
+            delay(200L)
         }
     }
 

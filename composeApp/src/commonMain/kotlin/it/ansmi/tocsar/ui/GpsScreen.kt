@@ -4,6 +4,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -80,7 +81,6 @@ import it.ansmi.tocsar.geo.encodeWaypointGpx
 import it.ansmi.tocsar.geo.reverseTrackPoints
 import it.ansmi.tocsar.geo.formatAlt0
 import it.ansmi.tocsar.geo.formatCoord6
-import it.ansmi.tocsar.geo.countsAsTravelStep
 import it.ansmi.tocsar.geo.haversineDistanceM
 import it.ansmi.tocsar.geo.importGpsFileContent
 import it.ansmi.tocsar.geo.loadAllWaypoints
@@ -104,7 +104,6 @@ import it.ansmi.tocsar.geo.sanitizeGpsStem
 import it.ansmi.tocsar.geo.saveCompassHeadingOffset
 import it.ansmi.tocsar.geo.OperatorGpsTracking
 import it.ansmi.tocsar.geo.trackHorizDistanceM
-import it.ansmi.tocsar.epochMs
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -157,16 +156,6 @@ fun GpsScreen(
     var travelCourse by remember { mutableStateOf<TravelCourse?>(null) }
     var isGoMode by remember { mutableStateOf(false) }
     var trkRecording by remember { mutableStateOf(OperatorGpsTracking.isTrkRecording()) }
-    var tripRunning by remember { mutableStateOf(false) }
-    var tripLinked by remember { mutableStateOf(false) }
-    var tripStartMs by remember { mutableStateOf(0L) }
-    var tripElapsedMs by remember { mutableStateOf(0L) }
-    var tripDistM by remember { mutableStateOf(0.0) }
-    var tripFrozenElapsed by remember { mutableStateOf(0L) }
-    var tripFrozenDist by remember { mutableStateOf(0.0) }
-    /** Distanza di traccia da ignorare dopo un azzeramento, mentre il TRK continua. */
-    var tripDistBase by remember { mutableStateOf(0.0) }
-    val manualTrip = remember { ManualTrip() }
     var showCalib by remember { mutableStateOf(false) }
     var showInsWp by remember { mutableStateOf(false) }
     var wpSeedLat by remember { mutableStateOf("") }
@@ -180,11 +169,8 @@ fun GpsScreen(
     var pendingSaveDurationMs by remember { mutableStateOf(0L) }
     var inspectTrack by remember { mutableStateOf<Pair<String, List<TrackPoint>>?>(null) }
     var selectedWpId by remember { mutableStateOf<String?>(null) }
-    var overlayWaypoints by remember { mutableStateOf<List<WaypointItem>>(emptyList()) }
-    var overlayTracks by remember { mutableStateOf<List<MapTrackOverlay>>(emptyList()) }
-    // Flag WP/TRK per MAPPA: restano fino a Clear data
-    val selectedWpFlags = remember { mutableStateListOf<String>() }
-    val selectedTrkFlags = remember { mutableStateListOf<String>() }
+    val selectedWpFlags = GpsFieldSession.selectedWpFlags
+    val selectedTrkFlags = GpsFieldSession.selectedTrkFlags
     val trackPoints = remember { mutableStateListOf<TrackPoint>() }
 
     var stopGoWatch by remember { mutableStateOf<(() -> Unit)?>(null) }
@@ -200,10 +186,6 @@ fun GpsScreen(
         }
         val stopCourse = location.watchFixes(2f) { fix ->
             travelCourse = travelCourse.acceptFix(fix)
-            if (manualTrip.running) {
-                manualTrip.onFix(fix.latitude, fix.longitude, fix.accuracyM, fix.speedMps)
-                tripDistM = manualTrip.distM
-            }
         }
         onDispose {
             stop()
@@ -221,107 +203,21 @@ fun GpsScreen(
         "Nord: ${travelHeading?.let { "${it.toInt()}°" } ?: "-"}"
     }
 
-    fun armTripFromTrack() {
-        manualTrip.running = false
-        val start = OperatorGpsTracking.trkStartedAtMs().takeIf { it > 0L } ?: epochMs()
-        tripStartMs = start
-        tripElapsedMs = (epochMs() - start).coerceAtLeast(0L)
-        tripDistM = trackHorizDistanceM(trackPoints)
-        tripDistBase = 0.0
-        tripLinked = true
-        tripRunning = true
-    }
-
-    fun freezeTrip() {
-        if (!tripRunning) return
-        tripFrozenElapsed = if (tripStartMs > 0L) (epochMs() - tripStartMs).coerceAtLeast(0L) else tripElapsedMs
-        tripFrozenDist = if (tripLinked) {
-            (trackHorizDistanceM(trackPoints) - tripDistBase).coerceAtLeast(0.0)
-        } else {
-            manualTrip.distM
-        }
-        tripDistBase = 0.0
-        tripRunning = false
-        tripLinked = false
-        manualTrip.running = false
-    }
-
-    fun resetTrip() {
-        manualTrip.running = false
-        manualTrip.reset()
-        tripRunning = false
-        tripLinked = false
-        tripStartMs = 0L
-        tripElapsedMs = 0L
-        tripDistM = 0.0
-        tripFrozenElapsed = 0L
-        tripFrozenDist = 0.0
-        tripDistBase = 0.0
-    }
-
-    /** Azzera TIME e DIST. Se è in marcia, riparte da zero; se è fermo, resta a zero. */
-    fun resetTripClock() {
-        val now = epochMs()
-        if (tripRunning && tripLinked) {
-            tripStartMs = now
-            tripElapsedMs = 0L
-            tripDistBase = trackHorizDistanceM(trackPoints)
-            return
-        }
-        if (tripRunning) {
-            manualTrip.reset()
-            manualTrip.running = true
-            tripStartMs = now
-            tripElapsedMs = 0L
-            tripDistM = 0.0
-            tripDistBase = 0.0
-            return
-        }
-        manualTrip.reset()
-        tripStartMs = 0L
-        tripElapsedMs = 0L
-        tripDistM = 0.0
-        tripDistBase = 0.0
-        tripFrozenElapsed = 0L
-        tripFrozenDist = 0.0
-    }
-
-    fun toggleTrip() {
-        if (tripRunning) {
-            freezeTrip()
-            return
-        }
-        manualTrip.carry(tripFrozenDist.coerceAtLeast(0.0))
-        manualTrip.running = true
-        tripLinked = false
-        tripDistBase = 0.0
-        val carriedMs = tripFrozenElapsed.coerceAtLeast(0L)
-        tripStartMs = epochMs() - carriedMs
-        tripElapsedMs = carriedMs
-        tripDistM = manualTrip.distM
-        tripRunning = true
-    }
-
     LaunchedEffect(trkRecording) {
-        if (trkRecording) {
-            armTripFromTrack()
-            while (isActive && OperatorGpsTracking.isTrkRecording()) {
-                val pts = OperatorGpsTracking.trkPointsSnapshot()
-                trackPoints.clear()
-                trackPoints.addAll(pts)
-                delay(1_000L)
-            }
-            trkRecording = OperatorGpsTracking.isTrkRecording()
-        } else if (tripRunning) {
-            freezeTrip()
+        if (!trkRecording) return@LaunchedEffect
+        GpsFieldSession.armFromTrack()
+        while (isActive && OperatorGpsTracking.isTrkRecording()) {
+            val pts = OperatorGpsTracking.trkPointsSnapshot()
+            trackPoints.clear()
+            trackPoints.addAll(pts)
+            GpsFieldSession.trkActive = true
+            delay(1_000L)
         }
-    }
-
-    LaunchedEffect(tripRunning, tripStartMs) {
-        if (!tripRunning || tripStartMs <= 0L) return@LaunchedEffect
-        while (isActive) {
-            tripElapsedMs = (epochMs() - tripStartMs).coerceAtLeast(0L)
-            delay(200L)
+        if (!isActive) return@LaunchedEffect
+        trkRecording = OperatorGpsTracking.isTrkRecording()
+        GpsFieldSession.trkActive = trkRecording
+        if (!trkRecording && GpsFieldSession.tripLinked) {
+            GpsFieldSession.freeze()
         }
     }
 
@@ -358,14 +254,11 @@ fun GpsScreen(
         latPtg = ""; lonPtg = ""; altPtg = ""
         accBase = null; accPtg = null
         distanceM = null; bearingToBase = null
-        isGoMode = false; trkRecording = false
-        resetTrip()
+        isGoMode = false
+        trkRecording = false
+        GpsFieldSession.clearAll()
         trackPoints.clear()
         selectedWpId = null
-        overlayWaypoints = emptyList()
-        overlayTracks = emptyList()
-        selectedWpFlags.clear()
-        selectedTrkFlags.clear()
         toast("Dati GPS cancellati")
     }
 
@@ -478,6 +371,8 @@ fun GpsScreen(
                 val stopped = OperatorGpsTracking.stopTrkRecording()
                 val points = stopped.points
                 trkRecording = false
+                GpsFieldSession.trkActive = false
+                if (GpsFieldSession.tripRunning) GpsFieldSession.freeze()
                 trackPoints.clear()
                 trackPoints.addAll(points)
                 if (points.size < 2) {
@@ -497,6 +392,8 @@ fun GpsScreen(
             trackPoints.clear()
             // Non cancellare area/WP già in mappa: servono durante la bonifica insieme alla scia live
             OperatorGpsTracking.startTrkRecording()
+            GpsFieldSession.releaseClockHold()
+            GpsFieldSession.trkActive = true
             trkRecording = true
             toast(
                 "TRK attivo anche in tasca · un punto ogni ${TrackPointMinDistanceM.toInt()} m " +
@@ -508,6 +405,25 @@ fun GpsScreen(
     fun openMap() {
         showMap = true
     }
+
+    AppBackHandler(enabled = true) {
+        if (showMap) showMap = false else onBack()
+    }
+
+    val tripDistShown = when {
+        GpsFieldSession.tripRunning && GpsFieldSession.tripLinked ->
+            (trackHorizDistanceM(trackPoints) - GpsFieldSession.tripDistBase).coerceAtLeast(0.0)
+        GpsFieldSession.tripRunning -> GpsFieldSession.tripDistM
+        else -> GpsFieldSession.tripFrozenDist
+    }
+    val tripTimeShown = if (GpsFieldSession.tripRunning) {
+        GpsFieldSession.tripElapsedMs
+    } else {
+        GpsFieldSession.tripFrozenElapsed
+    }
+    val tripVisible = GpsFieldSession.tripRunning || tripTimeShown > 0L || tripDistShown > 0.0
+    val mapWpCount = GpsFieldSession.overlayWaypoints.size
+    val mapTrkCount = GpsFieldSession.overlayTracks.size
 
     Box(modifier = Modifier.fillMaxSize()) {
         // Form GPS resta montato sotto: chiudendo la mappa, MAPPA resta visibile
@@ -651,6 +567,55 @@ fun GpsScreen(
                         openMap()
                     }
                 }
+                if (tripVisible || mapWpCount > 0 || mapTrkCount > 0 || trkRecording) {
+                    Spacer(modifier = Modifier.height(10.dp))
+                    if (tripVisible) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(Color(0xFFFFE14A))
+                                .padding(horizontal = 8.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            GpsActionButton(
+                                label = if (GpsFieldSession.tripRunning) "STOP" else "ST",
+                                color = if (GpsFieldSession.tripRunning) Color(0xFFCE2B37) else Color(0xFF00838F),
+                                modifier = Modifier.width(72.dp),
+                                compact = true,
+                                onClick = { GpsFieldSession.toggle() },
+                                onLongClick = { GpsFieldSession.resetClock() },
+                            )
+                            Text(
+                                text = "TIME ${formatFieldElapsed(tripTimeShown)}",
+                                color = Color(0xFF4A3800),
+                                fontWeight = FontWeight.ExtraBold,
+                                fontSize = 16.sp,
+                                modifier = Modifier.weight(1f),
+                            )
+                            Text(
+                                text = "DIST ${formatFieldMeters(tripDistShown)}",
+                                color = Color(0xFF212121),
+                                fontWeight = FontWeight.ExtraBold,
+                                fontSize = 15.sp,
+                            )
+                        }
+                    }
+                    if (mapWpCount > 0 || mapTrkCount > 0 || trkRecording) {
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            text = buildString {
+                                append("In mappa: $mapWpCount WP · $mapTrkCount TRK")
+                                if (trkRecording) append(" · registrazione attiva")
+                                append(" — si chiudono solo con Clear data")
+                            },
+                            color = if (nightMode) Color(0xFFFFE14A) else Color(0xFF4A3800),
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 13.sp,
+                        )
+                    }
+                }
                 Spacer(modifier = Modifier.height(10.dp))
                 GpsActionButton("Clear data", Color(0xFFCE2B37), Modifier.fillMaxWidth(), onClick = { clearData() })
 
@@ -756,8 +721,8 @@ fun GpsScreen(
                     baseLat = parseCoord(latBase),
                     baseLon = parseCoord(lonBase),
                     baseLabel = selectedWpId ?: "BASE",
-                    overlayWaypoints = overlayWaypoints,
-                    overlayTracks = overlayTracks,
+                    overlayWaypoints = GpsFieldSession.overlayWaypoints,
+                    overlayTracks = GpsFieldSession.overlayTracks,
                     // Area/WP selezionati + scia live insieme (zoom resta sugli overlay statici)
                     liveTrail = trackPoints.toList(),
                     liveRecording = trkRecording,
@@ -765,19 +730,19 @@ fun GpsScreen(
                     organizationId = organizationId?.trim().orEmpty(),
                 ),
                 // Solo chiude la mappa — non torna alla Home
-                tripRunning = tripRunning,
-                tripLinked = tripLinked,
-                tripElapsedMs = if (tripRunning) tripElapsedMs else tripFrozenElapsed,
-                tripDistM = if (tripRunning && !tripLinked) {
-                    tripDistM
-                } else if (tripRunning) {
-                    (trackHorizDistanceM(trackPoints) - tripDistBase).coerceAtLeast(0.0)
+                tripRunning = GpsFieldSession.tripRunning,
+                tripLinked = GpsFieldSession.tripLinked,
+                tripElapsedMs = if (GpsFieldSession.tripRunning) GpsFieldSession.tripElapsedMs else GpsFieldSession.tripFrozenElapsed,
+                tripDistM = if (GpsFieldSession.tripRunning && !GpsFieldSession.tripLinked) {
+                    GpsFieldSession.tripDistM
+                } else if (GpsFieldSession.tripRunning) {
+                    (trackHorizDistanceM(trackPoints) - GpsFieldSession.tripDistBase).coerceAtLeast(0.0)
                 } else {
-                    tripFrozenDist
+                    GpsFieldSession.tripFrozenDist
                 },
-                tripDistBase = tripDistBase,
-                onToggleTrip = { toggleTrip() },
-                onResetTrip = { resetTripClock() },
+                tripDistBase = GpsFieldSession.tripDistBase,
+                onToggleTrip = { GpsFieldSession.toggle() },
+                onResetTrip = { GpsFieldSession.resetClock() },
                 onBack = { showMap = false },
                 onNavigateFromSelf = { dest ->
                     startNavigateTo(dest.label, dest.latitude, dest.longitude, dest.altitudeM)
@@ -808,7 +773,7 @@ fun GpsScreen(
                             alt = null,
                         )
                         store.upsertWaypoint(wp)
-                        overlayWaypoints = overlayWaypoints.filterNot {
+                        GpsFieldSession.overlayWaypoints = GpsFieldSession.overlayWaypoints.filterNot {
                             it.name.equals(wp.name, ignoreCase = true)
                         } + wp
                         if (selectedWpFlags.none { it.equals(wp.name, ignoreCase = true) }) {
@@ -911,7 +876,7 @@ fun GpsScreen(
             onDismiss = { showInsWp = false },
             onSaved = { wp, _ ->
                 showInsWp = false
-                overlayWaypoints = overlayWaypoints.filterNot {
+                GpsFieldSession.overlayWaypoints = GpsFieldSession.overlayWaypoints.filterNot {
                     it.name.equals(wp.name, ignoreCase = true)
                 } + wp
                 if (selectedWpFlags.none { it.equals(wp.name, ignoreCase = true) }) {
@@ -949,10 +914,10 @@ fun GpsScreen(
                 pendingSaveDurationMs = 0L
                 trackPoints.clear()
                 // Mantieni area/WP già selezionati e aggiungi la traccia appena salvata
-                overlayTracks = overlayTracks + MapTrackOverlay(
+                GpsFieldSession.overlayTracks = GpsFieldSession.overlayTracks + MapTrackOverlay(
                     name = name,
                     points = points,
-                    colorHex = TrackColors[overlayTracks.size % TrackColors.size],
+                    colorHex = TrackColors[GpsFieldSession.overlayTracks.size % TrackColors.size],
                 )
                 toast("Traccia $name salvata")
             },
@@ -971,8 +936,8 @@ fun GpsScreen(
             onDismiss = { showWpTrk = false },
             onShowOnMap = { wps, tracks ->
                 showWpTrk = false
-                overlayWaypoints = wps
-                overlayTracks = tracks
+                GpsFieldSession.overlayWaypoints = wps
+                GpsFieldSession.overlayTracks = tracks
                 openMap()
             },
             onNavigateToWaypoint = { wp ->
@@ -2056,6 +2021,7 @@ private fun GpsActionButton(
     color: Color,
     modifier: Modifier = Modifier,
     compact: Boolean = false,
+    onLongClick: (() -> Unit)? = null,
     onClick: () -> Unit = {},
 ) {
     Box(
@@ -2063,7 +2029,13 @@ private fun GpsActionButton(
             .height(if (compact) 40.dp else 46.dp)
             .clip(RoundedCornerShape(10.dp))
             .background(color)
-            .clickable(onClick = onClick)
+            .then(
+                if (onLongClick != null) {
+                    Modifier.combinedClickable(onClick = onClick, onLongClick = onLongClick)
+                } else {
+                    Modifier.clickable(onClick = onClick)
+                },
+            )
             .padding(horizontal = if (compact) 8.dp else 14.dp),
         contentAlignment = Alignment.Center,
     ) {
@@ -2106,45 +2078,6 @@ private fun formatLocalTrackName(freeName: String, operatorPrefix: String): Stri
 
 /** Spazi → _; toglie caratteri strani; senza estensione .trk/.txt. */
 private fun sanitizeLocalGpsStem(raw: String): String = sanitizeGpsStem(raw)
-
-/** Cronometro manuale ST: somma gli spostamenti GPS da quando è premuto. */
-private class ManualTrip {
-    var running: Boolean = false
-    var distM: Double = 0.0
-    private var lastLat = Double.NaN
-    private var lastLon = Double.NaN
-
-    fun reset() {
-        distM = 0.0
-        lastLat = Double.NaN
-        lastLon = Double.NaN
-    }
-
-    /** Riprende il totale già percorso, senza sommare lo spostamento fatto da fermo. */
-    fun carry(dist: Double) {
-        distM = dist.coerceAtLeast(0.0)
-        lastLat = Double.NaN
-        lastLon = Double.NaN
-    }
-
-    fun onFix(lat: Double, lon: Double, accuracyM: Float, speedMps: Float?) {
-        if (!running) return
-        if (lastLat.isNaN() || lastLon.isNaN()) {
-            lastLat = lat
-            lastLon = lon
-            return
-        }
-        val step = haversineDistanceM(lastLat, lastLon, lat, lon)
-        if (countsAsTravelStep(step, accuracyM, speedMps)) {
-            distM += step
-            lastLat = lat
-            lastLon = lon
-        } else if (step > 300.0) {
-            lastLat = lat
-            lastLon = lon
-        }
-    }
-}
 
 /** Relative heading to target, same as TocAppBuild: ((bearing - heading + 540) % 360) - 180 */
 private fun relativeArrowDeg(bearingToTarget: Double, headingDeg: Double): Double =

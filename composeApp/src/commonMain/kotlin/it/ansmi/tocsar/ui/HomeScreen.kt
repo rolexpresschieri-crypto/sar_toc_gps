@@ -35,6 +35,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import it.ansmi.tocsar.geo.OperatorGpsTracking
+import it.ansmi.tocsar.geo.trackHorizDistanceM
 import it.ansmi.tocsar.openAppSystemSettings
 import it.ansmi.tocsar.unusedAppPermissionHint
 import it.ansmi.tocsar.ui.theme.TacticalDisabled
@@ -158,6 +160,7 @@ fun HomeScreen(
                             modifier = Modifier.padding(bottom = 8.dp),
                         )
                     }
+                    FieldSessionStatus()
                     BodyText(
                         text = unusedAppPermissionHint(),
                         fontSize = 12,
@@ -239,6 +242,48 @@ fun HomeScreen(
             }
         }
     }
+}
+
+@Composable
+private fun FieldSessionStatus() {
+    val running = GpsFieldSession.tripRunning
+    val wpCount = GpsFieldSession.overlayWaypoints.size
+    val trkCount = GpsFieldSession.overlayTracks.size
+    val trkOn = GpsFieldSession.trkActive || OperatorGpsTracking.isTrkRecording()
+    if (!running && wpCount == 0 && trkCount == 0 && !trkOn && GpsFieldSession.tripFrozenElapsed <= 0L) {
+        return
+    }
+    val elapsed = if (running) GpsFieldSession.tripElapsedMs else GpsFieldSession.tripFrozenElapsed
+    val dist = when {
+        running && GpsFieldSession.tripLinked ->
+            (trackHorizDistanceM(OperatorGpsTracking.trkPointsSnapshot()) - GpsFieldSession.tripDistBase)
+                .coerceAtLeast(0.0)
+        running -> GpsFieldSession.tripDistM
+        else -> GpsFieldSession.tripFrozenDist
+    }
+    val line = buildString {
+        if (running || elapsed > 0L || dist > 0.0) {
+            append(if (running) "TIME " else "TIME fermo ")
+            append(formatFieldElapsed(elapsed))
+            append(" · DIST ")
+            append(formatFieldMeters(dist))
+        }
+        if (trkOn) {
+            if (isNotEmpty()) append(" · ")
+            append("TRK attivo")
+        }
+        if (wpCount > 0 || trkCount > 0) {
+            if (isNotEmpty()) append(" · ")
+            append("$wpCount WP · $trkCount TRK in mappa")
+        }
+    }
+    if (line.isBlank()) return
+    BodyText(
+        text = line,
+        fontSize = 13,
+        color = TacticalYellow,
+        modifier = Modifier.padding(bottom = 8.dp),
+    )
 }
 
 @Composable
