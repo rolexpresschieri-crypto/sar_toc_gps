@@ -37,7 +37,7 @@ export async function loginTocAdmin(
 ): Promise<{ session?: AdminSessionData; error?: string }> {
   const orgCode = normalizeOrgCode(orgCodeInput);
   if (!orgCode) {
-    return { error: "Inserisci il codice ente." };
+    return { error: "Inserisci il codice TOC." };
   }
 
   const { data: org, error: orgError } = await supabase
@@ -50,10 +50,10 @@ export async function loginTocAdmin(
     return { error: orgError.message };
   }
   if (!org) {
-    return { error: "Ente non in anagrafica." };
+    return { error: "TOC non in anagrafica." };
   }
   if (org.is_enabled === false) {
-    return { error: "Ente sospeso. Contatta chi gestisce gli enti." };
+    return { error: "TOC sospeso. Contatta chi gestisce i TOC." };
   }
 
   const adminCode = loginCode.trim().toUpperCase();
@@ -83,7 +83,7 @@ export async function loginTocAdmin(
   } else {
     data = (scoped.data as AdminLoginRow | null) ?? null;
     if (data?.organization_id && data.organization_id !== org.id) {
-      return { error: "Credenziali non valide per questo ente." };
+      return { error: "Credenziali non valide per questo TOC." };
     }
   }
 

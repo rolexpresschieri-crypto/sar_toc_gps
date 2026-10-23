@@ -86,6 +86,54 @@
   color: #fff;
 }
 
+.loginField {
+  display: block;
+  margin-bottom: 12px;
+  color: #c8d4ee;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.passwordWrap {
+  position: relative;
+  margin-top: 4px;
+}
+
+.passwordWrap input {
+  margin-bottom: 0;
+  padding-right: 44px;
+  background: #060b16;
+  color: #fff;
+}
+
+.passwordWrap input:-webkit-autofill,
+.passwordWrap input:-webkit-autofill:hover,
+.passwordWrap input:-webkit-autofill:focus {
+  -webkit-text-fill-color: #fff;
+  caret-color: #fff;
+  box-shadow: 0 0 0 1000px #060b16 inset;
+  transition: background-color 9999s ease-out;
+}
+
+.passwordEye {
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  z-index: 2;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: none;
+  border-radius: 8px;
+  background: #142033;
+  color: #e0be3a;
+  cursor: pointer;
+}
+
 .loginBtn {
   width: 100%;
   padding: 14px;
@@ -195,6 +243,10 @@
 }
 
 .panelHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
   padding: 14px 18px;
   border-bottom: 1px solid #203667;
 }

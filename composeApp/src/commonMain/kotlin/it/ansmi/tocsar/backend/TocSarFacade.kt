@@ -17,17 +17,17 @@ class TocSarFacade(
     ): OperatorBackendSession {
         val orgCode = normalizeOrgCode(organizationCode)
         if (orgCode.isEmpty()) {
-            throw TocSarException("Inserisci il codice ente.")
+            throw TocSarException("Inserisci il codice TOC.")
         }
         val org =
             repository.findOrganization(orgCode)
-                ?: throw TocSarException("Ente non trovato.")
+                ?: throw TocSarException("TOC non trovato.")
         if (!org.isEnabled) {
-            throw TocSarException("Ente non attivo.")
+            throw TocSarException("TOC non attivo.")
         }
         val event =
             repository.loadActiveEvent(org.id)
-                ?: throw TocSarException("Nessuna operazione attiva per questo ente.")
+                ?: throw TocSarException("Nessuna operazione attiva per questo TOC.")
         return repository.loginOperator(
             eventId = event.id,
             organizationId = org.id,

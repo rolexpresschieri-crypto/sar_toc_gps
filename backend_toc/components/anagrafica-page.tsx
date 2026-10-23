@@ -20,6 +20,7 @@ import {
   restoreAdminSessionFromStorage,
 } from "@/lib/supabase-browser";
 import { deleteOperatorForOrganization } from "@/lib/delete-operator";
+import { downloadOperatorsPdf } from "@/lib/operators-pdf";
 import { normalizeMapColor } from "@/lib/live-squads";
 import {
   countOnlineForOperation,
@@ -65,10 +66,7 @@ type OperationRow = {
 };
 
 const DEFAULT_COLORS = ["#079B42", "#1E88E5", "#E0BE3A", "#C62828", "#6A1B9A"];
-const FOLDER_NEW = "__new__";
-const FOLDER_ALL = "__all__";
 const DEFAULT_FOLDER_NAME = "NV_ANSMI";
-const FOLDER_HAS_OPS_WARN = "Attenzione: la cartella contiene operatori.";
 
 /** Anagrafica salvata come «Nome Cognome»: in elenco si mostra Cognome Nome. */
 function displaySurnameFirst(raw: string): string {
@@ -124,9 +122,6 @@ export default function AnagraficaPage() {
   const [authChecked, setAuthChecked] = useState(false);
 
   const [folders, setFolders] = useState<FolderRow[]>([]);
-  const [folderChoice, setFolderChoice] = useState(FOLDER_NEW);
-  const [folderName, setFolderName] = useState("");
-  const [folderColor, setFolderColor] = useState(DEFAULT_COLORS[0]);
 
   const [squads, setSquads] = useState<SquadRow[]>([]);
   const [operations, setOperations] = useState<OperationRow[]>([]);
@@ -136,11 +131,12 @@ export default function AnagraficaPage() {
   const [toast, setToast] = useState<string | null>(null);
 
   const [squadEditingId, setSquadEditingId] = useState<string | null>(null);
-  const [squadEditingFolderId, setSquadEditingFolderId] = useState<string | null>(null);
   const [squadCode, setSquadCode] = useState("");
   const [squadName, setSquadName] = useState("");
+  const [squadAffiliation, setSquadAffiliation] = useState("");
   const [squadPassword, setSquadPassword] = useState("");
   const [mapIconKey, setMapIconKey] = useState<SquadIconKey>(DEFAULT_SQUAD_ICON_KEY);
+  const [squadColor, setSquadColor] = useState(DEFAULT_COLORS[0]);
   const [squadEnabled, setSquadEnabled] = useState(true);
 
   const [operationTitle, setOperationTitle] = useState("");
@@ -172,45 +168,22 @@ export default function AnagraficaPage() {
 
   const orgId = session?.organizationId ?? null;
 
-  const foldersSorted = useMemo(
-    () =>
-      [...folders].sort((a, b) =>
-        a.folder_name.localeCompare(b.folder_name, "it", { sensitivity: "base" }),
-      ),
-    [folders],
-  );
-
-  const selectedFolder = foldersSorted.find((f) => f.id === folderChoice) ?? null;
-  const viewingAll = folderChoice === FOLDER_ALL;
-  const folderSquads = viewingAll
-    ? squads
-    : selectedFolder
-      ? squads.filter((s) => s.folder_id === selectedFolder.id)
-      : [];
-
-  function enteName(_row: SquadRow): string {
-    return session?.organizationCode?.trim() || "—";
+  function enteName(row: SquadRow): string {
+    const folder = folders.find((f) => f.id === row.folder_id);
+    return folder?.folder_name.trim() || "—";
   }
-
-  function activeCount(folderId: string): number {
-    return squads.filter((s) => s.folder_id === folderId && s.is_enabled).length;
-  }
-
-  function operatorsInFolder(folderId: string): SquadRow[] {
-    return squads.filter((s) => s.folder_id === folderId);
-  }
-
-  const activeTotal = squads.filter((s) => s.is_enabled).length;
 
   const listedSquads = useMemo(() => {
-    return [...folderSquads].sort((a, b) => {
-      const ente = enteName(a).localeCompare(enteName(b), "it", { sensitivity: "base" });
+    const appartenenza = (row: SquadRow) =>
+      folders.find((f) => f.id === row.folder_id)?.folder_name.trim() || "—";
+    return [...squads].sort((a, b) => {
+      const ente = appartenenza(a).localeCompare(appartenenza(b), "it", { sensitivity: "base" });
       if (ente !== 0) {
         return ente;
       }
       return surnameSortKey(a.squad_name).localeCompare(surnameSortKey(b.squad_name), "it");
     });
-  }, [folderSquads, session?.organizationCode]);
+  }, [squads, folders]);
 
   const refreshFolders = useCallback(async (): Promise<FolderRow[]> => {
     if (!supabase || !orgId) {
@@ -292,7 +265,7 @@ export default function AnagraficaPage() {
       setLoading(true);
       setFormError(null);
       let loaded = await refreshFolders();
-      let squadRows = await refreshSquads();
+      const squadRows = await refreshSquads();
       await refreshOperations();
       await refreshComuni();
 
@@ -327,230 +300,84 @@ export default function AnagraficaPage() {
         await refreshSquads();
       }
 
-      setFolderChoice((prev) => {
-        const keep =
-          prev === FOLDER_ALL ||
-          (prev !== FOLDER_NEW && loaded.some((f) => f.id === prev));
-        const sorted = [...loaded].sort((a, b) =>
-          a.folder_name.localeCompare(b.folder_name, "it", { sensitivity: "base" }),
-        );
-        const nv = loaded.find((f) => f.folder_name.trim().toLowerCase() === homeName);
-        const next = keep ? prev : (nv?.id ?? sorted[0]?.id ?? FOLDER_NEW);
-        const row = loaded.find((f) => f.id === next);
-        if (row) {
-          setFolderName(row.folder_name);
-          setFolderColor(normalizeMapColor(row.map_color));
-        } else if (next === FOLDER_NEW) {
-          setFolderName("");
-          setFolderColor(DEFAULT_COLORS[0]);
-        }
-        return next;
-      });
       setLoading(false);
     })();
   }, [session, supabase, orgId, refreshFolders, refreshSquads, refreshOperations, refreshComuni]);
 
   function resetSquadForm() {
     setSquadEditingId(null);
-    setSquadEditingFolderId(null);
     setSquadCode("");
     setSquadName("");
+    setSquadAffiliation("");
     setSquadPassword("");
     setMapIconKey(DEFAULT_SQUAD_ICON_KEY);
+    setSquadColor(DEFAULT_COLORS[0]);
     setSquadEnabled(true);
     setFormError(null);
   }
 
-  function onPickFolder(value: string) {
-    setFolderChoice(value);
-    resetSquadForm();
-    if (value === FOLDER_NEW) {
-      setFolderName("");
-      setFolderColor(DEFAULT_COLORS[folders.length % DEFAULT_COLORS.length]);
-      return;
-    }
-    if (value === FOLDER_ALL) {
-      return;
-    }
-    const row = folders.find((f) => f.id === value);
-    if (row) {
-      setFolderName(row.folder_name);
-      setFolderColor(normalizeMapColor(row.map_color));
-    }
-  }
-
   function beginEditSquad(row: SquadRow) {
     setSquadEditingId(row.id);
-    setSquadEditingFolderId(row.folder_id);
     setSquadCode(row.squad_code);
     setSquadName(row.squad_name);
+    setSquadAffiliation(enteName(row) === "—" ? "" : enteName(row));
     setSquadPassword(row.password_hash);
     setMapIconKey(normalizeSquadIconKey(row.map_icon_key));
+    setSquadColor(normalizeMapColor(row.map_color));
     setSquadEnabled(row.is_enabled);
     setFormError(null);
   }
 
-  async function handleCreateFolder(e: FormEvent) {
-    e.preventDefault();
-    if (!supabase || !orgId || !canManageAnagrafica(session)) {
-      return;
+  async function folderIdForAffiliation(name: string): Promise<string> {
+    if (!supabase || !orgId) {
+      throw new Error("Sessione non disponibile.");
     }
-    const name = folderName.trim();
-    if (!name) {
-      setFormError("Inserisci il nome della cartella (associazione).");
-      return;
+    const label = name.trim();
+    const key = label.toLowerCase();
+    const known = folders.find((f) => f.folder_name.trim().toLowerCase() === key);
+    if (known) {
+      return known.id;
     }
-    setBusy(true);
-    setFormError(null);
-    try {
-      const { data, error } = await supabase
-        .from("operator_folders")
-        .insert({
-          organization_id: orgId,
-          folder_name: name,
-          map_color: normalizeMapColor(folderColor),
-        })
-        .select("id, folder_name, map_color")
-        .single();
-      if (error) {
-        throw error;
+    const { data, error } = await supabase
+      .from("operator_folders")
+      .insert({
+        organization_id: orgId,
+        folder_name: label,
+        map_color: DEFAULT_COLORS[0],
+      })
+      .select("id, folder_name, map_color")
+      .single();
+    if (error) {
+      const again = await refreshFolders();
+      const found = again.find((f) => f.folder_name.trim().toLowerCase() === key);
+      if (found) {
+        return found.id;
       }
-      await refreshFolders();
-      if (data) {
-        setFolderChoice(data.id);
-        setFolderName(data.folder_name);
-        setFolderColor(normalizeMapColor(data.map_color));
-      }
-      setToast("Cartella creata.");
-    } catch (err) {
-      setFormError(friendlyError(err, "Errore creazione cartella."));
-    } finally {
-      setBusy(false);
+      throw error;
     }
-  }
-
-  async function handleSaveFolder(e: FormEvent) {
-    e.preventDefault();
-    if (!supabase || !orgId || !selectedFolder || !canManageAnagrafica(session)) {
-      return;
-    }
-    const name = folderName.trim();
-    if (!name) {
-      setFormError("Inserisci il nome della cartella.");
-      return;
-    }
-    const members = operatorsInFolder(selectedFolder.id);
-    if (members.length > 0) {
-      if (
-        !window.confirm(
-          `${FOLDER_HAS_OPS_WARN}\n\n` +
-            `Salvare nome e colore per tutti gli operatori di «${selectedFolder.folder_name}» ` +
-            `(${members.length}, attivi e disabilitati)?`,
-        )
-      ) {
-        return;
-      }
-    }
-    const color = normalizeMapColor(folderColor);
-    setBusy(true);
-    setFormError(null);
-    try {
-      const { error } = await supabase
-        .from("operator_folders")
-        .update({ folder_name: name, map_color: color })
-        .eq("id", selectedFolder.id)
-        .eq("organization_id", orgId);
-      if (error) {
-        throw error;
-      }
-      const { error: squadErr } = await supabase
-        .from("squads")
-        .update({ map_color: color })
-        .eq("folder_id", selectedFolder.id)
-        .eq("organization_id", orgId);
-      if (squadErr) {
-        throw squadErr;
-      }
-      await Promise.all([refreshFolders(), refreshSquads()]);
-      setToast("Cartella aggiornata. Colore applicato agli operatori.");
-    } catch (err) {
-      setFormError(friendlyError(err, "Errore salvataggio cartella."));
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function handleDeleteFolder() {
-    if (!supabase || !orgId || !selectedFolder) {
-      return;
-    }
-    const members = operatorsInFolder(selectedFolder.id);
-    const ok = members.length > 0
-      ? window.confirm(
-          `${FOLDER_HAS_OPS_WARN}\n\n` +
-            `Eliminare la cartella «${selectedFolder.folder_name}» e tutti i suoi operatori ` +
-            `(${members.length}, attivi e disabilitati), compreso lo storico TOC SAR di ciascuno?`,
-        )
-      : window.confirm(`Eliminare la cartella «${selectedFolder.folder_name}»?`);
-    if (!ok) {
-      return;
-    }
-    setBusy(true);
-    setFormError(null);
-    try {
-      for (const row of members) {
-        await deleteOperatorForOrganization(supabase, row.id, orgId);
-      }
-      const { error } = await supabase
-        .from("operator_folders")
-        .delete()
-        .eq("id", selectedFolder.id)
-        .eq("organization_id", orgId);
-      if (error) {
-        throw error;
-      }
-      const loaded = await refreshFolders();
-      await refreshSquads();
-      resetSquadForm();
-      const sorted = [...loaded].sort((a, b) =>
-        a.folder_name.localeCompare(b.folder_name, "it", { sensitivity: "base" }),
-      );
-      setFolderChoice(sorted[0]?.id ?? FOLDER_NEW);
-      setFolderName(sorted[0]?.folder_name ?? "");
-      setFolderColor(sorted[0] ? normalizeMapColor(sorted[0].map_color) : DEFAULT_COLORS[0]);
-      setToast(
-        members.length > 0
-          ? "Cartella ed operatori eliminati."
-          : "Cartella eliminata.",
-      );
-    } catch (err) {
-      setFormError(friendlyError(err, "Errore eliminazione cartella."));
-      await Promise.all([refreshFolders(), refreshSquads()]);
-    } finally {
-      setBusy(false);
-    }
+    await refreshFolders();
+    return (data as FolderRow).id;
   }
 
   async function handleSquadSubmit(e: FormEvent) {
     e.preventDefault();
-    const targetFolderId = selectedFolder?.id ?? squadEditingFolderId;
-    const targetFolder = folders.find((f) => f.id === targetFolderId) ?? selectedFolder;
-    if (!supabase || !orgId || !canManageAnagrafica(session) || !targetFolder) {
-      setFormError("Seleziona o crea una cartella prima di inserire un operatore.");
+    if (!supabase || !orgId || !canManageAnagrafica(session)) {
       return;
     }
     const code = squadCode.trim().toUpperCase();
     const name = squadName.trim();
+    const affiliation = squadAffiliation.trim();
     const pwd = squadPassword.trim();
-    if (!code || !name || !pwd) {
-      setFormError("Compila codice, nome e password operatore.");
+    if (!code || !name || !affiliation || !pwd) {
+      setFormError("Compila codice, nome, ente di appartenenza e password.");
       return;
     }
-    const color = normalizeMapColor(targetFolder.map_color);
+    const color = normalizeMapColor(squadColor);
 
     setBusy(true);
     setFormError(null);
     try {
+      const folderId = await folderIdForAffiliation(affiliation);
       if (squadEditingId) {
         const { error } = await supabase
           .from("squads")
@@ -561,7 +388,7 @@ export default function AnagraficaPage() {
             map_color: color,
             map_icon_key: mapIconKey,
             is_enabled: squadEnabled,
-            folder_id: targetFolder.id,
+            folder_id: folderId,
           })
           .eq("id", squadEditingId)
           .eq("organization_id", orgId);
@@ -578,7 +405,7 @@ export default function AnagraficaPage() {
           map_icon_key: mapIconKey,
           is_enabled: squadEnabled,
           organization_id: orgId,
-          folder_id: targetFolder.id,
+          folder_id: folderId,
         });
         if (error) {
           throw error;
@@ -586,7 +413,7 @@ export default function AnagraficaPage() {
         setToast("Operatore creato.");
       }
       resetSquadForm();
-      await refreshSquads();
+      await Promise.all([refreshFolders(), refreshSquads()]);
     } catch (err) {
       setFormError(friendlyError(err, "Errore salvataggio operatore."));
     } finally {
@@ -952,14 +779,6 @@ export default function AnagraficaPage() {
     );
   }
 
-  const colorSourceFolder =
-    selectedFolder ?? folders.find((f) => f.id === squadEditingFolderId) ?? null;
-  const folderColorPreview = colorSourceFolder
-    ? normalizeMapColor(colorSourceFolder.map_color)
-    : normalizeMapColor(folderColor);
-  const showOperatorList = viewingAll || Boolean(selectedFolder);
-  const showOperatorForm = Boolean(selectedFolder) || (viewingAll && Boolean(squadEditingId));
-
   return (
     <div className={styles.root}>
       <header className={styles.topBar}>
@@ -991,121 +810,40 @@ export default function AnagraficaPage() {
           <section className={styles.panel}>
             <div className={styles.panelHeader}>
               <div className={styles.panelHeaderText}>
-                <h2>Cartelle anagrafica</h2>
+                <h2>Operatori</h2>
                 <p>
-                  Associazioni (es. ANSMI, CRI). Non è l&apos;ente di login. Un operatore sta in una
-                  sola cartella; il colore del pin è quello della cartella.
+                  Un unico elenco. Il login usa il codice TOC. Per ogni operatore si scrive
+                  l&apos;ente di appartenenza e si sceglie il colore del cerchio.
                 </p>
               </div>
+              <button
+                type="button"
+                className={styles.btnGhost}
+                disabled={busy || loading}
+                onClick={() => {
+                  if (!session) {
+                    return;
+                  }
+                  void downloadOperatorsPdf({
+                    orgCode: session.organizationCode,
+                    orgName: session.organizationName,
+                    rows: listedSquads.map((row) => ({
+                      code: row.squad_code,
+                      name: displaySurnameFirst(row.squad_name),
+                      password: row.password_hash,
+                      ente: enteName(row),
+                      login: row.is_enabled ? "Attivo" : "Disabilitato",
+                      color: normalizeMapColor(row.map_color),
+                    })),
+                  }).catch((err) => {
+                    setFormError(friendlyError(err, "Errore creazione PDF."));
+                  });
+                }}
+              >
+                PDF / Stampa
+              </button>
             </div>
-            <div className={styles.form}>
-              <div className={styles.fieldRow}>
-                <label>
-                  Cartella
-                  <select
-                    value={folderChoice}
-                    onChange={(e) => onPickFolder(e.target.value)}
-                    disabled={busy}
-                  >
-                    <option value={FOLDER_ALL}>
-                      Tutte le cartelle ({activeTotal})
-                    </option>
-                    <option value={FOLDER_NEW}>— Nuova cartella —</option>
-                    {foldersSorted.map((f) => (
-                      <option key={f.id} value={f.id}>
-                        {f.folder_name} ({activeCount(f.id)})
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              </div>
-
-              {folderChoice === FOLDER_NEW ? (
-                <form onSubmit={(e) => void handleCreateFolder(e)}>
-                  <p className={styles.folderHint}>Nome associazione e colore degli operatori.</p>
-                  <div className={styles.fieldRow}>
-                    <label>
-                      Nome cartella
-                      <input
-                        value={folderName}
-                        onChange={(e) => setFolderName(e.target.value)}
-                        disabled={busy}
-                        placeholder="Es. ANSMI"
-                        required
-                      />
-                    </label>
-                  </div>
-                  <FolderColorPicker
-                    color={folderColor}
-                    onChange={setFolderColor}
-                    busy={busy}
-                  />
-                  <div className={styles.formActions}>
-                    <button type="submit" className={styles.btnPrimary} disabled={busy}>
-                      Crea cartella
-                    </button>
-                  </div>
-                </form>
-              ) : null}
-
-              {selectedFolder ? (
-                <form onSubmit={(e) => void handleSaveFolder(e)}>
-                  <div className={styles.fieldRow}>
-                    <label>
-                      Nome cartella
-                      <input
-                        value={folderName}
-                        onChange={(e) => setFolderName(e.target.value)}
-                        disabled={busy}
-                        required
-                      />
-                    </label>
-                  </div>
-                  <FolderColorPicker
-                    color={folderColor}
-                    onChange={setFolderColor}
-                    busy={busy}
-                  />
-                  {operatorsInFolder(selectedFolder.id).length > 0 ? (
-                    <p className={styles.folderWarn} role="status">
-                      {FOLDER_HAS_OPS_WARN}
-                    </p>
-                  ) : null}
-                  <div className={styles.formActions}>
-                    <button type="submit" className={styles.btnPrimary} disabled={busy}>
-                      Salva cartella
-                    </button>
-                    <button
-                      type="button"
-                      className={styles.btnDanger}
-                      onClick={() => void handleDeleteFolder()}
-                      disabled={busy}
-                    >
-                      Elimina cartella
-                    </button>
-                  </div>
-                </form>
-              ) : null}
-            </div>
-
-            {showOperatorList ? (
-              <>
-                <div className={styles.panelHeader}>
-                  <div className={styles.panelHeaderText}>
-                    <h2>
-                      {viewingAll
-                        ? "Operatori — Tutte le cartelle"
-                        : `Operatori — ${selectedFolder?.folder_name ?? ""}`}
-                    </h2>
-                    <p>
-                      {viewingAll
-                        ? "Elenco per ente, cognome e nome. Per aggiungere un operatore seleziona una cartella."
-                        : "Codice unico in questo ente TOC. Icona per operatore; colore dalla cartella."}
-                    </p>
-                  </div>
-                </div>
-                {showOperatorForm ? (
-                <form className={styles.form} onSubmit={(e) => void handleSquadSubmit(e)}>
+            <form className={styles.form} onSubmit={(e) => void handleSquadSubmit(e)}>
                   <div className={styles.fieldRow}>
                     <label>
                       Codice
@@ -1127,6 +865,16 @@ export default function AnagraficaPage() {
                         required
                       />
                     </label>
+                    <label>
+                      Ente di appartenenza
+                      <input
+                        value={squadAffiliation}
+                        onChange={(e) => setSquadAffiliation(e.target.value)}
+                        disabled={busy}
+                        placeholder="Es. ANSMI"
+                        required
+                      />
+                    </label>
                   </div>
                   <div className={styles.fieldRow}>
                     <label>
@@ -1140,6 +888,11 @@ export default function AnagraficaPage() {
                       />
                     </label>
                   </div>
+                  <OperatorColorPicker
+                    color={squadColor}
+                    onChange={setSquadColor}
+                    busy={busy}
+                  />
                   <div className={styles.fieldGroup}>
                     <span className={styles.iconPickerLabel}>Icona</span>
                     <div className={styles.iconPicker} role="radiogroup" aria-label="Icona operatore">
@@ -1168,7 +921,7 @@ export default function AnagraficaPage() {
                           ) : (
                             <span
                               className={styles.circleSwatch}
-                              style={{ background: folderColorPreview }}
+                              style={{ background: normalizeMapColor(squadColor) }}
                               aria-hidden
                             />
                           )}
@@ -1194,7 +947,7 @@ export default function AnagraficaPage() {
                       <button
                         type="button"
                         className={styles.btnGhost}
-                        onClick={resetSquadForm}
+                        onClick={() => resetSquadForm()}
                         disabled={busy}
                       >
                         Annulla
@@ -1202,18 +955,11 @@ export default function AnagraficaPage() {
                     ) : null}
                   </div>
                 </form>
-                ) : null}
-              </>
-            ) : null}
 
             {loading ? (
               <p className={styles.empty}>Caricamento…</p>
-            ) : folderChoice === FOLDER_NEW ? (
-              <p className={styles.empty}>Crea una cartella per gestire gli operatori.</p>
             ) : listedSquads.length === 0 ? (
-              <p className={styles.empty}>
-                {viewingAll ? "Nessun operatore." : "Nessun operatore in questa cartella."}
-              </p>
+              <p className={styles.empty}>Nessun operatore.</p>
             ) : (
               <table className={styles.table}>
                 <thead>
@@ -1500,7 +1246,7 @@ export default function AnagraficaPage() {
   );
 }
 
-function FolderColorPicker({
+function OperatorColorPicker({
   color,
   onChange,
   busy,
@@ -1512,7 +1258,7 @@ function FolderColorPicker({
   const value = normalizeMapColor(color);
   return (
     <div className={styles.fieldGroup}>
-      <span className={styles.iconPickerLabel}>Colore operatori in mappa</span>
+      <span className={styles.iconPickerLabel}>Colore del cerchio</span>
       <div className={styles.colorRow}>
         {DEFAULT_COLORS.map((c) => (
           <button

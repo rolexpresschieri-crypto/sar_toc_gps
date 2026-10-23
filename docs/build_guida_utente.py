@@ -21,7 +21,7 @@ GREEN = (7, 155, 66)
 DARK = (25, 25, 25)
 MUTED = (70, 70, 70)
 LINE = (180, 180, 180)
-VERSION = "1.0.68"
+VERSION = "1.0.70"
 
 
 def _first_existing(*paths: Path) -> Path:
@@ -74,6 +74,9 @@ class GuidaPdf(FPDF):
 
     def h1(self, text: str) -> None:
         self.ln(4)
+        if self.will_page_break(16):
+            self.add_page()
+        self.start_section(text, level=0)
         self.set_font("ArialIt", "B", 14)
         self.set_text_color(*NAVY)
         self.cell(0, 8, text, new_x="LMARGIN", new_y="NEXT")
@@ -86,6 +89,9 @@ class GuidaPdf(FPDF):
 
     def h2(self, text: str) -> None:
         self.ln(2)
+        if self.will_page_break(14):
+            self.add_page()
+        self.start_section(text, level=1)
         self.set_font("ArialIt", "B", 12)
         self.set_text_color(*GREEN)
         self.cell(0, 7, text, new_x="LMARGIN", new_y="NEXT")
@@ -123,6 +129,44 @@ class GuidaPdf(FPDF):
         self.multi_cell(0, 5.4, text, border=1, fill=True)
         self.ln(2.5)
         self.set_text_color(*DARK)
+
+
+def render_toc(pdf: GuidaPdf, outline: list) -> None:
+    pdf.set_x(pdf.l_margin)
+    pdf.set_font("ArialIt", "B", 14)
+    pdf.set_text_color(*NAVY)
+    pdf.cell(0, 8, "Sommario", new_x="LMARGIN", new_y="NEXT")
+    pdf.set_draw_color(*GREEN)
+    pdf.set_line_width(0.6)
+    y = pdf.get_y()
+    pdf.line(12, y, 80, y)
+    pdf.ln(4)
+    for section in outline:
+        indent = 7 * section.level
+        left = pdf.l_margin + indent
+        usable = pdf.epw - indent
+        page_s = str(section.page_number)
+        title = section.name
+        pdf.set_font("ArialIt", "B" if section.level == 0 else "", 11 if section.level == 0 else 10.5)
+        pdf.set_text_color(*NAVY if section.level == 0 else DARK)
+        title_w = pdf.get_string_width(title) + 1.6
+        page_w = pdf.get_string_width(page_s) + 1.2
+        link = pdf.add_link(page=section.page_number)
+        pdf.set_x(left)
+        if title_w + page_w + 4 > usable:
+            pdf.multi_cell(usable, 5.6, f"{title}    {page_s}", link=link)
+            continue
+        pdf.cell(title_w, 6.2, title, link=link)
+        dots_w = usable - title_w - page_w
+        pdf.set_font("ArialIt", "", 10.5)
+        pdf.set_text_color(*LINE)
+        dot_w = pdf.get_string_width(".")
+        count = max(0, int(dots_w / dot_w) - 1) if dot_w else 0
+        pdf.cell(dots_w, 6.2, "." * count, align="R", link=link)
+        pdf.set_font("ArialIt", "B", 10.5)
+        pdf.set_text_color(*NAVY)
+        pdf.cell(page_w, 6.2, page_s, align="R", new_x="LMARGIN", new_y="NEXT", link=link)
+    pdf.set_text_color(*DARK)
 
 
 def build() -> Path:
@@ -183,6 +227,7 @@ def build() -> Path:
     )
 
     pdf.add_page()
+    pdf.insert_toc_placeholder(render_toc, pages=1, reset_page_indices=False)
 
     pdf.h1("1.  A cosa serve TOC SAR")
     pdf.p(
@@ -199,14 +244,14 @@ def build() -> Path:
     pdf.h1("2.  Prima di usare l’app")
     pdf.bullet(
         "Installazione Android",
-        "Copia sul telefono il file APK (es. toc_sar_KMP_1.0.68.apk) e installa. "
+        "Copia sul telefono il file APK (es. toc_sar_KMP_1.0.71.apk) e installa. "
         "Se Android lo chiede, consenti «origini sconosciute» solo per TOC SAR.",
     )
     pdf.ios(
         "Installazione (IPA / Diawi)",
         "Apri il link Diawi, tocca Installa. Se TOC SAR è già installata, DISINSTALLALA prima "
         "(tieni premuta l’icona → Rimuovi app), altrimenti resta la versione vecchia. "
-        "Non usare l’APK Android sull’iPhone: serve toc_sar_iOS_1.0.68.ipa (o il link Diawi di quella versione).",
+        "Non usare l’APK Android sull’iPhone: serve toc_sar_iOS_1.0.70.ipa (o il link Diawi di quella versione).",
     )
     pdf.ios(
         "Sviluppatore non verificato",
@@ -247,7 +292,15 @@ def build() -> Path:
     )
 
     pdf.h1("3.  Log-in")
-    pdf.p("Dalla home, tasto verde Log-in. Schermata «Log-in operatore».")
+    pdf.p(
+        "Dalla home, tasto verde Log-in. Schermata «Log-in operatore»: codice TOC + codice + password."
+    )
+    pdf.bullet(
+        "Codice TOC",
+        "È la sala in cui si entra (es. NVANSMI), lo stesso per tutti gli operatori di quel TOC. "
+        "Non è l’ente di appartenenza dell’anagrafica. Si scrive in maiuscolo. "
+        "Se il telefono lo ricorda, in alto compare «TOC: …» e il link giallo «Cambia TOC».",
+    )
     pdf.bullet(
         "Codice operatore",
         "Codice assegnato dal TOC (anagrafica). Si scrive in maiuscolo (es. LUPO, RAGGHY, LOST).",
@@ -265,7 +318,9 @@ def build() -> Path:
     )
     pdf.note(
         "Un operatore = un telefono. Se risulta già online, prima va fatto log-out (o force log-out da LUPO), "
-        "poi si può rientrare."
+        "poi si può rientrare. "
+        "In anagrafica TOC gli operatori stanno in un unico elenco: ciascuno ha la propria associazione "
+        "(ente di appartenenza) e il colore del cerchio. Quel colore è il pallino in mappa."
     )
 
     pdf.h1("4.  Home (dopo il log-in)")
@@ -302,7 +357,7 @@ def build() -> Path:
     )
     pdf.bullet(
         "GPS",
-        "Apre il modulo descritto dal capitolo 7 in poi: rotta, WP, TRK, mappa, misura.",
+        "Apre la funzione GPS (capitolo 7): traccia, waypoint, rotta verso un collega, selezione e mappa.",
     )
     pdf.bullet(
         "Operatori on line",
@@ -346,231 +401,254 @@ def build() -> Path:
         "Se LUPO forza il log-out di se stesso, torna alla home scollegato."
     )
 
-    pdf.h1("7.  Modulo GPS")
+    pdf.h1("7.  Funzione GPS")
     pdf.p(
-        "Dalla home, tasto giallo GPS. In alto: freccia indietro (torna alla home; il TRK in corso NON si ferma) "
-        "e Notte / Giorno (inverte i colori dello schermo GPS, utile di notte)."
-    )
-
-    pdf.h2("7.1  Calibrazione bussola")
-    pdf.p("Barra gialla in cima: «Bussola imprecisa? Guida calibrazione».")
-    pdf.bullet(
-        "Movimento a 8",
-        "Muovi il telefono in aria a forma di 8, lento e ampio, 10–15 secondi. "
-        "La calibrazione del sensore la fa il telefono.",
+        "Dalla home, tasto giallo GPS. Qui sotto c’è quello che trovi subito dopo, "
+        "poi un sotto-punto per ogni operazione da fare in campo."
     )
     pdf.bullet(
-        "Correzione orientamento",
-        "Se il Nord resta storto (rosa ruotata), usa ±15° o ±90°. «Azzera» toglie la correzione.",
+        "In alto",
+        "Freccia indietro: torna alla home. Una traccia in corso non si ferma. "
+        "Notte / Giorno: inverte i colori dello schermo GPS.",
     )
-    pdf.p("Tieni il telefono in verticale come in navigazione. La rosa (goniometro) mostra il Nord magnetico.")
+    pdf.bullet(
+        "Bussola",
+        "Barra gialla «Bussola imprecisa? Guida calibrazione». "
+        "Movimento a 8, lento, 10–15 secondi. Se il Nord resta storto: ±15° o ±90°. «Azzera» toglie la correzione. "
+        "Telefono in verticale. La rosa mostra il Nord magnetico.",
+    )
+    pdf.bullet(
+        "BASE e PATTUGLIA",
+        "BASE = dove vuoi arrivare. PATTUGLIA (PTG) = dove sei. "
+        "«Imposta BASE da GPS» e «Imposta PTG da GPS» copiano il fix attuale (serve segnale all’aperto). "
+        "Puoi anche scrivere lat, lon e quota a mano. Sotto compare l’accuratezza (acc).",
+    )
+    pdf.bullet(
+        "Tasti",
+        "START TRK, INS WP, Calcola rotta, Vai a BASE, WP & TRK, MAPPA. "
+        "In basso: Distanza, Bearing e la rosa. In navigazione la rosa diventa una freccia "
+        "e compare «Chiudi Vai a BASE».",
+    )
+    pdf.bullet(
+        "Clear data",
+        "Tasto rosso. Toglie dalla mappa i waypoint e le tracce selezionati, azzera BASE e PATTUGLIA, "
+        "ferma la navigazione e la registrazione in corso, azzera TIME e DIST. "
+        "Non cancella i file già salvati sul telefono e non fa il log-out.",
+    )
+    pdf.note(
+        "TIME e DIST (striscia gialla) compaiono quando registri una traccia o quando il cronometro è in pausa. "
+        "Restano anche se esci dal GPS. I dettagli sono nel punto 7.1."
+    )
 
-    pdf.h2("7.2  BASE e PATTUGLIA")
+    pdf.h2("7.1  Memorizzare una traccia")
     pdf.p(
-        "Due colonne di coordinate. BASE = punto verso cui vuoi andare (casa, TOC, punto di ritrovo). "
-        "PATTUGLIA (PTG) = la tua posizione (o quella da cui calcoli la rotta)."
+        "Registra il percorso che stai facendo (bonifica, ricerca, spostamento). "
+        "Un punto circa ogni 3 metri, scartando i salti del GPS rumoroso."
     )
     pdf.bullet(
-        "Imposta BASE da GPS",
-        "Riempie lat / lon / quota BASE con il fix attuale. Serve un segnale outdoor.",
+        "Cosa premere per partire",
+        "START TRK. Il tasto diventa rosso STOP TRK e compare «REC · N punti». "
+        "Parte anche la striscia gialla TIME (ore:minuti:secondi) e DIST (metri).",
     )
     pdf.bullet(
-        "Imposta PTG da GPS",
-        "Stesso per PATTUGLIA. In navigazione live queste coordinate si aggiornano da sole.",
+        "Mentre registra",
+        "Puoi uscire dal GPS, tornare in home o aprire la mappa: la traccia continua. "
+        "Android: continua in tasca se resta la notifica «Tracking operatore». "
+        "iPhone: Localizzazione = Sempre; non chiudere l’app dallo switcher.",
     )
-    pdf.p("Puoi anche scrivere o correggere a mano lat, lon e quota. Sotto il tasto GPS compare l’accuratezza (acc).")
+    pdf.bullet(
+        "Come fare STOP della traccia",
+        "STOP TRK. Ferma la registrazione e ferma anche TIME/DIST. "
+        "Con almeno 2 punti si apre «Report traccia»: il nome diventa CODICE_TRK_ più quello che scrivi. "
+        "Salva = file sul telefono + riepilogo al TOC. Salva + invia = uguale, e apre la condivisione del file .trk. "
+        "Annulla = scarta tutto, non resta il file. Con meno di 2 punti non salva.",
+    )
+    pdf.bullet(
+        "Fermare solo TIME e DIST",
+        "Sulla striscia gialla, STOP mette in pausa il cronometro (il tasto diventa ST). "
+        "Se START TRK è ancora rosso, la traccia continua. "
+        "ST con pressione breve fa ripartire tempo e distanza. "
+        "Pressione lunga su STOP o ST azzera TIME e DIST.",
+    )
+    pdf.p(
+        "Per togliere la traccia dalla mappa senza cancellare il file già salvato: Clear data. "
+        "Il Log-out ferma anche la registrazione ancora accesa."
+    )
 
-    pdf.h2("7.3  Calcola rotta  e  Vai a BASE")
+    pdf.h2("7.2  Inserire un waypoint")
+    pdf.p("Segna un punto con un nome: bivio, ritrovamento, base di settore.")
+    pdf.bullet(
+        "Come si fa",
+        "Tasto arancione INS WP. Scrivi il nome: diventa CODICE_WP_ più il testo "
+        "(es. LUPO_WP_BIVIO). Lat e lon sono obbligatorie, la quota no. "
+        "«Da GPS» copia il fix attuale; altrimenti scrivi le coordinate a mano. Poi Salva.",
+    )
+    pdf.bullet(
+        "Dove salva",
+        "Sul telefono, in WP & TRK → WP LOCALI. "
+        "Dopo Salva il punto compare in mappa (casa verde). "
+        "Non parte da solo la navigazione verso quel punto.",
+    )
+    pdf.note(
+        "INS WP crea solo un waypoint di questo telefono. "
+        "I waypoint di missione arrivano dal TOC e stanno in WP & TRK → WP MISSIONE: da qui non si cancellano."
+    )
+
+    pdf.h2("7.3  Devo raggiungere un collega (conosco le coordinate)")
+    pdf.p(
+        "BASE è la destinazione (il collega, o il punto che ti hanno dato). "
+        "PATTUGLIA sei tu."
+    )
+    pdf.bullet(
+        "Coordinate del collega",
+        "Nella colonna BASE scrivi lat, lon e, se la conosci, la quota. "
+        "Se invece sei tu sul punto da usare come meta, «Imposta BASE da GPS».",
+    )
+    pdf.bullet(
+        "La tua posizione",
+        "«Imposta PTG da GPS». In navigazione queste coordinate si aggiornano da sole.",
+    )
     pdf.bullet(
         "Calcola rotta",
-        "Serve BASE e PATTUGLIA compilate. Calcola distanza (linea d’aria) e bearing (direzione in gradi) "
-        "da PTG verso BASE. Non avvia la navigazione continua.",
+        "Una lettura sola: distanza in linea d’aria e bearing in gradi, da te verso BASE. "
+        "Non ti segue mentre cammini.",
     )
     pdf.bullet(
         "Vai a BASE",
-        "Avvia la navigazione live verso BASE: aggiorna la tua posizione, distanza e freccia rispetto alla prua. "
-        "La rosa viene sostituita dalla freccia di direzione. «Chiudi Vai a BASE» ferma solo la navigazione, non cancella le coordinate.",
+        "Navigazione continua: distanza aggiornata e freccia al posto della rosa. "
+        "«Chiudi Vai a BASE» ferma solo la freccia. Le coordinate restano.",
     )
     pdf.p(
-        "In basso: Distanza e Bearing. In modalità Vai a BASE la distanza è verso BASE "
-        "(o verso il WP / operatore se hai avviato la navigazione dalla mappa, cap. 8)."
-    )
-    pdf.p(
-        "Scorciatoia Android in mappa: tocca la tua freccia GPS e poi la destinazione (WP o operatore). "
-        "Si riempie BASE e parte Vai a BASE, senza copiare le coordinate a mano."
-    )
-    pdf.ios(
-        "Navigazione verso un WP",
-        "Due tap in mappa fanno solo la MISURA. Per la bussola usa VAI in WP & TRK, "
-        "oppure «Naviga verso» nella finestra MISURA se uno dei due pin è un WP.",
+        "Se il collega è già un pin in mappa (operatore online o waypoint) e non devi copiare i numeri: "
+        "su Android tocca la tua freccia e poi il pin. "
+        "Su iPhone due tocchi fanno solo la misura; per la bussola usa VAI in WP & TRK "
+        "oppure «Naviga verso» nella finestra MISURA (punto 7.6)."
     )
 
-    pdf.h2("7.4  START TRK  /  STOP TRK")
+    pdf.h2("7.4  Voglio selezionare uno o più waypoint o una o più tracce")
     pdf.p(
-        "Registra il percorso dell’operatore (bonifica, ricerca, spostamento). "
-        "Un punto circa ogni 3 metri, filtrato per non fare «stelle» da GPS rumoroso."
+        "Tasto blu WP & TRK. La spunta mette quel waypoint o quella traccia sulla mappa. "
+        "Puoi spuntarne più di uno. Le spunte restano anche uscendo dal GPS, finché non fai Clear data."
     )
     pdf.bullet(
-        "START TRK",
-        "Il tasto diventa rosso STOP TRK. Compare «REC · N punti». "
-        "Su Android la registrazione continua in tasca (notifica tracking). "
-        "Su iPhone serve Permesso Posizione «Sempre».",
-    )
-    pdf.bullet(
-        "STOP TRK",
-        "Se ci sono almeno 2 punti, chiede il nome della traccia (prefisso CODICE_TRK_). "
-        "La salva in locale sul telefono. Poi la puoi vedere in mappa da WP & TRK.",
-    )
-    pdf.p("Con TRK attivo puoi uscire da GPS e tornare in home: la traccia continua. Si ferma con STOP TRK o Log-out.")
-
-    pdf.h2("7.5  INS WP  (inserisci waypoint)")
-    pdf.p(
-        "Crea un waypoint locale. Nome: prefisso automatico CODICEOPERATORE_WP_ + il nome che scrivi "
-        "(es. LUPO_WP_BIVIO). Lat e lon obbligatorie; quota facoltativa. Tasto «Da GPS» copia il fix attuale."
-    )
-    pdf.p(
-        "Dopo Salva il waypoint viene messo in mappa. Non parte da solo il calcolo da te verso quel punto: "
-        "lo vedi, poi in mappa scegli tu cosa misurare o navigare (cap. 8)."
-    )
-    pdf.note(
-        "I waypoint di missione (dal TOC / elenco missione) e quelli locali stanno in WP & TRK. "
-        "INS WP crea solo un WP locale su questo telefono."
-    )
-
-    pdf.h2("7.6  WP & TRK")
-    pdf.p("Elenco di tutto ciò che puoi mettere in mappa o condividere.")
-    pdf.bullet(
-        "WP MISSIONE",
-        "Waypoint arrivati dalla missione (non si cancellano da qui). Flag = visibile in MAPPA.",
-    )
-    pdf.ios(
-        "VAI",
-        "Su iPhone, accanto al WP: avvia la navigazione live verso quel punto (come Vai a BASE) e chiude l’elenco.",
-    )
-    pdf.bullet(
-        "WP LOCALI",
-        "Quelli creati con INS WP o salvati da un operatore in mappa. Flag, Invia (condividi file), Elimina. "
-        "Su iPhone c’è anche VAI.",
-    )
-    pdf.bullet(
-        "TRACCE LOCALI",
-        "Tracce salvate dopo STOP TRK. Flag, Invia, MAPPA (solo quella traccia), Elimina.",
-    )
-    pdf.bullet(
-        "Importa file…",
-        "Importa un .wpt / .trk (anche da «Apri con» / Condividi verso TOC SAR). Resta il nome file originale.",
-    )
-    pdf.bullet(
-        "MAPPA (n. selezionati)",
-        "Apre la mappa con i WP e le TRK che hai flaggato. I flag restano finché non fai Clear data.",
-    )
-    pdf.p("Chiudi torna al modulo GPS senza togliere i flag.")
-
-    pdf.h2("7.7  MAPPA")
-    pdf.p(
-        "Schermo a tutto campo. La freccia indietro chiude solo la mappa e torna al GPS "
-        "(non alla home). Cosa vedi:"
-    )
-    pdf.bullet("Freccia rossa + il tuo codice", "Sei tu. In follow è al centro; se fai pan resta sul punto geografico.")
-    pdf.bullet("Pallino colorato + codice", "Altro operatore online visibile (vedi cap. 6). Su iPhone il codice può essere abbreviato alle prime 3 lettere.")
-    pdf.bullet("Casa verde + nome", "Waypoint in overlay (missione o locale flaggato, o appena inserito).")
-    pdf.bullet("Linea rossa", "Scia TRK in registrazione.")
-    pdf.bullet("Linee colorate", "Tracce salvate caricate da WP & TRK.")
-    pdf.bullet(
-        "Contorno rosso vivo",
-        "Confini comunali accesi (uno o più insieme). Li carica il TOC da Anagrafica; in mappa li accendi tu.",
-    )
-    pdf.bullet("Linea gialla", "Misura tra i due pin scelti (riquadro MISURA).")
-    pdf.ios(
-        "Linea / banner verso un WP",
-        "Se hai avviato VAI / Naviga verso, è la rotta dalla tua posizione al WP (banner in alto: distanza). "
-        "Non confonderla con la misura gialla.",
-    )
-    pdf.bullet("POSIZIONE ATTUALE", "Riquadro in basso a destra: coordinate, accuratezza, orario fix (su Android anche velocità).")
-    pdf.bullet("NORD magnetico", "In alto a destra: prua in gradi.")
-    pdf.bullet("Scala + quota", "In alto al centro: scala della mappa e metri s.l.m. se disponibili.")
-    pdf.h2("Comandi sulla mappa")
-    pdf.bullet("Strati (icona due quadrati, in alto a sinistra)", "Strato: Stradale (OSM), Topografica (curve di livello), Satellite / ortofoto.")
-    pdf.bullet(
-        "Icona sentiero (zigzag)",
-        "Accende/spegne l'overlay dei sentieri (waymarked trails). Bordo giallo = acceso.",
-    )
-    pdf.bullet(
-        "Tasto C (confini comunali)",
-        "Apre l’elenco dei comuni. Spunta uno o più nomi, oppure «Tutti i confini» / «Nessuno». "
-        "Il tasto C diventa rosso se almeno un confine è acceso. Se l’elenco è vuoto, il TOC deve caricarli in Anagrafica.",
-    )
-    pdf.bullet("Tasto centra (cerchio con punto)", "Centra sulla tua posizione (follow). Dopo un pan a un dito il follow si toglie: ritocca il tasto per riprenderlo.")
-    pdf.bullet(
-        "X verde / rossa",
-        "Verde = nord dinamico (la mappa ruota con la prua, freccia fissa in alto). "
-        "Rossa = nord in alto (mappa ferma, meglio per vedere WP e tracce).",
-    )
-    pdf.p("Pinch = zoom. Lo zoom non torna da solo all’inquadratura iniziale.")
-    pdf.p(
-        "Cambio strato o tasto sentieri: la mappa resta dove l’hai lasciata (pan e zoom). "
-        "Non torna da sola sulla tua posizione. Per ricentrarti usa il tasto centra."
-    )
-
-    pdf.h2("7.8  Clear data")
-    pdf.p(
-        "Tasto rosso. Cancella coordinate BASE/PTG, rotta, overlay WP/TRK in mappa, flag WP & TRK, "
-        "e ferma Vai a BASE / TRK in corso. Non cancella i file waypoint e tracce già salvati in locale, "
-        "né la sessione di log-in."
-    )
-
-    pdf.h2("7.9  Confini comunali  (app e TOC)")
-    pdf.p(
-        "I confini dei comuni si vedono sulla mappa della sala TOC e su quella del telefono "
-        "(Android e iPhone), con riga rosso vivo. Puoi accenderne più di uno insieme. "
-        "Non si disegnano sul telefono: arrivano da Storage, caricati solo dal TOC."
-    )
-    pdf.bullet(
-        "In sala TOC",
-        "Sulla mappa, tasto Confini: spunte sui comuni, Tutti / Nessuno. "
-        "Per aggiungere o togliere un comune: Anagrafica → Confini comunali → nome + file GeoJSON "
-        "(oppure Elimina). Non serve una nuova APK né una nuova IPA: TOC e telefoni scaricano l’elenco aggiornato.",
+        "Cartelle di missione",
+        "WP MISSIONE e TRK MISSIONE arrivano dal TOC, raggruppati per cartella. "
+        "Tocca il nome per aprire la cartella. La spunta sulla cartella seleziona tutti i file; "
+        "la spunta sul file ne seleziona uno solo. Una cartella vuota non compare.",
     )
     pdf.bullet(
         "Sul telefono",
-        "In MAPPA, tasto C. Stesso elenco della sala. Serve connessione (come per WP di missione). "
-        "Un comune nuovo comparirà al prossimo ingresso in mappa, senza reinstallare l’app.",
-    )
-    pdf.note(
-        "Solo l’admin TOC carica i GeoJSON in Anagrafica. L’operatore in campo accende/spegne "
-        "quelli già presenti, non ne inserisce di nuovi dal telefono."
-    )
-
-    pdf.h1("8.  Misura in mappa  e  navigazione da te")
-    pdf.p(
-        "In mappa tocchi due pin: distanza (linea d’aria) e direzione (gradi + rumba, es. 168° SSE), "
-        "con linea gialla. Combinazioni: operatore↔operatore, operatore↔WP, WP↔WP, tu↔WP."
+        "WP LOCALI: creati con INS WP. Spunta, Invia, Elimina. Su iPhone c’è anche VAI. "
+        "TRACCE LOCALI: salvate dopo STOP TRK. Spunta, Invia, REPORT, MAPPA (solo quella), Inverti, Elimina.",
     )
     pdf.bullet(
-        "Android — riquadro MISURA",
-        "In basso a sinistra. Se nella coppia NON c’è la tua posizione: solo misura. "
-        "Se uno dei due punti SEI TU, parte anche la navigazione sullo schermo GPS "
-        "(tocca la tua freccia, poi il WP; chiudi la mappa: distanza e freccia grande).",
+        "Tracce di missione",
+        "A cartella aperta: Invia, REPORT, MAPPA. "
+        "Non ci sono Inverti né Elimina: il file resta sul TOC.",
+    )
+    pdf.bullet(
+        "Metterle in mappa",
+        "In fondo all’elenco, MAPPA (n) apre la mappa con tutto ciò che è spuntato. "
+        "Chiudi torna al GPS senza togliere le spunte. "
+        "«Importa file…» porta dentro un .wpt o un .trk ricevuto (Condividi / Apri con).",
+    )
+
+    pdf.h2("7.5  Voglio visualizzare la mappa")
+    pdf.p(
+        "Tasto viola MAPPA, oppure MAPPA dentro WP & TRK. "
+        "Schermo intero: la tua posizione, gli operatori visibili, i waypoint e le tracce spuntati, "
+        "e la scia rossa se stai registrando."
+    )
+    pdf.bullet(
+        "Aprire e chiudere",
+        "La freccia indietro chiude solo la mappa e torna al GPS, non alla home. "
+        "Traccia, waypoint selezionati e TIME/DIST restano attivi.",
+    )
+    pdf.bullet(
+        "Muoverla",
+        "Due dita = zoom. Un dito sposta la mappa e toglie l’inseguimento della tua posizione. "
+        "Lo zoom non torna da solo. Per rimetterti al centro usa il tasto con il punto nel cerchio (punto 7.6).",
+    )
+    pdf.bullet("Freccia rossa + il tuo codice", "Sei tu. Se l’inseguimento è acceso, stai al centro.")
+    pdf.bullet(
+        "Pallino colorato + codice",
+        "Altro operatore online e visibile (cap. 6). Il colore è quello scelto in anagrafica per quella persona, "
+        "così si distinguono operatori di associazioni diverse. Su iPhone il codice può essere abbreviato.",
+    )
+    pdf.bullet("Casa verde + nome", "Waypoint selezionato o appena inserito.")
+    pdf.bullet("Linea rossa", "Traccia che stai registrando adesso.")
+    pdf.bullet("Linee colorate", "Tracce caricate da WP & TRK.")
+    pdf.bullet("Contorno rosso", "Confini comunali accesi.")
+    pdf.bullet("Linea gialla", "Misura tra due pin.")
+    pdf.ios(
+        "Banner blu verso un WP",
+        "Se hai avviato VAI o «Naviga verso», è la rotta (distanza in alto). Non è la misura gialla.",
+    )
+
+    pdf.h2("7.6  In MAPPA: tasti e visualizzazioni")
+    pdf.p("I tasti della mappa, e quale carta puoi accendere.")
+    pdf.bullet(
+        "Strati (due quadrati, in alto a sinistra)",
+        "Tre visualizzazioni: Stradale (OSM), Topografica (curve di livello), Satellite / ortofoto. "
+        "Il cambio non sposta la mappa e non ti ricentra.",
+    )
+    pdf.bullet(
+        "Pulsante arancione",
+        "Mostra o nasconde la barra in basso: coordinate, accuratezza, quota, batteria, TIME/DIST "
+        "e il tasto per inserire un waypoint sul fix attuale.",
+    )
+    pdf.bullet(
+        "Sentieri",
+        "Icona del sentiero. Accende o spegne i sentieri sopra la carta. Bordo acceso = sentieri visibili.",
+    )
+    pdf.bullet(
+        "C — confini comunali",
+        "Elenco dei comuni. Spunta uno o più nomi, oppure «Tutti i confini» / «Nessuno». "
+        "La C è rossa se almeno un confine è acceso. "
+        "L’elenco lo carica il TOC in Anagrafica (file GeoJSON): dal telefono si accende e si spegne, non si aggiunge. "
+        "Serve connessione. Un comune nuovo compare al prossimo ingresso in mappa, senza reinstallare l’app.",
+    )
+    pdf.bullet(
+        "Centra (cerchio con punto, in basso a sinistra)",
+        "Ti rimette al centro e riaccende l’inseguimento. Dopo uno spostamento a un dito va ritoccato.",
+    )
+    pdf.bullet(
+        "X verde o rossa",
+        "Verde: la mappa ruota con la prua, la freccia resta in alto. "
+        "Rossa: il Nord resta in alto, meglio per leggere waypoint e tracce. "
+        "Con waypoint o tracce in mappa si parte con il Nord in alto.",
+    )
+    pdf.bullet(
+        "Prua, scala, quota",
+        "In alto a destra: prua in gradi (Nord magnetico). In alto al centro: scala della mappa e metri s.l.m., se disponibili.",
+    )
+    pdf.bullet(
+        "Misura",
+        "Tocca due pin (tu, un operatore o un waypoint): distanza in linea d’aria, direzione in gradi, linea gialla. "
+        "Stesso pin un’altra volta: lo togli. Un terzo tocco sostituisce il secondo punto. Annulla toglie la misura.",
+    )
+    pdf.bullet(
+        "Android — dalla misura alla bussola",
+        "Se uno dei due pin sei tu, parte anche la navigazione sullo schermo GPS. "
+        "Chiudi la mappa: distanza e freccia grande. «Chiudi Vai a BASE» ferma solo quella freccia.",
     )
     pdf.ios(
-        "riquadro MISURA",
-        "In alto a sinistra, bordo giallo. Due tap = solo misura, anche se uno dei pin sei tu. "
-        "Per la bussola: tasto «Naviga verso {nome}» nella finestra MISURA (se c’è un WP), oppure VAI in WP & TRK. "
-        "Il banner blu in alto («→ CP_03: 5,41 km») è la navigazione, non la misura.",
+        "dalla misura alla bussola",
+        "Due tocchi = solo misura, anche se uno dei pin sei tu. "
+        "Per la freccia: «Naviga verso» nella finestra MISURA (bordo giallo, in alto a sinistra) oppure VAI in WP & TRK.",
     )
     pdf.bullet(
-        "Salva WP",
-        "Compare solo per le posizioni degli OPERATORI (snapshot locale, es. LUPO_WP_LOST). "
-        "Se il punto è già un waypoint — locale o di missione — il salvataggio non c’è: è già salvato.",
+        "Salva WP da un operatore",
+        "Nella misura, Salva WP compare solo sulla posizione di un operatore (es. LUPO_WP_LOST), sul telefono. "
+        "Se il pin è già un waypoint, il salvataggio non c’è.",
     )
-    pdf.bullet("Annulla", "Toglie la misura e la linea gialla.")
-    pdf.p("Ri-tap sullo stesso pin: lo togli dalla coppia. Un terzo tap sostituisce il secondo punto.")
-    pdf.bullet(
-        "Chiudi Vai a BASE",
-        "Ferma la navigazione (distanza e freccia). Non cancella i WP in mappa.",
+    pdf.note(
+        "In sala TOC gli stessi confini si accendono con il tasto Confini. "
+        "Per aggiungere o togliere un comune: Anagrafica → Confini comunali. "
+        "Non serve una nuova APK né una nuova IPA."
     )
 
-    pdf.h1("9.  Cosa fare se…")
+    pdf.h1("8.  Cosa fare se…")
     pdf.bullet("Non vedo un operatore in mappa", "È online? Ha il GPS? Il flag visibile è acceso? Solo LUPO vede i nascosti.")
     pdf.bullet(
         "Non vedo i confini comunali",
@@ -599,7 +677,7 @@ def build() -> Path:
     )
     pdf.bullet(
         "Ho inserito un WP e non voglio navigarci",
-        "Normale: compare solo in mappa. La navigazione parte solo se la avvii tu (cap. 8).",
+        "Normale: compare solo in mappa. La navigazione parte solo se la avvii tu (punti 7.3 e 7.6).",
     )
     pdf.ios(
         "L’app non si installa da Diawi",

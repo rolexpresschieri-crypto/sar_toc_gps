@@ -132,6 +132,7 @@ export function TocLoginForm({
   onLogin: (e: FormEvent) => void;
   onChangeEnte: () => void;
 }) {
+  const [showPassword, setShowPassword] = useState(false);
   return (
     <main className={`${styles.root} ${styles.loginScreen}`}>
       <div className={styles.loginLayout}>
@@ -146,7 +147,7 @@ export function TocLoginForm({
         <form className={styles.loginCard} onSubmit={onLogin}>
           <h1>Login TOC SAR</h1>
           <input
-            placeholder="Ente"
+            placeholder="Codice TOC"
             value={loginEnte}
             onChange={(e) => setLoginEnte(e.target.value.toUpperCase())}
             disabled={enteLocked}
@@ -154,7 +155,7 @@ export function TocLoginForm({
           />
           {enteLocked ? (
             <button type="button" className={styles.changeEnte} onClick={onChangeEnte}>
-              Cambia ente
+              Cambia TOC
             </button>
           ) : null}
           <input
@@ -163,13 +164,26 @@ export function TocLoginForm({
             onChange={(e) => setLoginCode(e.target.value.toUpperCase())}
             autoComplete="username"
           />
-          <input
-            type="password"
-            placeholder="Password"
-            value={loginPassword}
-            onChange={(e) => setLoginPassword(e.target.value)}
-            autoComplete="current-password"
-          />
+          <label className={styles.loginField}>
+            Password
+            <div className={styles.passwordWrap}>
+              <input
+                type={showPassword ? "text" : "password"}
+                placeholder="Password"
+                value={loginPassword}
+                onChange={(e) => setLoginPassword(e.target.value)}
+                autoComplete="current-password"
+              />
+              <button
+                type="button"
+                className={styles.passwordEye}
+                onClick={() => setShowPassword((v) => !v)}
+                aria-label={showPassword ? "Nascondi password" : "Mostra password"}
+              >
+                <PasswordEyeIcon slashed={!showPassword} />
+              </button>
+            </div>
+          </label>
           <button className={styles.loginBtn} type="submit" disabled={loginBusy}>
             {loginBusy ? "Accesso…" : "Accedi"}
           </button>
@@ -178,5 +192,22 @@ export function TocLoginForm({
       </div>
       <p className={styles.loginSignature}>by R. Ronco</p>
     </main>
+  );
+}
+
+function PasswordEyeIcon({ slashed }: { slashed: boolean }) {
+  return (
+    <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
+      <path
+        d="M2.2 12S5.8 6.2 12 6.2 21.8 12 21.8 12 18.2 17.8 12 17.8 2.2 12 2.2 12z"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.8"
+      />
+      <circle cx="12" cy="12" r="2.4" fill="currentColor" />
+      {slashed ? (
+        <path d="M5 18 L19 6" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+      ) : null}
+    </svg>
   );
 }
