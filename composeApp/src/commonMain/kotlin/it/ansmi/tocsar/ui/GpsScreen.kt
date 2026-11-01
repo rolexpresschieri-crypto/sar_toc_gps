@@ -99,6 +99,8 @@ import it.ansmi.tocsar.geo.loadCompassHeadingOffset
 import it.ansmi.tocsar.geo.normalizeHeadingDegrees
 import it.ansmi.tocsar.geo.parseCoord
 import it.ansmi.tocsar.geo.pickGpsImportFile
+import it.ansmi.tocsar.geo.displayLocalTrackLabel
+import it.ansmi.tocsar.geo.displayMissionTrackLabel
 import it.ansmi.tocsar.geo.safeGpsFileStem
 import it.ansmi.tocsar.geo.sanitizeGpsStem
 import it.ansmi.tocsar.geo.saveCompassHeadingOffset
@@ -1518,7 +1520,7 @@ private fun WpTrkDialog(
                         }
                         if (expanded) {
                             groupTrks.sortedBy { it.name }.forEach { trk ->
-                                val label = trk.name.substringBeforeLast('.').ifBlank { trk.name }
+                                val label = displayMissionTrackLabel(trk.name)
                                 Column(
                                     modifier = Modifier
                                         .fillMaxWidth()
@@ -1602,7 +1604,7 @@ private fun WpTrkDialog(
                                 enabled = !busy,
                             )
                             Column(modifier = Modifier.weight(1f)) {
-                                Text(trk.name, fontWeight = FontWeight.Bold)
+                                Text(displayLocalTrackLabel(trk.name), fontWeight = FontWeight.Bold)
                                 Text("${trk.nPoints} punti", fontSize = 12.sp, color = Color(0xFF616161))
                             }
                         }

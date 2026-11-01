@@ -63,6 +63,17 @@ function escapeHtml(value: string): string {
     .replaceAll('"', "&quot;");
 }
 
+/** Etichetta TRK missione: solo il numero (01_Zona… → 01; …_01 → 01). */
+function displayMissionTrackLabel(name: string): string {
+  const stem = name.replace(/\.trk$/i, "").trim();
+  const leading = stem.match(/^(\d+)(?:_|$)/);
+  if (leading?.[1]) {
+    return leading[1];
+  }
+  const trailing = stem.match(/_(\d+)$/);
+  return trailing?.[1] ?? stem;
+}
+
 function formatLatLon(lat: number, lon: number): string {
   return `${lat.toFixed(6)} / ${lon.toFixed(6)}`;
 }
@@ -558,7 +569,7 @@ export default function SarLiveMap({
         if (item.kind === "trk") {
           tracks.push({
             path: file.path,
-            name: file.name.replace(/\.trk$/i, ""),
+            name: displayMissionTrackLabel(file.name),
             segments: item.segments,
             color: TRACK_COLORS[colorIndex % TRACK_COLORS.length]!,
           });
@@ -810,7 +821,9 @@ export default function SarLiveMap({
                                 checked={missionSelected.has(file.path)}
                                 onChange={() => toggleMissionFile(file.path)}
                               />
-                              {file.name}
+                              {file.kind === "trk"
+                                ? displayMissionTrackLabel(file.name)
+                                : file.name}
                             </label>
                           ))
                         : null}

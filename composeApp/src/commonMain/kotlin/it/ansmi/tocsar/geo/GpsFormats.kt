@@ -78,6 +78,27 @@ fun formatAppTrackName(freeName: String): String {
 fun safeGpsFileStem(name: String): String =
     name.trim().uppercase().replace(Regex("[^\\w\\-]+"), "_")
 
+/** Etichetta TRK missione: solo il numero (01_Zona… → 01; …_01 → 01). */
+fun displayMissionTrackLabel(name: String): String {
+    val stem = name.trim().substringBeforeLast('.').ifBlank { name.trim() }
+    Regex("""^(\d+)(?:_|$)""").find(stem)?.groupValues?.getOrNull(1)?.let { return it }
+    return Regex("""_(\d+)$""").find(stem)?.groupValues?.getOrNull(1) ?: stem
+}
+
+/** Etichetta TRK locale: solo il nominativo dopo CODICE_TRK_ (es. LUPO_TRK_bonifica → bonifica). */
+fun displayLocalTrackLabel(name: String): String {
+    val stem = name.trim().substringBeforeLast('.').ifBlank { name.trim() }
+    val marker = "_TRK_"
+    val idx = stem.indexOf(marker, ignoreCase = true)
+    if (idx >= 0) {
+        val rest = stem.substring(idx + marker.length).trim('_')
+        if (rest.isNotEmpty()) {
+            return rest
+        }
+    }
+    return stem
+}
+
 fun encodeTrkFile(points: List<TrackPoint>): String {
     val buf = StringBuilder("lat,lon,alt\n")
     for (p in points) {
