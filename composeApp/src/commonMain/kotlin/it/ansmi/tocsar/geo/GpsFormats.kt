@@ -85,6 +85,20 @@ fun displayMissionTrackLabel(name: String): String {
     return Regex("""_(\d+)$""").find(stem)?.groupValues?.getOrNull(1) ?: stem
 }
 
+/** Solo il numero da mettere in mappa; null se il nome non ha un codice numerico. */
+fun displayTrackMapNumber(name: String): String? {
+    val label = displayMissionTrackLabel(name)
+    return label.takeIf { it.matches(Regex("""^\d+$""")) }
+}
+
+/** Punto etichetta TRK: metà del segmento con più punti (come TOC). */
+fun trackLabelAnchor(points: List<TrackPoint>): TrackPoint? {
+    val segments = splitTrackSegments(points)
+    val best = segments.maxByOrNull { it.size } ?: return null
+    if (best.isEmpty()) return null
+    return best[(best.size - 1) / 2]
+}
+
 /** Etichetta TRK locale: solo il nominativo dopo CODICE_TRK_ (es. LUPO_TRK_bonifica → bonifica). */
 fun displayLocalTrackLabel(name: String): String {
     val stem = name.trim().substringBeforeLast('.').ifBlank { name.trim() }

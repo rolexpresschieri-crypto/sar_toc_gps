@@ -821,9 +821,7 @@ export default function SarLiveMap({
                                 checked={missionSelected.has(file.path)}
                                 onChange={() => toggleMissionFile(file.path)}
                               />
-                              {file.kind === "trk"
-                                ? displayMissionTrackLabel(file.name)
-                                : file.name}
+                              {file.name}
                             </label>
                           ))
                         : null}

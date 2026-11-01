@@ -19,7 +19,9 @@ import it.ansmi.tocsar.AndroidAppContext
 import it.ansmi.tocsar.backend.LiveOperatorPin
 import it.ansmi.tocsar.geo.MapTrackOverlay
 import it.ansmi.tocsar.geo.WaypointItem
+import it.ansmi.tocsar.geo.displayTrackMapNumber
 import it.ansmi.tocsar.geo.splitTrackSegments
+import it.ansmi.tocsar.geo.trackLabelAnchor
 import org.osmdroid.config.Configuration
 import org.osmdroid.events.MapListener
 import org.osmdroid.events.ScrollEvent
@@ -429,6 +431,19 @@ private fun rebuildOverlays(
                 },
             )
         }
+        val mapNumber = displayTrackMapNumber(t.name) ?: continue
+        val anchor = trackLabelAnchor(t.points) ?: continue
+        val pill = createTrackNumberBitmap(map, mapNumber, stroke)
+        map.overlays.add(
+            Marker(map).apply {
+                position = GeoPoint(anchor.lat, anchor.lon)
+                title = "TRK_NUM_${t.name}"
+                setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER)
+                icon = BitmapDrawable(map.context.resources, pill)
+                setInfoWindow(null)
+                setOnMarkerClickListener { _, _ -> true }
+            },
+        )
     }
 
     if (baseLat != null && baseLon != null && deviceLat != null && deviceLon != null) {
@@ -961,6 +976,24 @@ private fun createOperatorPinBitmap(
         density = density,
     )
     return AnchoredBitmap(bmp, (cy / h).coerceIn(0.05f, 0.95f))
+}
+
+private fun createTrackNumberBitmap(map: MapView, number: String, borderColor: Int): Bitmap {
+    val density = map.resources.displayMetrics.density
+    val w = (48 * density).toInt().coerceAtLeast(40)
+    val h = (28 * density).toInt().coerceAtLeast(24)
+    val bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+    val c = AndroidCanvas(bmp)
+    drawLabelPill(
+        c = c,
+        text = number,
+        cx = w / 2f,
+        top = 2f * density,
+        maxWidth = w - 4f * density,
+        borderColor = borderColor,
+        density = density,
+    )
+    return bmp
 }
 
 private fun drawLabelPill(

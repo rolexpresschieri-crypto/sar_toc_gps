@@ -13,7 +13,9 @@ import it.ansmi.tocsar.geo.ComunePolygonRings
 import it.ansmi.tocsar.geo.LatLon
 import it.ansmi.tocsar.geo.TrackPoint
 import it.ansmi.tocsar.geo.WaypointItem
+import it.ansmi.tocsar.geo.displayTrackMapNumber
 import it.ansmi.tocsar.geo.splitTrackSegments
+import it.ansmi.tocsar.geo.trackLabelAnchor
 import kotlinx.cinterop.BetaInteropApi
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.ObjCAction
@@ -68,6 +70,7 @@ private const val KindGps = "toc.gps"
 private const val KindWp = "toc.wp"
 private const val KindOp = "toc.op"
 private const val KindBase = "toc.base"
+private const val KindTrk = "toc.trk"
 
 private class PolyStyle(
     val overlay: MKPolyline,
@@ -307,6 +310,10 @@ private fun applyMarkerTint(
                 if (selected) yellow else UIColor.colorWithRed(0.027, 0.608, 0.259, alpha = 1.0)
             view.glyphText = title?.take(3)
         }
+        KindTrk -> {
+            view.markerTintColor = UIColor.colorWithRed(0.082, 0.396, 0.753, alpha = 1.0)
+            view.glyphText = title
+        }
         else -> view.markerTintColor = UIColor.blueColor
     }
 }
@@ -391,6 +398,7 @@ private fun rebuildStaticOverlays(map: MKMapView, state: IosMapRuntime, model: G
     state.pinAnnotations = emptyList()
 
     val tracks = mutableListOf<MKPolyline>()
+    val pins = mutableListOf<TaggedPin>()
     for (t in model.overlayTracks) {
         val color = colorFromHex(t.colorHex, fallback = 0xC62828)
         for (segment in splitTrackSegments(t.points)) {
@@ -399,10 +407,22 @@ private fun rebuildStaticOverlays(map: MKMapView, state: IosMapRuntime, model: G
             map.addOverlay(line, level = MKOverlayLevelAboveLabels)
             tracks.add(line)
         }
+        val mapNumber = displayTrackMapNumber(t.name)
+        val anchor = trackLabelAnchor(t.points)
+        if (mapNumber != null && anchor != null) {
+            pins.add(
+                makePin(
+                    mapNumber,
+                    anchor.lat,
+                    anchor.lon,
+                    KindTrk,
+                    MapOverlayTap.Track(t.name, t.points),
+                ),
+            )
+        }
     }
     state.trackOverlays = tracks
 
-    val pins = mutableListOf<TaggedPin>()
     val baseLat = model.baseLat
     val baseLon = model.baseLon
     if (baseLat != null && baseLon != null) {
