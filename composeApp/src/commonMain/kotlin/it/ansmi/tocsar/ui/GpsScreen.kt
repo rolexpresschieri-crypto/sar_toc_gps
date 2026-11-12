@@ -126,6 +126,7 @@ enum class GpsMenuAction {
     Mappa,
     ClearData,
     CalcolaRotta,
+    Bussola,
 }
 
 @Composable
@@ -416,13 +417,19 @@ fun GpsScreen(
         showMap = true
     }
 
+    fun leaveMap() {
+        showMap = false
+        // Da sottomenu GPS (mappa / start trk / dopo WP): torna a Tracking operatori SAR
+        if (initialAction != GpsMenuAction.CalcolaRotta) onBack()
+    }
+
     LaunchedEffect(initialAction) {
         when (initialAction) {
             GpsMenuAction.StartTrk -> {
                 val stopping = trkRecording || OperatorGpsTracking.isTrkRecording()
                 toggleTrk()
-                // Avvio TRK: torna alla home (il service continua). Stop: resta per salvare.
-                if (!stopping) onBack()
+                // Avvio TRK: apre la mappa. Stop: resta per salvare, poi home.
+                if (!stopping) openMap()
             }
             GpsMenuAction.InsWp -> {
                 wpSeedLat = latBase
@@ -438,11 +445,12 @@ fun GpsScreen(
                 onBack()
             }
             GpsMenuAction.CalcolaRotta -> Unit
+            GpsMenuAction.Bussola -> onBack() // gestito da AppRoute.Compass
         }
     }
 
     AppBackHandler(enabled = true) {
-        if (showMap) showMap = false else onBack()
+        if (showMap) leaveMap() else onBack()
     }
 
     val tripDistShown = when {
@@ -743,7 +751,7 @@ fun GpsScreen(
                 tripDistBase = GpsFieldSession.tripDistBase,
                 onToggleTrip = { GpsFieldSession.toggle() },
                 onResetTrip = { GpsFieldSession.resetClock() },
-                onBack = { showMap = false },
+                onBack = { leaveMap() },
                 onNavigateFromSelf = { dest ->
                     startNavigateTo(dest.label, dest.latitude, dest.longitude, dest.altitudeM)
                 },
@@ -873,7 +881,10 @@ fun GpsScreen(
             initialAlt = wpSeedAlt,
             initialAcc = wpSeedAcc,
             location = location,
-            onDismiss = { showInsWp = false },
+            onDismiss = {
+                showInsWp = false
+                if (initialAction == GpsMenuAction.InsWp) onBack()
+            },
             onSaved = { wp, _ ->
                 showInsWp = false
                 GpsFieldSession.overlayWaypoints = GpsFieldSession.overlayWaypoints.filterNot {
@@ -907,6 +918,7 @@ fun GpsScreen(
                 pendingSavePoints = emptyList()
                 pendingSaveDurationMs = 0L
                 trackPoints.clear()
+                if (initialAction == GpsMenuAction.StartTrk) onBack()
             },
             onSaved = { name, points ->
                 showSaveTrk = false
@@ -920,6 +932,7 @@ fun GpsScreen(
                     colorHex = TrackColors[GpsFieldSession.overlayTracks.size % TrackColors.size],
                 )
                 toast("Traccia $name salvata")
+                if (initialAction == GpsMenuAction.StartTrk) onBack()
             },
             toast = ::toast,
         )
@@ -933,7 +946,10 @@ fun GpsScreen(
             store = store,
             selectedWp = selectedWpFlags,
             selectedTrk = selectedTrkFlags,
-            onDismiss = { showWpTrk = false },
+            onDismiss = {
+                showWpTrk = false
+                if (initialAction == GpsMenuAction.WpAndTrk) onBack()
+            },
             onShowOnMap = { wps, tracks ->
                 showWpTrk = false
                 GpsFieldSession.overlayWaypoints = wps
@@ -943,6 +959,9 @@ fun GpsScreen(
             onNavigateToWaypoint = { wp ->
                 showWpTrk = false
                 startNavigateTo(wp.name, wp.lat, wp.lon, wp.alt)
+                if (initialAction == GpsMenuAction.WpAndTrk) {
+                    // resta su Calcola rotta in navigazione
+                }
             },
             onInspectTrack = { name, points ->
                 inspectTrack = name to points

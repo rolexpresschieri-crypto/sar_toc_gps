@@ -347,6 +347,8 @@ private fun HomeSideMenu(
         )
         if (isLogged && gpsExpanded) {
             Spacer(modifier = Modifier.height(10.dp))
+            val subBg = TacticalNavy
+            val subFg = TacticalYellow
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -355,44 +357,51 @@ private fun HomeSideMenu(
             ) {
                 MainButton(
                     label = if (trkOn) "STOP TRK" else "START TRK",
-                    backgroundColor = menuBg,
-                    foregroundColor = menuFg,
+                    backgroundColor = subBg,
+                    foregroundColor = subFg,
                     onClick = { onOpenGps(GpsMenuAction.StartTrk) },
                 )
                 Spacer(modifier = Modifier.height(10.dp))
                 MainButton(
                     label = "INS WP",
-                    backgroundColor = menuBg,
-                    foregroundColor = menuFg,
+                    backgroundColor = subBg,
+                    foregroundColor = subFg,
                     onClick = { onOpenGps(GpsMenuAction.InsWp) },
                 )
                 Spacer(modifier = Modifier.height(10.dp))
                 MainButton(
                     label = "WP & TRK",
-                    backgroundColor = menuBg,
-                    foregroundColor = menuFg,
+                    backgroundColor = subBg,
+                    foregroundColor = subFg,
                     onClick = { onOpenGps(GpsMenuAction.WpAndTrk) },
                 )
                 Spacer(modifier = Modifier.height(10.dp))
                 MainButton(
                     label = "MAPPA",
-                    backgroundColor = menuBg,
-                    foregroundColor = menuFg,
+                    backgroundColor = subBg,
+                    foregroundColor = subFg,
                     onClick = { onOpenGps(GpsMenuAction.Mappa) },
                 )
                 Spacer(modifier = Modifier.height(10.dp))
                 MainButton(
                     label = "CLEAR DATA",
-                    backgroundColor = menuBg,
-                    foregroundColor = menuFg,
+                    backgroundColor = subBg,
+                    foregroundColor = subFg,
                     onClick = { onOpenGps(GpsMenuAction.ClearData) },
                 )
                 Spacer(modifier = Modifier.height(10.dp))
                 MainButton(
                     label = "CALCOLA ROTTA",
-                    backgroundColor = menuBg,
-                    foregroundColor = menuFg,
+                    backgroundColor = subBg,
+                    foregroundColor = subFg,
                     onClick = { onOpenGps(GpsMenuAction.CalcolaRotta) },
+                )
+                Spacer(modifier = Modifier.height(10.dp))
+                MainButton(
+                    label = "BUSSOLA",
+                    backgroundColor = subBg,
+                    foregroundColor = subFg,
+                    onClick = { onOpenGps(GpsMenuAction.Bussola) },
                 )
             }
         }

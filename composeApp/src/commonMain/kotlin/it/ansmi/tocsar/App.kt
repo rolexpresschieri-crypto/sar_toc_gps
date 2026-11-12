@@ -29,6 +29,7 @@ import it.ansmi.tocsar.epochMs
 import it.ansmi.tocsar.ui.GpsFieldSession
 import it.ansmi.tocsar.ui.SendNotifyScreen
 import it.ansmi.tocsar.ui.SendPhotoScreen
+import it.ansmi.tocsar.ui.CompassScreen
 import it.ansmi.tocsar.ui.GpsMenuAction
 import it.ansmi.tocsar.ui.GpsScreen
 import it.ansmi.tocsar.ui.HomeScreen
@@ -47,6 +48,7 @@ private enum class AppRoute {
     Home,
     Login,
     Gps,
+    Compass,
     OnlineOperators,
     SendNotify,
     SendPhoto,
@@ -267,8 +269,12 @@ fun App() {
                             route = AppRoute.SendPhoto
                         },
                         onOpenGps = { action ->
-                            gpsMenuAction = action
-                            route = AppRoute.Gps
+                            if (action == GpsMenuAction.Bussola) {
+                                route = AppRoute.Compass
+                            } else {
+                                gpsMenuAction = action
+                                route = AppRoute.Gps
+                            }
                         },
                         onOpenOnlineOperators =
                             if (session != null && isTocAdminOperator(session!!.operatorCode)) {
@@ -459,6 +465,13 @@ fun App() {
                         operatorId = session?.operatorId,
                         operatorName = session?.displayName,
                     )
+                }
+            }
+            AppRoute.Compass -> {
+                if (session == null) {
+                    route = AppRoute.Home
+                } else {
+                    CompassScreen(onBack = { route = AppRoute.Home })
                 }
             }
         }
