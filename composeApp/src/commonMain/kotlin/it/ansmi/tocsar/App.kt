@@ -29,6 +29,7 @@ import it.ansmi.tocsar.epochMs
 import it.ansmi.tocsar.ui.GpsFieldSession
 import it.ansmi.tocsar.ui.SendNotifyScreen
 import it.ansmi.tocsar.ui.SendPhotoScreen
+import it.ansmi.tocsar.ui.GpsMenuAction
 import it.ansmi.tocsar.ui.GpsScreen
 import it.ansmi.tocsar.ui.HomeScreen
 import it.ansmi.tocsar.ui.LoginScreen
@@ -54,6 +55,7 @@ private enum class AppRoute {
 @Composable
 fun App() {
     var route by remember { mutableStateOf(AppRoute.Login) }
+    var gpsMenuAction by remember { mutableStateOf(GpsMenuAction.CalcolaRotta) }
     var session by remember { mutableStateOf<OperatorSession?>(null) }
     var tocMessage by remember { mutableStateOf<String?>(null) }
     var lastTocPushId by remember { mutableStateOf<String?>(null) }
@@ -264,7 +266,10 @@ fun App() {
                             photoError = null
                             route = AppRoute.SendPhoto
                         },
-                        onOpenGps = { route = AppRoute.Gps },
+                        onOpenGps = { action ->
+                            gpsMenuAction = action
+                            route = AppRoute.Gps
+                        },
                         onOpenOnlineOperators =
                             if (session != null && isTocAdminOperator(session!!.operatorCode)) {
                                 { route = AppRoute.OnlineOperators }
@@ -446,6 +451,7 @@ fun App() {
                 } else {
                     GpsScreen(
                         onBack = { route = AppRoute.Home },
+                        initialAction = gpsMenuAction,
                         navigatorLabel = session?.operatorCode,
                         organizationId = session?.organizationId,
                         eventId = session?.eventId,

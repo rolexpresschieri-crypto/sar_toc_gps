@@ -86,7 +86,7 @@ fun HomeScreen(
     onLogout: () -> Unit,
     onSendNotify: () -> Unit,
     onSendPhoto: () -> Unit,
-    onOpenGps: () -> Unit,
+    onOpenGps: (GpsMenuAction) -> Unit,
     onOpenOnlineOperators: (() -> Unit)? = null,
     onOpenSettings: () -> Unit = { openAppSystemSettings() },
 ) {
@@ -283,9 +283,9 @@ fun HomeScreen(
                             menuOpen = false
                             onSendPhoto()
                         },
-                        onOpenGps = {
+                        onOpenGps = { action ->
                             menuOpen = false
-                            onOpenGps()
+                            onOpenGps(action)
                         },
                         onOpenOnlineOperators = onOpenOnlineOperators?.let { open ->
                             {
@@ -305,11 +305,13 @@ private fun HomeSideMenu(
     isLogged: Boolean,
     onSendNotify: () -> Unit,
     onSendPhoto: () -> Unit,
-    onOpenGps: () -> Unit,
+    onOpenGps: (GpsMenuAction) -> Unit,
     onOpenOnlineOperators: (() -> Unit)?,
 ) {
     val menuBg = if (isLogged) TacticalYellow else TacticalDisabled
     val menuFg = if (isLogged) Color.Black else TacticalMuted
+    var gpsExpanded by remember { mutableStateOf(false) }
+    val trkOn = OperatorGpsTracking.isTrkRecording() || GpsFieldSession.trkActive
     Column(
         modifier = Modifier.fillMaxWidth(),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -332,8 +334,68 @@ private fun HomeSideMenu(
             label = "GPS",
             backgroundColor = menuBg,
             foregroundColor = menuFg,
-            onClick = if (isLogged) onOpenGps else null,
+            trailing = if (isLogged) {
+                if (gpsExpanded) "▼" else "▶"
+            } else {
+                null
+            },
+            onClick = if (isLogged) {
+                { gpsExpanded = !gpsExpanded }
+            } else {
+                null
+            },
         )
+        if (isLogged && gpsExpanded) {
+            Spacer(modifier = Modifier.height(10.dp))
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 18.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                MainButton(
+                    label = if (trkOn) "STOP TRK" else "START TRK",
+                    backgroundColor = menuBg,
+                    foregroundColor = menuFg,
+                    onClick = { onOpenGps(GpsMenuAction.StartTrk) },
+                )
+                Spacer(modifier = Modifier.height(10.dp))
+                MainButton(
+                    label = "INS WP",
+                    backgroundColor = menuBg,
+                    foregroundColor = menuFg,
+                    onClick = { onOpenGps(GpsMenuAction.InsWp) },
+                )
+                Spacer(modifier = Modifier.height(10.dp))
+                MainButton(
+                    label = "WP & TRK",
+                    backgroundColor = menuBg,
+                    foregroundColor = menuFg,
+                    onClick = { onOpenGps(GpsMenuAction.WpAndTrk) },
+                )
+                Spacer(modifier = Modifier.height(10.dp))
+                MainButton(
+                    label = "MAPPA",
+                    backgroundColor = menuBg,
+                    foregroundColor = menuFg,
+                    onClick = { onOpenGps(GpsMenuAction.Mappa) },
+                )
+                Spacer(modifier = Modifier.height(10.dp))
+                MainButton(
+                    label = "CLEAR DATA",
+                    backgroundColor = menuBg,
+                    foregroundColor = menuFg,
+                    onClick = { onOpenGps(GpsMenuAction.ClearData) },
+                )
+                Spacer(modifier = Modifier.height(10.dp))
+                MainButton(
+                    label = "CALCOLA ROTTA",
+                    backgroundColor = menuBg,
+                    foregroundColor = menuFg,
+                    onClick = { onOpenGps(GpsMenuAction.CalcolaRotta) },
+                )
+            }
+        }
         if (onOpenOnlineOperators != null) {
             Spacer(modifier = Modifier.height(14.dp))
             MainButton(
@@ -436,6 +498,7 @@ private fun MainButton(
     foregroundColor: Color,
     onClick: (() -> Unit)?,
     modifier: Modifier = Modifier,
+    trailing: String? = null,
 ) {
     Button(
         onClick = { onClick?.invoke() },
@@ -448,14 +511,35 @@ private fun MainButton(
             disabledContainerColor = backgroundColor,
             disabledContentColor = foregroundColor,
         ),
-        contentPadding = PaddingValues(vertical = 16.dp),
+        contentPadding = PaddingValues(vertical = 16.dp, horizontal = 14.dp),
     ) {
-        Text(
-            text = label,
-            textAlign = TextAlign.Center,
-            fontSize = 18.sp,
-            fontWeight = FontWeight.ExtraBold,
-        )
+        if (trailing == null) {
+            Text(
+                text = label,
+                textAlign = TextAlign.Center,
+                fontSize = 18.sp,
+                fontWeight = FontWeight.ExtraBold,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        } else {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = label,
+                    textAlign = TextAlign.Center,
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    modifier = Modifier.weight(1f),
+                )
+                Text(
+                    text = trailing,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                )
+            }
+        }
     }
 }
 
