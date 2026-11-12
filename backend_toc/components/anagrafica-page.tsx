@@ -394,7 +394,7 @@ export default function AnagraficaPage() {
         if (!wasEnabled || !editingRow || codeChanged) {
           if (
             wouldExceedUserSeatLimit({
-              orgCode: session.organizationCode,
+              orgCode: session?.organizationCode,
               appCodes: snap.appCodes,
               backendCodes: snap.backendCodes,
               nextCode: code,
