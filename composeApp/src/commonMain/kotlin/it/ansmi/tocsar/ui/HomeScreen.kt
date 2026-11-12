@@ -4,6 +4,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -42,6 +43,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.zIndex
 import it.ansmi.tocsar.geo.OperatorGpsTracking
 import it.ansmi.tocsar.geo.trackHorizDistanceM
 import it.ansmi.tocsar.openAppSystemSettings
@@ -95,156 +97,199 @@ fun HomeScreen(
     var menuOpen by remember { mutableStateOf(false) }
     val enteCode = session?.organizationCode ?: rememberedOrgCode
 
-    Column(
+    Box(
         modifier = Modifier
             .fillMaxSize()
-            .windowInsetsPadding(WindowInsets.safeDrawing)
-            .verticalScroll(scroll)
-            .padding(horizontal = 16.dp, vertical = 10.dp)
-            .padding(bottom = 12.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
+            .windowInsetsPadding(WindowInsets.safeDrawing),
     ) {
-        Row(
+        Column(
             modifier = Modifier
-                .fillMaxWidth()
-                .offset(x = (-8).dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween,
+                .fillMaxSize()
+                .verticalScroll(scroll)
+                .padding(horizontal = 16.dp, vertical = 10.dp)
+                .padding(bottom = 12.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
-                if (!enteCode.isNullOrBlank()) {
-                    EnteLogoImage(
-                        orgCode = enteCode,
-                        modifier = Modifier
-                            .height(72.dp)
-                            .fillMaxWidth(0.6f),
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .offset(x = (-18).dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
+                    if (!enteCode.isNullOrBlank()) {
+                        EnteLogoImage(
+                            orgCode = enteCode,
+                            modifier = Modifier
+                                .height(72.dp)
+                                .fillMaxWidth(0.62f),
+                        )
+                    }
+                }
+                Box(modifier = Modifier.offset(x = 18.dp)) {
+                    HamburgerToggle(
+                        open = false,
+                        onClick = { menuOpen = true },
                     )
                 }
             }
-            Box(modifier = Modifier.offset(x = 8.dp)) {
-                HamburgerToggle(
-                    open = menuOpen,
-                    onClick = { menuOpen = !menuOpen },
-                )
-            }
-        }
 
-        if (menuOpen) {
-            Spacer(modifier = Modifier.height(10.dp))
-            HomeSideMenu(
-                isLogged = isLogged,
-                onLogin = {
-                    menuOpen = false
-                    onLogin()
-                },
-                onSendNotify = {
-                    menuOpen = false
-                    onSendNotify()
-                },
-                onSendPhoto = {
-                    menuOpen = false
-                    onSendPhoto()
-                },
-                onOpenGps = {
-                    menuOpen = false
-                    onOpenGps()
-                },
-                onOpenOnlineOperators = onOpenOnlineOperators?.let { open ->
-                    {
-                        menuOpen = false
-                        open()
-                    }
-                },
-            )
-        }
-
-        Spacer(modifier = Modifier.height(16.dp))
-        Text(
-            text = "Tracking",
-            textAlign = TextAlign.Center,
-            style = WhiteTitleStyle.copy(fontSize = 32.sp, letterSpacing = 0.8.sp),
-        )
-        Text(
-            text = "Operatori SAR",
-            textAlign = TextAlign.Center,
-            style = WhiteTitleStyle.copy(
-                fontSize = 34.sp,
-                fontWeight = FontWeight.Black,
-                letterSpacing = 1.0.sp,
-            ),
-            modifier = Modifier.padding(top = 2.dp, bottom = 18.dp),
-        )
-
-        NotificationPanel(
-            message = tocMessage,
-            modifier = Modifier.padding(bottom = 10.dp),
-        )
-        MainButton(
-            label = "Reset notifica",
-            backgroundColor = if (isLogged) TacticalNavy else TacticalDisabled,
-            foregroundColor = if (isLogged) Color.White else TacticalMuted,
-            onClick = if (isLogged) onResetNotification else null,
-            modifier = Modifier.padding(bottom = 12.dp),
-        )
-
-        val boxColor = if (isLogged) TacticalGreen else Color.Black.copy(alpha = 0.48f)
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(boxColor, RoundedCornerShape(12.dp))
-                .border(1.dp, Color.White.copy(alpha = 0.35f), RoundedCornerShape(12.dp))
-                .padding(14.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
+            Spacer(modifier = Modifier.height(16.dp))
             Text(
-                text = if (isLogged && session != null) {
-                    "${session.organizationCode} · ${session.operatorCode} · ${session.displayName} + ${session.loginLabel}"
-                } else {
-                    "Nessun operatore loggato"
-                },
+                text = "Tracking",
                 textAlign = TextAlign.Center,
-                style = TextStyle(
-                    color = Color.White,
-                    fontWeight = FontWeight.ExtraBold,
-                    fontSize = 15.sp,
-                ),
+                style = WhiteTitleStyle.copy(fontSize = 32.sp, letterSpacing = 0.8.sp),
             )
-        }
+            Text(
+                text = "Operatori SAR",
+                textAlign = TextAlign.Center,
+                style = WhiteTitleStyle.copy(
+                    fontSize = 34.sp,
+                    fontWeight = FontWeight.Black,
+                    letterSpacing = 1.0.sp,
+                ),
+                modifier = Modifier.padding(top = 2.dp, bottom = 18.dp),
+            )
 
-        if (isLogged) {
-            Spacer(modifier = Modifier.height(10.dp))
-            gpsStatusLabel?.let { label ->
-                BodyText(
-                    text = label,
-                    fontSize = 13,
-                    color = TacticalYellow,
-                    modifier = Modifier.padding(bottom = 10.dp),
-                )
-            }
-            FieldSessionStatus()
-            MainButton(
-                label = "Impostazioni TOC SAR",
-                backgroundColor = TacticalNavy,
-                foregroundColor = Color.White,
-                onClick = onOpenSettings,
+            NotificationPanel(
+                message = tocMessage,
                 modifier = Modifier.padding(bottom = 10.dp),
             )
             MainButton(
-                label = "Log-out",
-                backgroundColor = TacticalRed,
-                foregroundColor = Color.White,
-                onClick = onLogout,
+                label = "Reset notifica",
+                backgroundColor = if (isLogged) TacticalNavy else TacticalDisabled,
+                foregroundColor = if (isLogged) Color.White else TacticalMuted,
+                onClick = if (isLogged) onResetNotification else null,
+                modifier = Modifier.padding(bottom = 12.dp),
+            )
+
+            val boxColor = if (isLogged) TacticalGreen else Color.Black.copy(alpha = 0.48f)
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(boxColor, RoundedCornerShape(12.dp))
+                    .border(1.dp, Color.White.copy(alpha = 0.35f), RoundedCornerShape(12.dp))
+                    .padding(14.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Text(
+                    text = if (isLogged && session != null) {
+                        "${session.organizationCode} · ${session.operatorCode} · ${session.displayName} + ${session.loginLabel}"
+                    } else {
+                        "Nessun operatore loggato"
+                    },
+                    textAlign = TextAlign.Center,
+                    style = TextStyle(
+                        color = Color.White,
+                        fontWeight = FontWeight.ExtraBold,
+                        fontSize = 15.sp,
+                    ),
+                )
+            }
+
+            if (isLogged) {
+                Spacer(modifier = Modifier.height(10.dp))
+                gpsStatusLabel?.let { label ->
+                    BodyText(
+                        text = label,
+                        fontSize = 13,
+                        color = TacticalYellow,
+                        modifier = Modifier.padding(bottom = 10.dp),
+                    )
+                }
+                FieldSessionStatus()
+                MainButton(
+                    label = "Impostazioni TOC SAR",
+                    backgroundColor = TacticalNavy,
+                    foregroundColor = Color.White,
+                    onClick = onOpenSettings,
+                    modifier = Modifier.padding(bottom = 10.dp),
+                )
+                MainButton(
+                    label = "Log-out",
+                    backgroundColor = TacticalRed,
+                    foregroundColor = Color.White,
+                    onClick = onLogout,
+                )
+            }
+
+            Spacer(modifier = Modifier.height(14.dp))
+            Text(
+                text = "Operatori SAR / unità cinofile: login = tracking, allarmi e push",
+                color = Color.White.copy(alpha = 0.78f),
+                fontSize = 12.sp,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.padding(horizontal = 8.dp),
             )
         }
 
-        Spacer(modifier = Modifier.height(14.dp))
-        Text(
-            text = "Operatori SAR / unità cinofile: login = tracking, allarmi e push",
-            color = Color.White.copy(alpha = 0.78f),
-            fontSize = 12.sp,
-            textAlign = TextAlign.Center,
-            modifier = Modifier.padding(horizontal = 8.dp),
-        )
+        if (menuOpen) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .zIndex(10f)
+                    .background(Color.Black.copy(alpha = 0.78f))
+                    .clickable(
+                        indication = null,
+                        interactionSource = remember { MutableInteractionSource() },
+                        onClick = { menuOpen = false },
+                    ),
+            ) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(top = 10.dp, end = 16.dp)
+                        .clickable(
+                            indication = null,
+                            interactionSource = remember { MutableInteractionSource() },
+                            onClick = { menuOpen = false },
+                        ),
+                ) {
+                    HamburgerToggle(open = true, onClick = { menuOpen = false })
+                }
+
+                Column(
+                    modifier = Modifier
+                        .align(Alignment.Center)
+                        .fillMaxWidth()
+                        .padding(horizontal = 28.dp)
+                        .clickable(
+                            indication = null,
+                            interactionSource = remember { MutableInteractionSource() },
+                            onClick = {},
+                        ),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center,
+                ) {
+                    HomeSideMenu(
+                        isLogged = isLogged,
+                        onLogin = {
+                            menuOpen = false
+                            onLogin()
+                        },
+                        onSendNotify = {
+                            menuOpen = false
+                            onSendNotify()
+                        },
+                        onSendPhoto = {
+                            menuOpen = false
+                            onSendPhoto()
+                        },
+                        onOpenGps = {
+                            menuOpen = false
+                            onOpenGps()
+                        },
+                        onOpenOnlineOperators = onOpenOnlineOperators?.let { open ->
+                            {
+                                menuOpen = false
+                                open()
+                            }
+                        },
+                    )
+                }
+            }
+        }
     }
 }
 
@@ -258,11 +303,7 @@ private fun HomeSideMenu(
     onOpenOnlineOperators: (() -> Unit)?,
 ) {
     Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(Color(0xF0140A0C), RoundedCornerShape(14.dp))
-            .border(1.5.dp, TacticalYellow, RoundedCornerShape(14.dp))
-            .padding(12.dp),
+        modifier = Modifier.fillMaxWidth(),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         MainButton(
@@ -271,21 +312,21 @@ private fun HomeSideMenu(
             foregroundColor = if (isLogged) TacticalMuted else Color.White,
             onClick = if (!isLogged) onLogin else null,
         )
-        Spacer(modifier = Modifier.height(12.dp))
+        Spacer(modifier = Modifier.height(14.dp))
         MainButton(
             label = "INVIA NOTIFICA A TOC",
             backgroundColor = if (isLogged) TacticalRed else TacticalDisabled,
             foregroundColor = if (isLogged) Color.White else TacticalMuted,
             onClick = if (isLogged) onSendNotify else null,
         )
-        Spacer(modifier = Modifier.height(12.dp))
+        Spacer(modifier = Modifier.height(14.dp))
         MainButton(
             label = "INVIA FOTO A TOC",
             backgroundColor = if (isLogged) TacticalNavy else TacticalDisabled,
             foregroundColor = if (isLogged) Color.White else TacticalMuted,
             onClick = if (isLogged) onSendPhoto else null,
         )
-        Spacer(modifier = Modifier.height(12.dp))
+        Spacer(modifier = Modifier.height(14.dp))
         MainButton(
             label = "GPS",
             backgroundColor = if (isLogged) TacticalYellow else TacticalDisabled,
@@ -293,7 +334,7 @@ private fun HomeSideMenu(
             onClick = if (isLogged) onOpenGps else null,
         )
         if (onOpenOnlineOperators != null) {
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(14.dp))
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
