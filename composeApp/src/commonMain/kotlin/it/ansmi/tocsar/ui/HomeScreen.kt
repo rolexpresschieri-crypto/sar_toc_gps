@@ -12,11 +12,12 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
@@ -84,7 +85,6 @@ fun HomeScreen(
     gpsStatusLabel: String?,
     rememberedOrgCode: String? = null,
     onResetNotification: () -> Unit,
-    onLogin: () -> Unit,
     onLogout: () -> Unit,
     onSendNotify: () -> Unit,
     onSendPhoto: () -> Unit,
@@ -100,42 +100,53 @@ fun HomeScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .windowInsetsPadding(WindowInsets.safeDrawing),
+            .windowInsetsPadding(
+                WindowInsets.safeDrawing.only(
+                    WindowInsetsSides.Top + WindowInsetsSides.Bottom + WindowInsetsSides.End,
+                ),
+            ),
     ) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .verticalScroll(scroll)
-                .padding(horizontal = 16.dp, vertical = 10.dp)
                 .padding(bottom = 12.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .offset(x = (-18).dp),
+                    .padding(top = 10.dp, end = 16.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween,
             ) {
-                Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
+                Box(
+                    modifier = Modifier.weight(1f),
+                    contentAlignment = Alignment.CenterStart,
+                ) {
                     if (!enteCode.isNullOrBlank()) {
                         EnteLogoImage(
                             orgCode = enteCode,
+                            alignment = Alignment.CenterStart,
                             modifier = Modifier
-                                .height(72.dp)
-                                .fillMaxWidth(0.62f),
+                                .height(76.dp)
+                                .fillMaxWidth(0.75f),
                         )
                     }
                 }
-                Box(modifier = Modifier.offset(x = 18.dp)) {
-                    HamburgerToggle(
-                        open = false,
-                        onClick = { menuOpen = true },
-                    )
-                }
+                HamburgerToggle(
+                    open = false,
+                    onClick = { menuOpen = true },
+                )
             }
 
             Spacer(modifier = Modifier.height(16.dp))
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
             Text(
                 text = "Tracking",
                 textAlign = TextAlign.Center,
@@ -222,6 +233,7 @@ fun HomeScreen(
                 textAlign = TextAlign.Center,
                 modifier = Modifier.padding(horizontal = 8.dp),
             )
+            }
         }
 
         if (menuOpen) {
@@ -264,10 +276,6 @@ fun HomeScreen(
                 ) {
                     HomeSideMenu(
                         isLogged = isLogged,
-                        onLogin = {
-                            menuOpen = false
-                            onLogin()
-                        },
                         onSendNotify = {
                             menuOpen = false
                             onSendNotify()
@@ -296,62 +304,45 @@ fun HomeScreen(
 @Composable
 private fun HomeSideMenu(
     isLogged: Boolean,
-    onLogin: () -> Unit,
     onSendNotify: () -> Unit,
     onSendPhoto: () -> Unit,
     onOpenGps: () -> Unit,
     onOpenOnlineOperators: (() -> Unit)?,
 ) {
+    val menuBg = if (isLogged) TacticalYellow else TacticalDisabled
+    val menuFg = if (isLogged) Color.Black else TacticalMuted
     Column(
         modifier = Modifier.fillMaxWidth(),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         MainButton(
-            label = "Log-in",
-            backgroundColor = if (isLogged) TacticalDisabled else TacticalGreen,
-            foregroundColor = if (isLogged) TacticalMuted else Color.White,
-            onClick = if (!isLogged) onLogin else null,
-        )
-        Spacer(modifier = Modifier.height(14.dp))
-        MainButton(
             label = "INVIA NOTIFICA A TOC",
-            backgroundColor = if (isLogged) TacticalRed else TacticalDisabled,
-            foregroundColor = if (isLogged) Color.White else TacticalMuted,
+            backgroundColor = menuBg,
+            foregroundColor = menuFg,
             onClick = if (isLogged) onSendNotify else null,
         )
         Spacer(modifier = Modifier.height(14.dp))
         MainButton(
             label = "INVIA FOTO A TOC",
-            backgroundColor = if (isLogged) TacticalNavy else TacticalDisabled,
-            foregroundColor = if (isLogged) Color.White else TacticalMuted,
+            backgroundColor = menuBg,
+            foregroundColor = menuFg,
             onClick = if (isLogged) onSendPhoto else null,
         )
         Spacer(modifier = Modifier.height(14.dp))
         MainButton(
             label = "GPS",
-            backgroundColor = if (isLogged) TacticalYellow else TacticalDisabled,
-            foregroundColor = if (isLogged) Color.Black else TacticalMuted,
+            backgroundColor = menuBg,
+            foregroundColor = menuFg,
             onClick = if (isLogged) onOpenGps else null,
         )
         if (onOpenOnlineOperators != null) {
             Spacer(modifier = Modifier.height(14.dp))
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(TacticalNavy, RoundedCornerShape(12.dp))
-                    .border(1.dp, Color.White.copy(alpha = 0.35f), RoundedCornerShape(12.dp))
-                    .clickable(onClick = onOpenOnlineOperators)
-                    .padding(vertical = 16.dp, horizontal = 12.dp),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(
-                    text = "Operatori on line",
-                    textAlign = TextAlign.Center,
-                    color = Color.White,
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.ExtraBold,
-                )
-            }
+            MainButton(
+                label = "Operatori on line",
+                backgroundColor = TacticalYellow,
+                foregroundColor = Color.Black,
+                onClick = onOpenOnlineOperators,
+            )
         }
     }
 }

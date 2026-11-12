@@ -229,10 +229,6 @@ fun App() {
                                 toast("Notifica resettata sul telefono")
                             }
                         },
-                        onLogin = {
-                            loginError = null
-                            route = AppRoute.Login
-                        },
                         onLogout = {
                             if (logoutBusy) return@HomeScreen
                             val current = session

@@ -29,6 +29,7 @@ fun EnteLogoImage(
     orgCode: String?,
     modifier: Modifier = Modifier,
     contentDescription: String? = null,
+    alignment: Alignment = Alignment.Center,
 ) {
     val res = enteLogoResource(orgCode) ?: return
     Image(
@@ -36,6 +37,6 @@ fun EnteLogoImage(
         contentDescription = contentDescription ?: "Logo ${normalizeEnteCode(orgCode)}",
         modifier = modifier,
         contentScale = ContentScale.Fit,
-        alignment = Alignment.Center,
+        alignment = alignment,
     )
 }
