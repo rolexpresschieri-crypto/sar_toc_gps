@@ -557,14 +557,15 @@ button.statusDisabled {
 
 .error {
   margin: 0 0 12px;
-  padding: 12px 14px;
+  padding: 14px 16px;
   border-radius: 10px;
   background: #c62828;
   border: 1px solid #a51f1f;
   color: #fff;
-  font-size: 14px;
+  font-size: 16px;
   font-weight: 800;
-  line-height: 1.4;
+  line-height: 1.45;
+  white-space: pre-line;
 }
 
 .empty {
