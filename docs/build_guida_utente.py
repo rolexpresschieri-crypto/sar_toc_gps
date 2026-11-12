@@ -21,7 +21,7 @@ GREEN = (7, 155, 66)
 DARK = (25, 25, 25)
 MUTED = (70, 70, 70)
 LINE = (180, 180, 180)
-VERSION = "1.0.70"
+VERSION = "1.0.73"
 
 
 def _first_existing(*paths: Path) -> Path:
@@ -244,14 +244,14 @@ def build() -> Path:
     pdf.h1("2.  Prima di usare l’app")
     pdf.bullet(
         "Installazione Android",
-        "Copia sul telefono il file APK (es. toc_sar_KMP_1.0.71.apk) e installa. "
+        "Copia sul telefono il file APK (es. toc_sar_KMP_1.0.73.apk) e installa. "
         "Se Android lo chiede, consenti «origini sconosciute» solo per TOC SAR.",
     )
     pdf.ios(
         "Installazione (IPA / Diawi)",
         "Apri il link Diawi, tocca Installa. Se TOC SAR è già installata, DISINSTALLALA prima "
         "(tieni premuta l’icona → Rimuovi app), altrimenti resta la versione vecchia. "
-        "Non usare l’APK Android sull’iPhone: serve toc_sar_iOS_1.0.70.ipa (o il link Diawi di quella versione).",
+        "Non usare l’APK Android sull’iPhone: serve toc_sar_iOS_1.0.73.ipa (o il link Diawi di quella versione).",
     )
     pdf.ios(
         "Sviluppatore non verificato",
@@ -293,13 +293,14 @@ def build() -> Path:
 
     pdf.h1("3.  Log-in")
     pdf.p(
-        "Dalla home, tasto verde Log-in. Schermata «Log-in operatore»: codice TOC + codice + password."
+        "All’avvio l’app apre subito «Log-in operatore» (sfondo vegetato): "
+        "Codice Ente + codice operatore + password. In basso compare il footer Rolexpress con la versione."
     )
     pdf.bullet(
-        "Codice TOC",
-        "È la sala in cui si entra (es. NVANSMI), lo stesso per tutti gli operatori di quel TOC. "
-        "Non è l’ente di appartenenza dell’anagrafica. Si scrive in maiuscolo. "
-        "Se il telefono lo ricorda, in alto compare «TOC: …» e il link giallo «Cambia TOC».",
+        "Codice Ente",
+        "È la sala / organizzazione con cui si entra (es. NVANSMI), lo stesso per tutti gli operatori di quel TOC. "
+        "Si scrive in maiuscolo. "
+        "Se il telefono lo ricorda, in alto compare «ENTE: …» e il link giallo «Cambia ENTE».",
     )
     pdf.bullet(
         "Codice operatore",
@@ -309,8 +310,7 @@ def build() -> Path:
         "Password app",
         "Password dell’operatore, non quella del database. È quella comunicata in briefing / anagrafica TOC.",
     )
-    pdf.bullet("Entra", "Avvia la sessione sull’evento attivo. Parte il tracking GPS verso il TOC.")
-    pdf.bullet("Indietro", "Torna alla home senza entrare.")
+    pdf.bullet("Entra", "Avvia la sessione sull’evento attivo e apre la home Tracking / Operatori SAR. Parte il tracking GPS verso il TOC.")
     pdf.p(
         "Se il codice non esiste, la password è sbagliata, l’operatore è disabilitato, "
         "non c’è evento attivo, oppure lo stesso codice è già online su un altro telefono, "
@@ -323,11 +323,13 @@ def build() -> Path:
         "(ente di appartenenza) e il colore del cerchio. Quel colore è il pallino in mappa."
     )
 
-    pdf.h1("4.  Home (dopo il log-in)")
+    pdf.h1("4.  Home — Tracking / Operatori SAR")
     pdf.p(
-        "In alto restano i loghi e il titolo Tracking / Operatori SAR. "
-        "Il riquadro verde mostra: CODICE · nome + orario di login. "
-        "Sotto può comparire lo stato GPS inviato al TOC (accuratezza dell’ultimo fix)."
+        "Dopo il log-in: logo ente a sinistra, hamburger (tre linee) in alto a destra, "
+        "titolo Tracking / Operatori SAR, riquadro notifica TOC, Reset notifica, "
+        "riquadro verde ENTE · CODICE · nome + orario di login. "
+        "Sotto può comparire lo stato GPS inviato al TOC e, se attivi, TIME/DIST o TRK. "
+        "Poi Impostazioni TOC SAR e Log-out (rosso)."
     )
     pdf.bullet(
         "Reset notifica",
@@ -339,13 +341,13 @@ def build() -> Path:
         "Apre le impostazioni di sistema dell’app (permessi, batteria/localizzazione, notifiche).",
     )
     pdf.bullet(
-        "Log-in",
-        "Disattivo se sei già dentro (tasto grigio). Serve solo da scollegati.",
-    )
-    pdf.bullet(
         "Log-out",
-        "Tasto arancione. Chiude la sessione, ferma il tracking e toglie il pin dalla mappa degli altri. "
+        "Tasto rosso. Chiude la sessione, ferma il tracking e toglie il pin dalla mappa degli altri. "
         "Non è automatico: se chiudi l’app senza Log-out, per il TOC resti online.",
+    )
+    pdf.p(
+        "Il menu hamburger scurisce la home e mostra i tasti gialli (testo nero). "
+        "Tocca fuori dal menu o la X per chiudere."
     )
     pdf.bullet(
         "INVIA NOTIFICA A TOC",
@@ -357,7 +359,7 @@ def build() -> Path:
     )
     pdf.bullet(
         "GPS",
-        "Apre la funzione GPS (capitolo 7): traccia, waypoint, rotta verso un collega, selezione e mappa.",
+        "Tasto con freccia: apre il sottomenu GPS (box blu, scritte gialle). Dettagli nel capitolo 7.",
     )
     pdf.bullet(
         "Operatori on line",
@@ -403,41 +405,44 @@ def build() -> Path:
 
     pdf.h1("7.  Funzione GPS")
     pdf.p(
-        "Dalla home, tasto giallo GPS. Qui sotto c’è quello che trovi subito dopo, "
-        "poi un sotto-punto per ogni operazione da fare in campo."
+        "Dalla home, menu hamburger → GPS (freccia). Si apre un sottomenu (box blu, scritte gialle). "
+        "Ogni voce apre la funzione dedicata; la freccia indietro (o Annulla) torna "
+        "allo schermo Tracking / Operatori SAR, non a un hub GPS."
     )
     pdf.bullet(
-        "In alto",
-        "Freccia indietro: torna alla home. Una traccia in corso non si ferma. "
-        "Notte / Giorno: inverte i colori dello schermo GPS.",
+        "START TRK / STOP TRK",
+        "Avvia (o ferma) la registrazione traccia e apre subito la mappa. "
+        "Con STOP, se ci sono abbastanza punti, si apre il salvataggio. Dettagli in 7.1.",
     )
     pdf.bullet(
-        "Bussola",
-        "Barra gialla «Bussola imprecisa? Guida calibrazione». "
-        "Movimento a 8, lento, 10–15 secondi. Se il Nord resta storto: ±15° o ±90°. «Azzera» toglie la correzione. "
-        "Telefono in verticale. La rosa mostra il Nord magnetico.",
+        "INS WP",
+        "Dialog «Inserisci waypoint» su sfondo vegetato. Dettagli in 7.2.",
     )
     pdf.bullet(
-        "BASE e PATTUGLIA",
-        "BASE = dove vuoi arrivare. PATTUGLIA (PTG) = dove sei. "
-        "«Imposta BASE da GPS» e «Imposta PTG da GPS» copiano il fix attuale (serve segnale all’aperto). "
-        "Puoi anche scrivere lat, lon e quota a mano. Sotto compare l’accuratezza (acc).",
+        "WP & TRK",
+        "Elenco waypoint e tracce (missione + locali) su sfondo vegetato. Dettagli in 7.4.",
     )
+    pdf.bullet("MAPPA", "Apre la mappa a schermo intero. Chiudendola torni alla home. Dettagli in 7.5–7.6.")
     pdf.bullet(
-        "Tasti",
-        "START TRK, INS WP, Calcola rotta, Vai a BASE, WP & TRK, MAPPA. "
-        "In basso: Distanza, Bearing e la rosa. In navigazione la rosa diventa una freccia "
-        "e compare «Chiudi Vai a BASE».",
-    )
-    pdf.bullet(
-        "Clear data",
-        "Tasto rosso. Toglie dalla mappa i waypoint e le tracce selezionati, azzera BASE e PATTUGLIA, "
-        "ferma la navigazione e la registrazione in corso, azzera TIME e DIST. "
+        "CLEAR DATA",
+        "Toglie dalla mappa i waypoint e le tracce selezionati, azzera BASE e PATTUGLIA, "
+        "ferma navigazione e registrazione in corso, azzera TIME e DIST, poi torna alla home. "
         "Non cancella i file già salvati sul telefono e non fa il log-out.",
     )
+    pdf.bullet(
+        "CALCOLA ROTTA",
+        "Schermo dedicato (BASE, PATTUGLIA, Calcola rotta, Vai a BASE, bussola). "
+        "Freccia ↑ in alto: torna alla home. Dettagli in 7.3.",
+    )
+    pdf.bullet(
+        "BUSSOLA",
+        "Schermo dedicato con solo la rosa dei venti (Nord / rotta GPS). "
+        "Freccia ↑ torna alla home. Per la calibrazione a 8 usa la barra gialla in CALCOLA ROTTA.",
+    )
     pdf.note(
-        "TIME e DIST (striscia gialla) compaiono quando registri una traccia o quando il cronometro è in pausa. "
-        "Restano anche se esci dal GPS. I dettagli sono nel punto 7.1."
+        "TIME e DIST (striscia gialla) compaiono in home o in CALCOLA ROTTA quando registri "
+        "o quando il cronometro è in pausa. Restano anche uscendo dalle funzioni GPS. "
+        "I dettagli sono nel punto 7.1."
     )
 
     pdf.h2("7.1  Memorizzare una traccia")
@@ -447,26 +452,27 @@ def build() -> Path:
     )
     pdf.bullet(
         "Cosa premere per partire",
-        "START TRK. Il tasto diventa rosso STOP TRK e compare «REC · N punti». "
-        "Parte anche la striscia gialla TIME (ore:minuti:secondi) e DIST (metri).",
+        "Nel sottomenu GPS: START TRK. Si apre la mappa e parte la registrazione "
+        "(scia rossa). In home il tasto diventa STOP TRK e compare lo stato «TRK attivo»; "
+        "parte anche TIME (ore:minuti:secondi) e DIST (metri) dove disponibili.",
     )
     pdf.bullet(
         "Mentre registra",
-        "Puoi uscire dal GPS, tornare in home o aprire la mappa: la traccia continua. "
+        "Puoi chiudere la mappa e tornare in home: la traccia continua. "
         "Android: continua in tasca se resta la notifica «Tracking operatore». "
         "iPhone: Localizzazione = Sempre; non chiudere l’app dallo switcher.",
     )
     pdf.bullet(
         "Come fare STOP della traccia",
-        "STOP TRK. Ferma la registrazione e ferma anche TIME/DIST. "
+        "Nel sottomenu: STOP TRK. Ferma la registrazione e ferma anche TIME/DIST. "
         "Con almeno 2 punti si apre «Report traccia»: il nome diventa CODICE_TRK_ più quello che scrivi. "
         "Salva = file sul telefono + riepilogo al TOC. Salva + invia = uguale, e apre la condivisione del file .trk. "
-        "Annulla = scarta tutto, non resta il file. Con meno di 2 punti non salva.",
+        "Annulla = scarta tutto, non resta il file. Poi torni alla home. Con meno di 2 punti non salva.",
     )
     pdf.bullet(
         "Fermare solo TIME e DIST",
         "Sulla striscia gialla, STOP mette in pausa il cronometro (il tasto diventa ST). "
-        "Se START TRK è ancora rosso, la traccia continua. "
+        "Se il TRK è ancora attivo (STOP TRK nel sottomenu), la traccia continua. "
         "ST con pressione breve fa ripartire tempo e distanza. "
         "Pressione lunga su STOP o ST azzera TIME e DIST.",
     )
@@ -479,9 +485,10 @@ def build() -> Path:
     pdf.p("Segna un punto con un nome: bivio, ritrovamento, base di settore.")
     pdf.bullet(
         "Come si fa",
-        "Tasto arancione INS WP. Scrivi il nome: diventa CODICE_WP_ più il testo "
+        "Sottomenu GPS → INS WP (sfondo vegetato). Scrivi il nome: diventa CODICE_WP_ più il testo "
         "(es. LUPO_WP_BIVIO). Lat e lon sono obbligatorie, la quota no. "
-        "«Da GPS» copia il fix attuale; altrimenti scrivi le coordinate a mano. Poi Salva.",
+        "«Da GPS» copia il fix attuale; altrimenti scrivi le coordinate a mano. Poi Salva. "
+        "Annulla torna alla home.",
     )
     pdf.bullet(
         "Dove salva",
@@ -494,10 +501,17 @@ def build() -> Path:
         "I waypoint di missione arrivano dal TOC e stanno in WP & TRK → WP MISSIONE: da qui non si cancellano."
     )
 
-    pdf.h2("7.3  Devo raggiungere un collega (conosco le coordinate)")
+    pdf.h2("7.3  Calcola rotta / raggiungere un collega")
     pdf.p(
-        "BASE è la destinazione (il collega, o il punto che ti hanno dato). "
-        "PATTUGLIA sei tu."
+        "Sottomenu GPS → CALCOLA ROTTA. Schermo dedicato: BASE = destinazione "
+        "(il collega, o il punto che ti hanno dato); PATTUGLIA (PTG) = dove sei. "
+        "In alto: ↑ torna alla home; Notte / Giorno inverte i colori. "
+        "Barra gialla «Bussola imprecisa?» = guida calibrazione (movimento a 8, ±15° / ±90°, Azzera)."
+    )
+    pdf.bullet(
+        "BASE e PATTUGLIA",
+        "«Imposta BASE da GPS» e «Imposta PTG da GPS» copiano il fix attuale (serve segnale all’aperto). "
+        "Puoi anche scrivere lat, lon e quota a mano. Sotto compare l’accuratezza (acc).",
     )
     pdf.bullet(
         "Coordinate del collega",
@@ -527,8 +541,9 @@ def build() -> Path:
 
     pdf.h2("7.4  Voglio selezionare uno o più waypoint o una o più tracce")
     pdf.p(
-        "Tasto blu WP & TRK. La spunta mette quel waypoint o quella traccia sulla mappa. "
-        "Puoi spuntarne più di uno. Le spunte restano anche uscendo dal GPS, finché non fai Clear data."
+        "Sottomenu GPS → WP & TRK (sfondo vegetato). La spunta mette quel waypoint o quella traccia sulla mappa. "
+        "Puoi spuntarne più di uno. Le spunte restano anche uscendo, finché non fai CLEAR DATA. "
+        "Chiudi / Annulla torna alla home."
     )
     pdf.bullet(
         "Cartelle di missione",
@@ -549,19 +564,19 @@ def build() -> Path:
     pdf.bullet(
         "Metterle in mappa",
         "In fondo all’elenco, MAPPA (n) apre la mappa con tutto ciò che è spuntato. "
-        "Chiudi torna al GPS senza togliere le spunte. "
+        "Chiudendo la mappa torni alla home; le spunte restano. "
         "«Importa file…» porta dentro un .wpt o un .trk ricevuto (Condividi / Apri con).",
     )
 
     pdf.h2("7.5  Voglio visualizzare la mappa")
     pdf.p(
-        "Tasto viola MAPPA, oppure MAPPA dentro WP & TRK. "
+        "Sottomenu GPS → MAPPA, oppure MAPPA dentro WP & TRK, oppure dopo START TRK. "
         "Schermo intero: la tua posizione, gli operatori visibili, i waypoint e le tracce spuntati, "
         "e la scia rossa se stai registrando."
     )
     pdf.bullet(
         "Aprire e chiudere",
-        "La freccia indietro chiude solo la mappa e torna al GPS, non alla home. "
+        "La freccia indietro chiude la mappa e torna alla home (Tracking / Operatori SAR). "
         "Traccia, waypoint selezionati e TIME/DIST restano attivi.",
     )
     pdf.bullet(
