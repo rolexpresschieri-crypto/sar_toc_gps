@@ -770,7 +770,7 @@ export default function AnagraficaPage() {
     return (
       <div className={styles.root}>
         <div className={styles.panel}>
-          <p>Accesso in sola lettura: l&apos;anagrafica è riservata al ruolo admin.</p>
+          <p>Sessione non valida: torna al login TOC.</p>
           <Link className={styles.backLink} href="/">
             ← Sala operativa
           </Link>

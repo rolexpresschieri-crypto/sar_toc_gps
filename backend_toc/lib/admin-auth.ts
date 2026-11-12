@@ -21,11 +21,12 @@ export function normalizeAdminRole(value: string | null | undefined): AdminRole 
   return "admin";
 }
 
+/** Qualsiasi accesso TOC abilitato gestisce anagrafica / sala (operatori, missioni, log). */
 export function canManageAnagrafica(session: AdminSessionData | null): boolean {
-  return session?.role === "admin";
+  return Boolean(session);
 }
 
-/** Solo un login il cui codice inizia con ADMIN_ gestisce gli accessi al backend. */
+/** Solo un codice che inizia con ADMIN_ gestisce Utenti backend (inserire/modificare accessi TOC). */
 export function canManageBackendUsers(code: string | null | undefined): boolean {
   return (code ?? "").trim().toUpperCase().startsWith("ADMIN_");
 }

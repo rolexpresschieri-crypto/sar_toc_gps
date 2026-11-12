@@ -328,7 +328,7 @@ export default function UtentiPage() {
                     {row.is_enabled ? "Attivo" : "Non attivo"}
                     {row.admin_code.toUpperCase().startsWith("ADMIN_")
                       ? " · può gestire gli accessi"
-                      : " · solo ingresso al TOC"}
+                      : " · TOC operativo (no Utenti backend)"}
                   </p>
                   <div className={styles.cardActions}>
                     <button
