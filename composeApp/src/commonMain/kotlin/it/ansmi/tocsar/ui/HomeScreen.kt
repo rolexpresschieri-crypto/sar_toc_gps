@@ -1,12 +1,14 @@
 package it.ansmi.tocsar.ui
 
-import androidx.compose.foundation.Image
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
@@ -15,21 +17,25 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shadow
-import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -40,16 +46,11 @@ import it.ansmi.tocsar.geo.trackHorizDistanceM
 import it.ansmi.tocsar.openAppSystemSettings
 import it.ansmi.tocsar.unusedAppPermissionHint
 import it.ansmi.tocsar.ui.theme.TacticalDisabled
-import it.ansmi.tocsar.ui.theme.TacticalFrame
 import it.ansmi.tocsar.ui.theme.TacticalGreen
 import it.ansmi.tocsar.ui.theme.TacticalMuted
 import it.ansmi.tocsar.ui.theme.TacticalNavy
-import it.ansmi.tocsar.ui.theme.TacticalOrange
 import it.ansmi.tocsar.ui.theme.TacticalRed
 import it.ansmi.tocsar.ui.theme.TacticalYellow
-import org.jetbrains.compose.resources.painterResource
-import tocsar.composeapp.generated.resources.Res
-import tocsar.composeapp.generated.resources.logo_ucrs
 
 private val WhiteTitleStyle = TextStyle(
     color = Color.White,
@@ -79,6 +80,7 @@ fun HomeScreen(
     session: OperatorSession?,
     tocMessage: String?,
     gpsStatusLabel: String?,
+    rememberedOrgCode: String? = null,
     onResetNotification: () -> Unit,
     onLogin: () -> Unit,
     onLogout: () -> Unit,
@@ -90,155 +92,263 @@ fun HomeScreen(
 ) {
     val isLogged = session != null
     val scroll = rememberScrollState()
+    var menuOpen by remember { mutableStateOf(false) }
+    val enteCode = session?.organizationCode ?: rememberedOrgCode
 
     Column(
         modifier = Modifier
             .fillMaxSize()
             .windowInsetsPadding(WindowInsets.safeDrawing)
             .verticalScroll(scroll)
+            .padding(horizontal = 16.dp, vertical = 10.dp)
             .padding(bottom = 12.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        TacticalShell {
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
-                SarTitleBlock()
-                Spacer(modifier = Modifier.height(24.dp))
-
-                NotificationPanel(
-                    message = tocMessage,
-                    modifier = Modifier.padding(bottom = 12.dp),
-                )
-
-                BodyText(
-                    text = "Reset notifica: chiude il messaggio TOC sul telefono (log «notifica chiusa»).",
-                    fontSize = 12,
-                    modifier = Modifier.padding(bottom = 8.dp),
-                )
-                MainButton(
-                    label = "Reset notifica",
-                    backgroundColor = if (isLogged) TacticalNavy else TacticalDisabled,
-                    foregroundColor = if (isLogged) Color.White else TacticalMuted,
-                    onClick = if (isLogged) onResetNotification else null,
-                    modifier = Modifier.padding(bottom = 20.dp),
-                )
-
-                val boxColor = if (isLogged) TacticalGreen else Color.Black.copy(alpha = 0.48f)
-                val borderColor = Color.White.copy(alpha = if (isLogged) 0.35f else 0.55f)
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(boxColor, RoundedCornerShape(12.dp))
-                        .border(1.dp, borderColor, RoundedCornerShape(12.dp))
-                        .padding(16.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                ) {
-                    Text(
-                        text = if (isLogged) {
-                            "${session!!.organizationCode} · ${session.operatorCode} · ${session.displayName} + ${session.loginLabel}"
-                        } else {
-                            "Nessun operatore loggato"
-                        },
-                        textAlign = TextAlign.Center,
-                        style = TextStyle(
-                            color = Color.White,
-                            fontWeight = FontWeight.ExtraBold,
-                            fontSize = 17.sp,
-                        ),
-                    )
-                }
-
-                if (isLogged) {
-                    Spacer(modifier = Modifier.height(14.dp))
-                    gpsStatusLabel?.let { label ->
-                        BodyText(
-                            text = label,
-                            fontSize = 13,
-                            color = TacticalYellow,
-                            modifier = Modifier.padding(bottom = 8.dp),
-                        )
-                    }
-                    FieldSessionStatus()
-                    BodyText(
-                        text = unusedAppPermissionHint(),
-                        fontSize = 12,
-                        color = TacticalYellow,
-                        modifier = Modifier.padding(bottom = 8.dp),
-                    )
-                    MainButton(
-                        label = "Impostazioni TOC SAR",
-                        backgroundColor = TacticalNavy,
-                        foregroundColor = Color.White,
-                        onClick = onOpenSettings,
-                        modifier = Modifier.padding(bottom = 8.dp),
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(18.dp))
-                MainButton(
-                    label = "Log-in",
-                    backgroundColor = if (isLogged) TacticalDisabled else TacticalGreen,
-                    foregroundColor = if (isLogged) TacticalMuted else Color.White,
-                    onClick = if (!isLogged) onLogin else null,
-                )
-                Spacer(modifier = Modifier.height(18.dp))
-                MainButton(
-                    label = "Log-out",
-                    backgroundColor = if (isLogged) TacticalOrange else TacticalDisabled,
-                    foregroundColor = if (isLogged) Color.White else TacticalMuted,
-                    onClick = if (isLogged) onLogout else null,
-                )
-                Spacer(modifier = Modifier.height(18.dp))
-                MainButton(
-                    label = "INVIA NOTIFICA A TOC",
-                    backgroundColor = if (isLogged) TacticalRed else TacticalDisabled,
-                    foregroundColor = if (isLogged) Color.White else TacticalMuted,
-                    onClick = if (isLogged) onSendNotify else null,
-                )
-                Spacer(modifier = Modifier.height(18.dp))
-                MainButton(
-                    label = "INVIA FOTO A TOC",
-                    backgroundColor = if (isLogged) TacticalNavy else TacticalDisabled,
-                    foregroundColor = if (isLogged) Color.White else TacticalMuted,
-                    onClick = if (isLogged) onSendPhoto else null,
-                )
-                Spacer(modifier = Modifier.height(18.dp))
-                MainButton(
-                    label = "GPS",
-                    backgroundColor = if (isLogged) TacticalYellow else TacticalDisabled,
-                    foregroundColor = if (isLogged) Color.Black else TacticalMuted,
-                    onClick = if (isLogged) onOpenGps else null,
-                )
-                if (onOpenOnlineOperators != null) {
-                    Spacer(modifier = Modifier.height(18.dp))
-                    Box(
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
+                if (!enteCode.isNullOrBlank()) {
+                    EnteLogoImage(
+                        orgCode = enteCode,
                         modifier = Modifier
-                            .fillMaxWidth()
-                            .background(TacticalNavy, RoundedCornerShape(12.dp))
-                            .border(1.dp, Color.White.copy(alpha = 0.35f), RoundedCornerShape(12.dp))
-                            .clickable(onClick = onOpenOnlineOperators)
-                            .padding(vertical = 16.dp, horizontal = 12.dp),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Text(
-                            text = "Operatori on line",
-                            textAlign = TextAlign.Center,
-                            color = Color.White,
-                            fontSize = 18.sp,
-                            fontWeight = FontWeight.ExtraBold,
-                        )
-                    }
+                            .height(72.dp)
+                            .fillMaxWidth(0.55f),
+                    )
                 }
-                Spacer(modifier = Modifier.height(14.dp))
+            }
+            HamburgerToggle(
+                open = menuOpen,
+                onClick = { menuOpen = !menuOpen },
+            )
+        }
+
+        if (menuOpen) {
+            Spacer(modifier = Modifier.height(10.dp))
+            HomeSideMenu(
+                session = session,
+                tocMessage = tocMessage,
+                gpsStatusLabel = gpsStatusLabel,
+                isLogged = isLogged,
+                onResetNotification = {
+                    onResetNotification()
+                    menuOpen = false
+                },
+                onOpenSettings = {
+                    onOpenSettings()
+                    menuOpen = false
+                },
+                onLogout = {
+                    menuOpen = false
+                    onLogout()
+                },
+            )
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+        Text(
+            text = "Tracking",
+            textAlign = TextAlign.Center,
+            style = WhiteTitleStyle.copy(fontSize = 32.sp, letterSpacing = 0.8.sp),
+        )
+        Text(
+            text = "Operatori SAR",
+            textAlign = TextAlign.Center,
+            style = WhiteTitleStyle.copy(
+                fontSize = 34.sp,
+                fontWeight = FontWeight.Black,
+                letterSpacing = 1.0.sp,
+            ),
+            modifier = Modifier.padding(top = 2.dp, bottom = 18.dp),
+        )
+
+        if (isLogged) {
+            FieldSessionStatus()
+            BodyText(
+                text = unusedAppPermissionHint(),
+                fontSize = 12,
+                color = TacticalYellow,
+                modifier = Modifier.padding(bottom = 12.dp),
+            )
+        }
+
+        MainButton(
+            label = "Log-in",
+            backgroundColor = if (isLogged) TacticalDisabled else TacticalGreen,
+            foregroundColor = if (isLogged) TacticalMuted else Color.White,
+            onClick = if (!isLogged) onLogin else null,
+        )
+        Spacer(modifier = Modifier.height(18.dp))
+        MainButton(
+            label = "INVIA NOTIFICA A TOC",
+            backgroundColor = if (isLogged) TacticalRed else TacticalDisabled,
+            foregroundColor = if (isLogged) Color.White else TacticalMuted,
+            onClick = if (isLogged) onSendNotify else null,
+        )
+        Spacer(modifier = Modifier.height(18.dp))
+        MainButton(
+            label = "INVIA FOTO A TOC",
+            backgroundColor = if (isLogged) TacticalNavy else TacticalDisabled,
+            foregroundColor = if (isLogged) Color.White else TacticalMuted,
+            onClick = if (isLogged) onSendPhoto else null,
+        )
+        Spacer(modifier = Modifier.height(18.dp))
+        MainButton(
+            label = "GPS",
+            backgroundColor = if (isLogged) TacticalYellow else TacticalDisabled,
+            foregroundColor = if (isLogged) Color.Black else TacticalMuted,
+            onClick = if (isLogged) onOpenGps else null,
+        )
+        if (onOpenOnlineOperators != null) {
+            Spacer(modifier = Modifier.height(18.dp))
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(TacticalNavy, RoundedCornerShape(12.dp))
+                    .border(1.dp, Color.White.copy(alpha = 0.35f), RoundedCornerShape(12.dp))
+                    .clickable(onClick = onOpenOnlineOperators)
+                    .padding(vertical = 16.dp, horizontal = 12.dp),
+                contentAlignment = Alignment.Center,
+            ) {
                 Text(
-                    text = "Operatori SAR / unità cinofile: login = tracking, allarmi e push",
-                    color = Color.White.copy(alpha = 0.78f),
-                    fontSize = 12.sp,
+                    text = "Operatori on line",
                     textAlign = TextAlign.Center,
-                    modifier = Modifier.padding(horizontal = 8.dp),
+                    color = Color.White,
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.ExtraBold,
                 )
+            }
+        }
+        Spacer(modifier = Modifier.height(14.dp))
+        Text(
+            text = "Operatori SAR / unità cinofile: login = tracking, allarmi e push",
+            color = Color.White.copy(alpha = 0.78f),
+            fontSize = 12.sp,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.padding(horizontal = 8.dp),
+        )
+    }
+}
+
+@Composable
+private fun HomeSideMenu(
+    session: OperatorSession?,
+    tocMessage: String?,
+    gpsStatusLabel: String?,
+    isLogged: Boolean,
+    onResetNotification: () -> Unit,
+    onOpenSettings: () -> Unit,
+    onLogout: () -> Unit,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(Color(0xF0140A0C), RoundedCornerShape(14.dp))
+            .border(1.5.dp, TacticalYellow, RoundedCornerShape(14.dp))
+            .padding(12.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        NotificationPanel(
+            message = tocMessage,
+            modifier = Modifier.padding(bottom = 10.dp),
+        )
+        MainButton(
+            label = "Reset notifica",
+            backgroundColor = if (isLogged) TacticalNavy else TacticalDisabled,
+            foregroundColor = if (isLogged) Color.White else TacticalMuted,
+            onClick = if (isLogged) onResetNotification else null,
+            modifier = Modifier.padding(bottom = 12.dp),
+        )
+
+        val boxColor = if (isLogged) TacticalGreen else Color.Black.copy(alpha = 0.48f)
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(boxColor, RoundedCornerShape(12.dp))
+                .border(1.dp, Color.White.copy(alpha = 0.35f), RoundedCornerShape(12.dp))
+                .padding(14.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Text(
+                text = if (isLogged && session != null) {
+                    "${session.organizationCode} · ${session.operatorCode} · ${session.displayName} + ${session.loginLabel}"
+                } else {
+                    "Nessun operatore loggato"
+                },
+                textAlign = TextAlign.Center,
+                style = TextStyle(
+                    color = Color.White,
+                    fontWeight = FontWeight.ExtraBold,
+                    fontSize = 15.sp,
+                ),
+            )
+        }
+
+        if (isLogged) {
+            Spacer(modifier = Modifier.height(10.dp))
+            gpsStatusLabel?.let { label ->
+                BodyText(
+                    text = label,
+                    fontSize = 13,
+                    color = TacticalYellow,
+                    modifier = Modifier.padding(bottom = 10.dp),
+                )
+            }
+            MainButton(
+                label = "Impostazioni TOC SAR",
+                backgroundColor = TacticalNavy,
+                foregroundColor = Color.White,
+                onClick = onOpenSettings,
+                modifier = Modifier.padding(bottom = 10.dp),
+            )
+            MainButton(
+                label = "Log-out",
+                backgroundColor = TacticalRed,
+                foregroundColor = Color.White,
+                onClick = onLogout,
+            )
+        }
+    }
+}
+
+@Composable
+private fun HamburgerToggle(open: Boolean, onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .size(46.dp)
+            .border(2.dp, TacticalYellow, RoundedCornerShape(10.dp))
+            .background(Color.Black.copy(alpha = 0.35f), RoundedCornerShape(10.dp))
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Canvas(Modifier.size(22.dp)) {
+            val stroke = 3.dp.toPx()
+            if (open) {
+                drawLine(
+                    color = TacticalYellow,
+                    start = Offset(size.width * 0.18f, size.height * 0.18f),
+                    end = Offset(size.width * 0.82f, size.height * 0.82f),
+                    strokeWidth = stroke,
+                    cap = StrokeCap.Round,
+                )
+                drawLine(
+                    color = TacticalYellow,
+                    start = Offset(size.width * 0.82f, size.height * 0.18f),
+                    end = Offset(size.width * 0.18f, size.height * 0.82f),
+                    strokeWidth = stroke,
+                    cap = StrokeCap.Round,
+                )
+            } else {
+                val left = size.width * 0.12f
+                val right = size.width * 0.88f
+                val y1 = size.height * 0.28f
+                val y2 = size.height * 0.5f
+                val y3 = size.height * 0.72f
+                drawLine(TacticalYellow, Offset(left, y1), Offset(right, y1), stroke, StrokeCap.Round)
+                drawLine(TacticalYellow, Offset(left, y2), Offset(right, y2), stroke, StrokeCap.Round)
+                drawLine(TacticalYellow, Offset(left, y3), Offset(right, y3), stroke, StrokeCap.Round)
             }
         }
     }
@@ -284,69 +394,6 @@ private fun FieldSessionStatus() {
         color = TacticalYellow,
         modifier = Modifier.padding(bottom = 8.dp),
     )
-}
-
-@Composable
-private fun SarTitleBlock() {
-    Column(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        Image(
-            painter = painterResource(Res.drawable.logo_ucrs),
-            contentDescription = "Reparto Cinofilo da Soccorso",
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 4.dp)
-                .height(120.dp),
-            contentScale = ContentScale.Fit,
-            alignment = Alignment.Center,
-        )
-        Text(
-            text = "Tracking",
-            textAlign = TextAlign.Center,
-            style = WhiteTitleStyle.copy(fontSize = 32.sp, letterSpacing = 0.8.sp),
-            modifier = Modifier.padding(top = 14.dp),
-        )
-        Text(
-            text = "Operatori SAR",
-            textAlign = TextAlign.Center,
-            style = WhiteTitleStyle.copy(
-                fontSize = 34.sp,
-                fontWeight = FontWeight.Black,
-                letterSpacing = 1.0.sp,
-            ),
-            modifier = Modifier.padding(top = 2.dp),
-        )
-    }
-}
-
-@Composable
-private fun TacticalShell(content: @Composable () -> Unit) {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 12.dp, vertical = 10.dp),
-        contentAlignment = Alignment.TopCenter,
-    ) {
-        Surface(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(42.dp))
-                .border(3.dp, TacticalFrame, RoundedCornerShape(42.dp)),
-            shape = RoundedCornerShape(42.dp),
-            color = Color.Transparent,
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 20.dp, vertical = 18.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
-                content()
-            }
-        }
-    }
 }
 
 @Composable

@@ -113,7 +113,7 @@ fun App() {
     LaunchedEffect(Unit) {
         delay(SplashVisibleMs)
         if (route == AppRoute.Splash) {
-            route = AppRoute.Home
+            route = AppRoute.Login
         }
     }
 
@@ -124,6 +124,9 @@ fun App() {
             .onSuccess { restored ->
                 if (restored != null) {
                     applyBackendSession(restored)
+                    if (route == AppRoute.Splash || route == AppRoute.Login) {
+                        route = AppRoute.Home
+                    }
                 } else {
                     OperatorSessionStore.saveSessionId(null)
                 }
@@ -142,7 +145,8 @@ fun App() {
                 val stillOnline = runCatching { api.sessionIsOnline(sid) }.getOrNull()
                 if (stillOnline == false) {
                     clearSessionLocal()
-                    route = AppRoute.Home
+                    loginError = null
+                    route = AppRoute.Login
                     toast("Disconnesso dal TOC")
                     return@LaunchedEffect
                 }
@@ -222,6 +226,7 @@ fun App() {
                         session = session,
                         tocMessage = tocMessage,
                         gpsStatusLabel = gpsStatusLabel,
+                        rememberedOrgCode = rememberedOrgCode,
                         onResetNotification = {
                             val current = session
                             val api = facade
@@ -249,6 +254,8 @@ fun App() {
                             if (current == null) return@HomeScreen
                             if (api == null) {
                                 clearSessionLocal()
+                                loginError = null
+                                route = AppRoute.Login
                                 toast("Log-out locale")
                                 return@HomeScreen
                             }
@@ -257,6 +264,8 @@ fun App() {
                                 try {
                                     api.logoutOperator(current.toBackend())
                                     clearSessionLocal()
+                                    loginError = null
+                                    route = AppRoute.Login
                                     toast("Log-out effettuato")
                                 } catch (e: Exception) {
                                     toast(e.message ?: "Errore log-out")
@@ -297,7 +306,8 @@ fun App() {
                         onBack = { route = AppRoute.Home },
                         onForcedSelfLogout = {
                             clearSessionLocal()
-                            route = AppRoute.Home
+                            loginError = null
+                            route = AppRoute.Login
                             toast("Sei stato disconnesso")
                         },
                         toast = ::toast,
@@ -408,6 +418,7 @@ fun App() {
                         rememberedOrgCode = rememberedOrgCode,
                         isLoading = loginBusy,
                         errorMessage = loginError,
+                        showBack = session != null,
                         onBack = {
                             if (!loginBusy) {
                                 loginError = null

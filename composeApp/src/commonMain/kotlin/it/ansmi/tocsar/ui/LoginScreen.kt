@@ -52,6 +52,7 @@ fun LoginScreen(
     rememberedOrgCode: String?,
     isLoading: Boolean,
     errorMessage: String?,
+    showBack: Boolean = true,
     onBack: () -> Unit,
     onChangeOrganization: () -> Unit,
     onLogin: (organizationCode: String, operatorCode: String, password: String) -> Unit,
@@ -74,6 +75,15 @@ fun LoginScreen(
             .padding(24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
+        if (orgToSend.isNotEmpty()) {
+            EnteLogoImage(
+                orgCode = orgToSend,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(140.dp)
+                    .padding(bottom = 12.dp),
+            )
+        }
         Text(
             text = "Log-in operatore",
             color = Color.White,
@@ -82,21 +92,21 @@ fun LoginScreen(
         )
         Spacer(modifier = Modifier.height(8.dp))
         Text(
-            text = "Codice TOC + codice + password",
+            text = "Codice Ente + codice + password",
             color = Color.White.copy(alpha = 0.75f),
             fontSize = 13.sp,
         )
         Spacer(modifier = Modifier.height(24.dp))
         if (savedOrg != null) {
             Text(
-                text = "TOC: $savedOrg",
+                text = "ENTE: $savedOrg",
                 color = Color.White,
                 fontSize = 18.sp,
                 fontWeight = FontWeight.ExtraBold,
             )
             Spacer(modifier = Modifier.height(6.dp))
             Text(
-                text = "Cambia TOC",
+                text = "Cambia ENTE",
                 color = TacticalYellow,
                 fontSize = 15.sp,
                 fontWeight = FontWeight.Bold,
@@ -109,7 +119,7 @@ fun LoginScreen(
             OutlinedTextField(
                 value = orgCode,
                 onValueChange = { orgCode = it.uppercase() },
-                label = { Text("Codice TOC") },
+                label = { Text("Codice Ente") },
                 singleLine = true,
                 enabled = !isLoading,
                 modifier = Modifier.fillMaxWidth(),
@@ -186,15 +196,17 @@ fun LoginScreen(
                 Text("Entra", fontWeight = FontWeight.ExtraBold, modifier = Modifier.padding(vertical = 8.dp))
             }
         }
-        Spacer(modifier = Modifier.height(12.dp))
-        Button(
-            onClick = onBack,
-            enabled = !isLoading,
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(12.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = TacticalNavy),
-        ) {
-            Text("Indietro", fontWeight = FontWeight.Bold, modifier = Modifier.padding(vertical = 8.dp))
+        if (showBack) {
+            Spacer(modifier = Modifier.height(12.dp))
+            Button(
+                onClick = onBack,
+                enabled = !isLoading,
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = TacticalNavy),
+            ) {
+                Text("Indietro", fontWeight = FontWeight.Bold, modifier = Modifier.padding(vertical = 8.dp))
+            }
         }
     }
 }
