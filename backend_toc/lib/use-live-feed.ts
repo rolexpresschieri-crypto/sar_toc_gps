@@ -31,6 +31,7 @@ export type FieldPhoto = {
 
 export type OutboundPush = {
   id: string;
+  event_id: string | null;
   squad_code: string;
   squad_name: string;
   title: string;
@@ -142,7 +143,7 @@ export function useLiveFeed(
     } else {
       const pushRes = await supabase
         .from("toc_push_logs")
-        .select("id, squad_code, squad_name, title, body, admin_code, created_at, session_id")
+        .select("id, event_id, squad_code, squad_name, title, body, admin_code, created_at, session_id")
         .in("event_id", eventIds)
         .is("mobile_dismissed_at", null)
         .order("created_at", { ascending: false })
@@ -153,6 +154,7 @@ export function useLiveFeed(
         setOutbound(
           ((pushRes.data ?? []) as Record<string, unknown>[]).map((raw) => ({
             id: String(raw.id),
+            event_id: raw.event_id == null ? null : String(raw.event_id),
             squad_code: String(raw.squad_code ?? ""),
             squad_name: String(raw.squad_name ?? ""),
             title: String(raw.title ?? ""),
@@ -182,6 +184,7 @@ export function useLiveFeed(
     photos,
     setPhotos,
     outbound,
+    setOutbound,
     statusMessage,
     setStatusMessage,
     loadLive,

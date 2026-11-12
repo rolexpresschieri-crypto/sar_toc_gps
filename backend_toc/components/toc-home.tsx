@@ -7,7 +7,12 @@ import { hasCoordinates, type LiveSquad } from "@/lib/live-squads";
 import { readStoredLayerMode, writeStoredLayerMode } from "@/lib/map-layer-storage";
 import { layerOptions, type LayerMode } from "@/lib/map-layers";
 import { openExternalMapWindow } from "@/lib/open-external-map";
-import { markPhotoAckedLocally, useLiveFeed, type FieldPhoto } from "@/lib/use-live-feed";
+import {
+  markPhotoAckedLocally,
+  useLiveFeed,
+  type FieldPhoto,
+  type OutboundPush,
+} from "@/lib/use-live-feed";
 import { TocLoginForm, useTocSession } from "@/lib/use-toc-session";
 import { canManageBackendUsers } from "@/lib/admin-auth";
 import { enteLogoUrl } from "@/lib/ente-logo";
@@ -51,11 +56,18 @@ export default function TocHome() {
   const toc = useTocSession();
   const { supabase, session } = toc;
   const orgId = session?.organizationId ?? null;
-  const { squads, alarms, setAlarms, photos, setPhotos, outbound, statusMessage, setStatusMessage, loadLive } = useLiveFeed(
-    supabase,
-    orgId,
-    Boolean(session && supabase),
-  );
+  const {
+    squads,
+    alarms,
+    setAlarms,
+    photos,
+    setPhotos,
+    outbound,
+    setOutbound,
+    statusMessage,
+    setStatusMessage,
+    loadLive,
+  } = useLiveFeed(supabase, orgId, Boolean(session && supabase));
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
   const [recenterNonce, setRecenterNonce] = useState(0);
   const [ackBusy, setAckBusy] = useState<string | null>(null);
@@ -158,6 +170,45 @@ export default function TocHome() {
         markPhotoAckedLocally(id);
       }
       setPhotos((prev) => prev.filter((p) => p.id !== id));
+    } finally {
+      setAckBusy(null);
+    }
+  }
+
+  /** Chiude una notifica TOC→campo anche se l'operatore è offline / non ha fatto Reset. */
+  async function resetOutboundFromToc(push: OutboundPush) {
+    if (!supabase || !session) {
+      return;
+    }
+    setAckBusy(`toc-${push.id}`);
+    try {
+      const now = new Date().toISOString();
+      const { error } = await supabase
+        .from("toc_push_logs")
+        .update({
+          mobile_dismissed_at: now,
+          closed_at: now,
+          closed_by: session.code,
+        })
+        .eq("id", push.id)
+        .is("mobile_dismissed_at", null);
+      if (error) {
+        setStatusMessage(error.message);
+        return;
+      }
+      if (push.event_id) {
+        await supabase.from("toc_mission_force_dismiss_logs").insert({
+          event_id: push.event_id,
+          mission_kind: "toc_push",
+          squad_code: push.squad_code,
+          squad_name: push.squad_name,
+          admin_code: session.code,
+          source_ref: push.id,
+          detail: [push.title, push.body].filter(Boolean).join(" — ").slice(0, 500) || "Reset da TOC",
+        });
+      }
+      setOutbound((prev) => prev.filter((p) => p.id !== push.id));
+      setStatusMessage(`Notifica a ${push.squad_code} resettata da TOC.`);
     } finally {
       setAckBusy(null);
     }
@@ -361,7 +412,7 @@ export default function TocHome() {
           <section className={styles.opsColumn}>
             <h2 className={styles.opsColumnTitle}>Notifiche ({notifyItems.length})</h2>
             <p className={styles.opsColumnHint}>
-              Invio al campo: resta in elenco finché ogni operatore non fa Reset notifica.
+              Resta in elenco finché l&apos;operatore fa Reset notifica, oppure usa Reset da TOC (anche se è offline).
             </p>
             <form
               className={styles.pushForm}
@@ -456,6 +507,19 @@ export default function TocHome() {
                             {p.admin_code ? ` · da ${p.admin_code}` : ""}
                             {" · in attesa di Reset notifica"}
                           </p>
+                          <div className={styles.notifyActions}>
+                            <button
+                              type="button"
+                              className={`${styles.btn} ${styles.btnSmall}`}
+                              disabled={ackBusy === `toc-${p.id}`}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                void resetOutboundFromToc(p);
+                              }}
+                            >
+                              Reset da TOC
+                            </button>
+                          </div>
                         </div>
                       </div>
                     );
