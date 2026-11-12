@@ -467,8 +467,14 @@ fun GpsScreen(
     val tripVisible = GpsFieldSession.tripRunning || tripTimeShown > 0L || tripDistShown > 0.0
     val mapWpCount = GpsFieldSession.overlayWaypoints.size
     val mapTrkCount = GpsFieldSession.overlayTracks.size
+    val vegetatoHost = initialAction == GpsMenuAction.InsWp ||
+        initialAction == GpsMenuAction.WpAndTrk
 
     Box(modifier = Modifier.fillMaxSize()) {
+        if (vegetatoHost) {
+            // INS WP / WP & TRK dal sottomenu: sfondo vegetato (come Tracking operatori SAR)
+            VegetatoBackground { }
+        } else {
         // Form GPS resta montato sotto: chiudendo la mappa, MAPPA resta visibile
         Column(
             modifier = Modifier
@@ -722,6 +728,7 @@ fun GpsScreen(
                 }
             }
         }
+        } // else !vegetatoHost
 
         if (showMap) {
             GpsMapScreen(
