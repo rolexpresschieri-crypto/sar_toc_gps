@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
@@ -44,7 +45,6 @@ import androidx.compose.ui.unit.sp
 import it.ansmi.tocsar.geo.OperatorGpsTracking
 import it.ansmi.tocsar.geo.trackHorizDistanceM
 import it.ansmi.tocsar.openAppSystemSettings
-import it.ansmi.tocsar.unusedAppPermissionHint
 import it.ansmi.tocsar.ui.theme.TacticalDisabled
 import it.ansmi.tocsar.ui.theme.TacticalGreen
 import it.ansmi.tocsar.ui.theme.TacticalMuted
@@ -100,8 +100,7 @@ fun HomeScreen(
             .fillMaxSize()
             .windowInsetsPadding(WindowInsets.safeDrawing)
             .verticalScroll(scroll)
-            .padding(horizontal = 16.dp, vertical = 10.dp)
-            .padding(bottom = 12.dp),
+            .padding(start = 8.dp, end = 16.dp, top = 10.dp, bottom = 12.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Row(
@@ -109,13 +108,17 @@ fun HomeScreen(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween,
         ) {
-            Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
+            Box(
+                modifier = Modifier.weight(1f),
+                contentAlignment = Alignment.CenterStart,
+            ) {
                 if (!enteCode.isNullOrBlank()) {
                     EnteLogoImage(
                         orgCode = enteCode,
                         modifier = Modifier
+                            .offset(x = (-4).dp)
                             .height(72.dp)
-                            .fillMaxWidth(0.55f),
+                            .fillMaxWidth(0.62f),
                     )
                 }
             }
@@ -128,21 +131,28 @@ fun HomeScreen(
         if (menuOpen) {
             Spacer(modifier = Modifier.height(10.dp))
             HomeSideMenu(
-                session = session,
-                tocMessage = tocMessage,
-                gpsStatusLabel = gpsStatusLabel,
                 isLogged = isLogged,
-                onResetNotification = {
-                    onResetNotification()
+                onLogin = {
                     menuOpen = false
+                    onLogin()
                 },
-                onOpenSettings = {
-                    onOpenSettings()
+                onSendNotify = {
                     menuOpen = false
+                    onSendNotify()
                 },
-                onLogout = {
+                onSendPhoto = {
                     menuOpen = false
-                    onLogout()
+                    onSendPhoto()
+                },
+                onOpenGps = {
+                    menuOpen = false
+                    onOpenGps()
+                },
+                onOpenOnlineOperators = onOpenOnlineOperators?.let { open ->
+                    {
+                        menuOpen = false
+                        open()
+                    }
                 },
             )
         }
@@ -164,92 +174,6 @@ fun HomeScreen(
             modifier = Modifier.padding(top = 2.dp, bottom = 18.dp),
         )
 
-        if (isLogged) {
-            FieldSessionStatus()
-            BodyText(
-                text = unusedAppPermissionHint(),
-                fontSize = 12,
-                color = TacticalYellow,
-                modifier = Modifier.padding(bottom = 12.dp),
-            )
-        }
-
-        MainButton(
-            label = "Log-in",
-            backgroundColor = if (isLogged) TacticalDisabled else TacticalGreen,
-            foregroundColor = if (isLogged) TacticalMuted else Color.White,
-            onClick = if (!isLogged) onLogin else null,
-        )
-        Spacer(modifier = Modifier.height(18.dp))
-        MainButton(
-            label = "INVIA NOTIFICA A TOC",
-            backgroundColor = if (isLogged) TacticalRed else TacticalDisabled,
-            foregroundColor = if (isLogged) Color.White else TacticalMuted,
-            onClick = if (isLogged) onSendNotify else null,
-        )
-        Spacer(modifier = Modifier.height(18.dp))
-        MainButton(
-            label = "INVIA FOTO A TOC",
-            backgroundColor = if (isLogged) TacticalNavy else TacticalDisabled,
-            foregroundColor = if (isLogged) Color.White else TacticalMuted,
-            onClick = if (isLogged) onSendPhoto else null,
-        )
-        Spacer(modifier = Modifier.height(18.dp))
-        MainButton(
-            label = "GPS",
-            backgroundColor = if (isLogged) TacticalYellow else TacticalDisabled,
-            foregroundColor = if (isLogged) Color.Black else TacticalMuted,
-            onClick = if (isLogged) onOpenGps else null,
-        )
-        if (onOpenOnlineOperators != null) {
-            Spacer(modifier = Modifier.height(18.dp))
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(TacticalNavy, RoundedCornerShape(12.dp))
-                    .border(1.dp, Color.White.copy(alpha = 0.35f), RoundedCornerShape(12.dp))
-                    .clickable(onClick = onOpenOnlineOperators)
-                    .padding(vertical = 16.dp, horizontal = 12.dp),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(
-                    text = "Operatori on line",
-                    textAlign = TextAlign.Center,
-                    color = Color.White,
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.ExtraBold,
-                )
-            }
-        }
-        Spacer(modifier = Modifier.height(14.dp))
-        Text(
-            text = "Operatori SAR / unità cinofile: login = tracking, allarmi e push",
-            color = Color.White.copy(alpha = 0.78f),
-            fontSize = 12.sp,
-            textAlign = TextAlign.Center,
-            modifier = Modifier.padding(horizontal = 8.dp),
-        )
-    }
-}
-
-@Composable
-private fun HomeSideMenu(
-    session: OperatorSession?,
-    tocMessage: String?,
-    gpsStatusLabel: String?,
-    isLogged: Boolean,
-    onResetNotification: () -> Unit,
-    onOpenSettings: () -> Unit,
-    onLogout: () -> Unit,
-) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(Color(0xF0140A0C), RoundedCornerShape(14.dp))
-            .border(1.5.dp, TacticalYellow, RoundedCornerShape(14.dp))
-            .padding(12.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
         NotificationPanel(
             message = tocMessage,
             modifier = Modifier.padding(bottom = 10.dp),
@@ -259,7 +183,7 @@ private fun HomeSideMenu(
             backgroundColor = if (isLogged) TacticalNavy else TacticalDisabled,
             foregroundColor = if (isLogged) Color.White else TacticalMuted,
             onClick = if (isLogged) onResetNotification else null,
-            modifier = Modifier.padding(bottom = 12.dp),
+            modifier = Modifier.padding(bottom = 14.dp),
         )
 
         val boxColor = if (isLogged) TacticalGreen else Color.Black.copy(alpha = 0.48f)
@@ -287,7 +211,7 @@ private fun HomeSideMenu(
         }
 
         if (isLogged) {
-            Spacer(modifier = Modifier.height(10.dp))
+            Spacer(modifier = Modifier.height(12.dp))
             gpsStatusLabel?.let { label ->
                 BodyText(
                     text = label,
@@ -296,12 +220,13 @@ private fun HomeSideMenu(
                     modifier = Modifier.padding(bottom = 10.dp),
                 )
             }
+            FieldSessionStatus()
             MainButton(
                 label = "Impostazioni TOC SAR",
                 backgroundColor = TacticalNavy,
                 foregroundColor = Color.White,
                 onClick = onOpenSettings,
-                modifier = Modifier.padding(bottom = 10.dp),
+                modifier = Modifier.padding(bottom = 12.dp),
             )
             MainButton(
                 label = "Log-out",
@@ -309,6 +234,82 @@ private fun HomeSideMenu(
                 foregroundColor = Color.White,
                 onClick = onLogout,
             )
+        }
+
+        Spacer(modifier = Modifier.height(14.dp))
+        Text(
+            text = "Operatori SAR / unità cinofile: login = tracking, allarmi e push",
+            color = Color.White.copy(alpha = 0.78f),
+            fontSize = 12.sp,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.padding(horizontal = 8.dp),
+        )
+    }
+}
+
+@Composable
+private fun HomeSideMenu(
+    isLogged: Boolean,
+    onLogin: () -> Unit,
+    onSendNotify: () -> Unit,
+    onSendPhoto: () -> Unit,
+    onOpenGps: () -> Unit,
+    onOpenOnlineOperators: (() -> Unit)?,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(Color(0xF0140A0C), RoundedCornerShape(14.dp))
+            .border(1.5.dp, TacticalYellow, RoundedCornerShape(14.dp))
+            .padding(12.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        MainButton(
+            label = "Log-in",
+            backgroundColor = if (isLogged) TacticalDisabled else TacticalGreen,
+            foregroundColor = if (isLogged) TacticalMuted else Color.White,
+            onClick = if (!isLogged) onLogin else null,
+            modifier = Modifier.padding(bottom = 10.dp),
+        )
+        MainButton(
+            label = "INVIA NOTIFICA A TOC",
+            backgroundColor = if (isLogged) TacticalRed else TacticalDisabled,
+            foregroundColor = if (isLogged) Color.White else TacticalMuted,
+            onClick = if (isLogged) onSendNotify else null,
+            modifier = Modifier.padding(bottom = 10.dp),
+        )
+        MainButton(
+            label = "INVIA FOTO A TOC",
+            backgroundColor = if (isLogged) TacticalNavy else TacticalDisabled,
+            foregroundColor = if (isLogged) Color.White else TacticalMuted,
+            onClick = if (isLogged) onSendPhoto else null,
+            modifier = Modifier.padding(bottom = 10.dp),
+        )
+        MainButton(
+            label = "GPS",
+            backgroundColor = if (isLogged) TacticalYellow else TacticalDisabled,
+            foregroundColor = if (isLogged) Color.Black else TacticalMuted,
+            onClick = if (isLogged) onOpenGps else null,
+            modifier = Modifier.padding(bottom = if (onOpenOnlineOperators != null) 10.dp else 0.dp),
+        )
+        if (onOpenOnlineOperators != null) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(TacticalNavy, RoundedCornerShape(12.dp))
+                    .border(1.dp, Color.White.copy(alpha = 0.35f), RoundedCornerShape(12.dp))
+                    .clickable(onClick = onOpenOnlineOperators)
+                    .padding(vertical = 16.dp, horizontal = 12.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = "Operatori on line",
+                    textAlign = TextAlign.Center,
+                    color = Color.White,
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                )
+            }
         }
     }
 }

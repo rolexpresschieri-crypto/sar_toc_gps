@@ -34,7 +34,6 @@ import it.ansmi.tocsar.ui.HomeScreen
 import it.ansmi.tocsar.ui.LoginScreen
 import it.ansmi.tocsar.ui.OnlineOperatorsScreen
 import it.ansmi.tocsar.ui.OperatorSession
-import it.ansmi.tocsar.ui.SplashScreen
 import it.ansmi.tocsar.ui.VegetatoBackground
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.delay
@@ -43,10 +42,7 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
-private const val SplashVisibleMs = 5500L
-
 private enum class AppRoute {
-    Splash,
     Home,
     Login,
     Gps,
@@ -57,7 +53,7 @@ private enum class AppRoute {
 
 @Composable
 fun App() {
-    var route by remember { mutableStateOf(AppRoute.Splash) }
+    var route by remember { mutableStateOf(AppRoute.Login) }
     var session by remember { mutableStateOf<OperatorSession?>(null) }
     var tocMessage by remember { mutableStateOf<String?>(null) }
     var lastTocPushId by remember { mutableStateOf<String?>(null) }
@@ -110,13 +106,6 @@ fun App() {
             }
     }
 
-    LaunchedEffect(Unit) {
-        delay(SplashVisibleMs)
-        if (route == AppRoute.Splash) {
-            route = AppRoute.Login
-        }
-    }
-
     LaunchedEffect(facade) {
         val api = facade ?: return@LaunchedEffect
         val savedId = OperatorSessionStore.loadSessionId() ?: return@LaunchedEffect
@@ -124,7 +113,7 @@ fun App() {
             .onSuccess { restored ->
                 if (restored != null) {
                     applyBackendSession(restored)
-                    if (route == AppRoute.Splash || route == AppRoute.Login) {
+                    if (route == AppRoute.Login) {
                         route = AppRoute.Home
                     }
                 } else {
@@ -217,9 +206,6 @@ fun App() {
 
     Box(modifier = Modifier.fillMaxSize()) {
         when (route) {
-            AppRoute.Splash -> {
-                VegetatoBackground { SplashScreen() }
-            }
             AppRoute.Home -> {
                 VegetatoBackground {
                     HomeScreen(
