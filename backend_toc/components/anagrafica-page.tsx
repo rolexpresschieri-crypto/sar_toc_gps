@@ -23,7 +23,7 @@ import { deleteOperatorForOrganization } from "@/lib/delete-operator";
 import { downloadOperatorsPdf } from "@/lib/operators-pdf";
 import { normalizeMapColor } from "@/lib/live-squads";
 import {
-  USER_SEAT_LIMIT,
+  USER_SEAT_LIMIT_REACHED_MESSAGE,
   fetchOrgSeatCodes,
   wouldExceedUserSeatLimit,
 } from "@/lib/user-seats";
@@ -401,9 +401,7 @@ export default function AnagraficaPage() {
               nextEnabled: true,
             })
           ) {
-            throw new Error(
-              `Limite raggiunto: massimo ${USER_SEAT_LIMIT} utenti per questo ente (NVANSMI escluso).`,
-            );
+            throw new Error(USER_SEAT_LIMIT_REACHED_MESSAGE);
           }
         }
       }
@@ -483,9 +481,7 @@ export default function AnagraficaPage() {
             nextEnabled: true,
           })
         ) {
-          throw new Error(
-            `Limite raggiunto: massimo ${USER_SEAT_LIMIT} utenti per questo ente (NVANSMI escluso).`,
-          );
+          throw new Error(USER_SEAT_LIMIT_REACHED_MESSAGE);
         }
       }
       const { error } = await supabase

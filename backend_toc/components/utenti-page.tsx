@@ -10,6 +10,7 @@ import {
 import { getSupabaseBrowserClient, restoreAdminSessionFromStorage } from "@/lib/supabase-browser";
 import {
   USER_SEAT_LIMIT,
+  USER_SEAT_LIMIT_REACHED_MESSAGE,
   countUserSeats,
   fetchOrgSeatCodes,
   isUserSeatLimitExempt,
@@ -231,9 +232,7 @@ export default function UtentiPage() {
         nextEnabled,
       })
     ) {
-      throw new Error(
-        `Limite raggiunto: massimo ${USER_SEAT_LIMIT} utenti per questo ente (stesso codice app+backend = 1).`,
-      );
+      throw new Error(USER_SEAT_LIMIT_REACHED_MESSAGE);
     }
   }
 

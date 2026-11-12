@@ -73,6 +73,9 @@ export function userSeatLimitMessage(orgCode: string | null | undefined): string
   return `Limite ${USER_SEAT_LIMIT} utenti (stesso codice app+backend = 1 posto).`;
 }
 
+export const USER_SEAT_LIMIT_REACHED_MESSAGE =
+  `Limite raggiunto: massimo ${USER_SEAT_LIMIT} utenti per questo ente. Inviare mail a info@rolexpress-service.eu per l'acquisto di un nuovo pacchetto utenti.`;
+
 // Client Supabase browser (thenable query builder).
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export async function fetchOrgSeatCodes(
