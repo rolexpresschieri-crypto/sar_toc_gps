@@ -100,32 +100,33 @@ fun HomeScreen(
             .fillMaxSize()
             .windowInsetsPadding(WindowInsets.safeDrawing)
             .verticalScroll(scroll)
-            .padding(start = 8.dp, end = 16.dp, top = 10.dp, bottom = 12.dp),
+            .padding(horizontal = 16.dp, vertical = 10.dp)
+            .padding(bottom = 12.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Row(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .offset(x = (-8).dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween,
         ) {
-            Box(
-                modifier = Modifier.weight(1f),
-                contentAlignment = Alignment.CenterStart,
-            ) {
+            Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
                 if (!enteCode.isNullOrBlank()) {
                     EnteLogoImage(
                         orgCode = enteCode,
                         modifier = Modifier
-                            .offset(x = (-4).dp)
                             .height(72.dp)
-                            .fillMaxWidth(0.62f),
+                            .fillMaxWidth(0.6f),
                     )
                 }
             }
-            HamburgerToggle(
-                open = menuOpen,
-                onClick = { menuOpen = !menuOpen },
-            )
+            Box(modifier = Modifier.offset(x = 8.dp)) {
+                HamburgerToggle(
+                    open = menuOpen,
+                    onClick = { menuOpen = !menuOpen },
+                )
+            }
         }
 
         if (menuOpen) {
@@ -183,7 +184,7 @@ fun HomeScreen(
             backgroundColor = if (isLogged) TacticalNavy else TacticalDisabled,
             foregroundColor = if (isLogged) Color.White else TacticalMuted,
             onClick = if (isLogged) onResetNotification else null,
-            modifier = Modifier.padding(bottom = 14.dp),
+            modifier = Modifier.padding(bottom = 12.dp),
         )
 
         val boxColor = if (isLogged) TacticalGreen else Color.Black.copy(alpha = 0.48f)
@@ -211,7 +212,7 @@ fun HomeScreen(
         }
 
         if (isLogged) {
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(10.dp))
             gpsStatusLabel?.let { label ->
                 BodyText(
                     text = label,
@@ -226,7 +227,7 @@ fun HomeScreen(
                 backgroundColor = TacticalNavy,
                 foregroundColor = Color.White,
                 onClick = onOpenSettings,
-                modifier = Modifier.padding(bottom = 12.dp),
+                modifier = Modifier.padding(bottom = 10.dp),
             )
             MainButton(
                 label = "Log-out",
@@ -269,30 +270,30 @@ private fun HomeSideMenu(
             backgroundColor = if (isLogged) TacticalDisabled else TacticalGreen,
             foregroundColor = if (isLogged) TacticalMuted else Color.White,
             onClick = if (!isLogged) onLogin else null,
-            modifier = Modifier.padding(bottom = 10.dp),
         )
+        Spacer(modifier = Modifier.height(12.dp))
         MainButton(
             label = "INVIA NOTIFICA A TOC",
             backgroundColor = if (isLogged) TacticalRed else TacticalDisabled,
             foregroundColor = if (isLogged) Color.White else TacticalMuted,
             onClick = if (isLogged) onSendNotify else null,
-            modifier = Modifier.padding(bottom = 10.dp),
         )
+        Spacer(modifier = Modifier.height(12.dp))
         MainButton(
             label = "INVIA FOTO A TOC",
             backgroundColor = if (isLogged) TacticalNavy else TacticalDisabled,
             foregroundColor = if (isLogged) Color.White else TacticalMuted,
             onClick = if (isLogged) onSendPhoto else null,
-            modifier = Modifier.padding(bottom = 10.dp),
         )
+        Spacer(modifier = Modifier.height(12.dp))
         MainButton(
             label = "GPS",
             backgroundColor = if (isLogged) TacticalYellow else TacticalDisabled,
             foregroundColor = if (isLogged) Color.Black else TacticalMuted,
             onClick = if (isLogged) onOpenGps else null,
-            modifier = Modifier.padding(bottom = if (onOpenOnlineOperators != null) 10.dp else 0.dp),
         )
         if (onOpenOnlineOperators != null) {
+            Spacer(modifier = Modifier.height(12.dp))
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
