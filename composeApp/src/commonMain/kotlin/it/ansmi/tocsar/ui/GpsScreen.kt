@@ -119,6 +119,11 @@ private val TrackColors = listOf("#1565C0", "#00838F", "#6A1B9A", "#EF6C00", "#2
 /** Distanza minima tra un punto e il successivo in tracking TRK (come TocAppBuild). */
 private const val TrackPointMinDistanceM = 3f
 
+private enum class GpsPage {
+    Actions,
+    Route,
+}
+
 @Composable
 fun GpsScreen(
     onBack: () -> Unit,
@@ -139,6 +144,7 @@ fun GpsScreen(
     val trackPrefix = "${operatorPrefix}_TRK_"
 
     var nightMode by remember { mutableStateOf(false) }
+    var gpsPage by remember { mutableStateOf(GpsPage.Actions) }
     var latBase by remember { mutableStateOf("") }
     var lonBase by remember { mutableStateOf("") }
     var altBase by remember { mutableStateOf("") }
@@ -407,7 +413,11 @@ fun GpsScreen(
     }
 
     AppBackHandler(enabled = true) {
-        if (showMap) showMap = false else onBack()
+        when {
+            showMap -> showMap = false
+            gpsPage == GpsPage.Route -> gpsPage = GpsPage.Actions
+            else -> onBack()
+        }
     }
 
     val tripDistShown = when {
@@ -441,21 +451,26 @@ fun GpsScreen(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
-                    text = "←",
+                    text = if (gpsPage == GpsPage.Route) "↑" else "←",
                     color = Color.White,
                     fontSize = 22.sp,
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier
                         .clip(RoundedCornerShape(8.dp))
                         .clickable(onClick = {
-                            stopVaiABase()
-                            // TRK continua nel service se attivo
-                            onBack()
+                            when (gpsPage) {
+                                GpsPage.Route -> gpsPage = GpsPage.Actions
+                                GpsPage.Actions -> {
+                                    stopVaiABase()
+                                    // TRK continua nel service se attivo
+                                    onBack()
+                                }
+                            }
                         })
                         .padding(horizontal = 12.dp, vertical = 4.dp),
                 )
                 Text(
-                    text = "GPS",
+                    text = if (gpsPage == GpsPage.Route) "CALCOLA ROTTA" else "GPS",
                     color = Color.White,
                     fontSize = 20.sp,
                     fontWeight = FontWeight.Bold,
@@ -479,238 +494,242 @@ fun GpsScreen(
                     .verticalScroll(rememberScrollState())
                     .padding(start = 12.dp, top = 14.dp, end = 12.dp, bottom = 26.dp),
             ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(if (nightMode) card else CompassGuideDayYellow)
-                        .clickable { showCalib = true }
-                        .padding(horizontal = 12.dp, vertical = 10.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text("ℹ", fontSize = 18.sp, color = if (nightMode) sub else Color.Black)
-                    Spacer(modifier = Modifier.width(10.dp))
-                    Text(
-                        text = "Bussola imprecisa? Guida calibrazione (movimento a 8)",
-                        color = if (nightMode) fg else Color.Black,
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.weight(1f),
-                    )
-                    Text("›", fontSize = 22.sp, color = if (nightMode) sub else Color.Black)
-                }
-
-                Spacer(modifier = Modifier.height(10.dp))
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    CoordsColumn(
-                        title = "BASE",
-                        accuracy = accBase,
-                        buttonLabel = if (loadingBase) "..." else "Imposta BASE da GPS",
-                        buttonColor = Color(0xFF009246),
-                        lat = latBase, lon = lonBase, alt = altBase,
-                        onLat = { latBase = it }, onLon = { lonBase = it }, onAlt = { altBase = it },
-                        latLabel = "Lat BASE", lonLabel = "Lon BASE", altLabel = "Quota BASE (m)",
-                        onGps = { setFromGps(true) },
-                        card = card, fg = fg, sub = sub,
-                        modifier = Modifier.weight(1f),
-                    )
-                    CoordsColumn(
-                        title = "PATTUGLIA",
-                        accuracy = accPtg,
-                        buttonLabel = if (loadingPtg) "..." else "Imposta PTG da GPS",
-                        buttonColor = Color(0xFFF9A825),
-                        lat = latPtg, lon = lonPtg, alt = altPtg,
-                        onLat = { latPtg = it }, onLon = { lonPtg = it }, onAlt = { altPtg = it },
-                        latLabel = "Lat PTG", lonLabel = "Lon PTG", altLabel = "Quota PTG (m)",
-                        onGps = { setFromGps(false) },
-                        card = card, fg = fg, sub = sub,
-                        modifier = Modifier.weight(1f),
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(10.dp))
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                if (gpsPage == GpsPage.Actions) {
                     GpsActionButton(
                         if (trkRecording) "STOP TRK" else "START TRK",
                         if (trkRecording) Color(0xFFCE2B37) else Color(0xFF00838F),
-                        Modifier.weight(1f),
+                        Modifier.fillMaxWidth(),
                         onClick = { toggleTrk() },
                     )
-                    GpsActionButton("INS WP", Color(0xFFFF9021), Modifier.weight(1f)) {
+                    if (trkRecording) {
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            "REC · ${trackPoints.size} punti · ogni ${TrackPointMinDistanceM.toInt()} m — anche in tasca · STOP chiede il nome",
+                            color = if (nightMode) Color(0xFFFF8A80) else Color(0xFFC62828),
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 13.sp,
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(12.dp))
+                    GpsActionButton("INS WP", Color(0xFFFF9021), Modifier.fillMaxWidth()) {
                         wpSeedLat = latBase
                         wpSeedLon = lonBase
                         wpSeedAlt = altBase
                         wpSeedAcc = accBase
                         showInsWp = true
                     }
-                }
-                if (trkRecording) {
-                    Spacer(modifier = Modifier.height(6.dp))
-                    Text(
-                        "REC · ${trackPoints.size} punti · ogni ${TrackPointMinDistanceM.toInt()} m — anche in tasca · STOP chiede il nome",
-                        color = if (nightMode) Color(0xFFFF8A80) else Color(0xFFC62828),
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 13.sp,
-                    )
-                }
-                Spacer(modifier = Modifier.height(10.dp))
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    GpsActionButton("Calcola rotta", Color(0xFF9E9E9E), Modifier.weight(1f), onClick = { calcolaRotta() })
-                    GpsActionButton("Vai a BASE", Color(0xFF009246), Modifier.weight(1f), onClick = { vaiABase() })
-                }
-                Spacer(modifier = Modifier.height(10.dp))
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    GpsActionButton("WP & TRK", Color(0xFF0D47A1), Modifier.weight(1f)) {
+                    Spacer(modifier = Modifier.height(12.dp))
+                    GpsActionButton("WP & TRK", Color(0xFF0D47A1), Modifier.fillMaxWidth()) {
                         showWpTrk = true
                     }
-                    GpsActionButton("MAPPA", Color(0xFF7E57C2), Modifier.weight(1f)) {
+                    Spacer(modifier = Modifier.height(12.dp))
+                    GpsActionButton("MAPPA", Color(0xFF7E57C2), Modifier.fillMaxWidth()) {
                         openMap()
                     }
-                }
-                if (tripVisible || mapWpCount > 0 || mapTrkCount > 0 || trkRecording) {
-                    Spacer(modifier = Modifier.height(10.dp))
-                    if (tripVisible) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(10.dp))
-                                .background(Color(0xFFFFE14A))
-                                .padding(horizontal = 8.dp, vertical = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        ) {
-                            GpsActionButton(
-                                label = if (GpsFieldSession.tripRunning) "STOP" else "ST",
-                                color = if (GpsFieldSession.tripRunning) Color(0xFFCE2B37) else Color(0xFF00838F),
-                                modifier = Modifier.width(72.dp),
-                                compact = true,
-                                onClick = { GpsFieldSession.toggle() },
-                                onLongClick = { GpsFieldSession.resetClock() },
-                            )
-                            Text(
-                                text = "TIME ${formatFieldElapsed(tripTimeShown)}",
-                                color = Color(0xFF4A3800),
-                                fontWeight = FontWeight.ExtraBold,
-                                fontSize = 16.sp,
-                                modifier = Modifier.weight(1f),
-                            )
-                            Text(
-                                text = "DIST ${formatFieldMeters(tripDistShown)}",
-                                color = Color(0xFF212121),
-                                fontWeight = FontWeight.ExtraBold,
-                                fontSize = 15.sp,
-                            )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    GpsActionButton("CLEAR DATA", Color(0xFFCE2B37), Modifier.fillMaxWidth(), onClick = { clearData() })
+                    Spacer(modifier = Modifier.height(12.dp))
+                    GpsActionButton("CALCOLA ROTTA", Color(0xFF9E9E9E), Modifier.fillMaxWidth()) {
+                        gpsPage = GpsPage.Route
+                    }
+                    if (tripVisible || mapWpCount > 0 || mapTrkCount > 0 || trkRecording) {
+                        Spacer(modifier = Modifier.height(14.dp))
+                        if (tripVisible) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .background(Color(0xFFFFE14A))
+                                    .padding(horizontal = 8.dp, vertical = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            ) {
+                                GpsActionButton(
+                                    label = if (GpsFieldSession.tripRunning) "STOP" else "ST",
+                                    color = if (GpsFieldSession.tripRunning) Color(0xFFCE2B37) else Color(0xFF00838F),
+                                    modifier = Modifier.width(72.dp),
+                                    compact = true,
+                                    onClick = { GpsFieldSession.toggle() },
+                                    onLongClick = { GpsFieldSession.resetClock() },
+                                )
+                                Text(
+                                    text = "TIME ${formatFieldElapsed(tripTimeShown)}",
+                                    color = Color(0xFF4A3800),
+                                    fontWeight = FontWeight.ExtraBold,
+                                    fontSize = 16.sp,
+                                    modifier = Modifier.weight(1f),
+                                )
+                                Text(
+                                    text = "DIST ${formatFieldMeters(tripDistShown)}",
+                                    color = Color(0xFF212121),
+                                    fontWeight = FontWeight.ExtraBold,
+                                    fontSize = 15.sp,
+                                )
+                            }
                         }
-                    }
-                    if (mapWpCount > 0 || mapTrkCount > 0 || trkRecording) {
-                        Spacer(modifier = Modifier.height(6.dp))
-                        Text(
-                            text = buildString {
-                                append("In mappa: $mapWpCount WP · $mapTrkCount TRK")
-                                if (trkRecording) append(" · registrazione attiva")
-                                append(" — si chiudono solo con Clear data")
-                            },
-                            color = if (nightMode) Color(0xFFFFE14A) else Color(0xFF4A3800),
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 13.sp,
-                        )
-                    }
-                }
-                Spacer(modifier = Modifier.height(10.dp))
-                GpsActionButton("Clear data", Color(0xFFCE2B37), Modifier.fillMaxWidth(), onClick = { clearData() })
-
-                Spacer(modifier = Modifier.height(10.dp))
-                Text(
-                    text = if (isGoMode) {
-                        val target = selectedWpId?.takeIf { it.isNotBlank() } ?: "BASE"
-                        "Distanza $target: ${formatDistance(distanceM)}"
-                    } else {
-                        "Distanza: ${formatDistance(distanceM)}"
-                    },
-                    color = fg,
-                    fontSize = if (isGoMode) 22.sp else 24.sp,
-                    fontWeight = FontWeight.ExtraBold,
-                )
-                if (!selectedWpId.isNullOrBlank()) {
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = selectedWpId!!,
-                        color = Color.White,
-                        fontWeight = FontWeight.ExtraBold,
-                        fontSize = 16.sp,
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(Color(0xFF009246))
-                            .padding(horizontal = 10.dp, vertical = 4.dp),
-                    )
-                }
-                if (!isGoMode) {
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = "Bearing: ${bearingToBase?.let { "${it.toInt()}°" } ?: "-"}",
-                        color = fg,
-                        fontSize = 24.sp,
-                        fontWeight = FontWeight.Bold,
-                    )
-                    Spacer(modifier = Modifier.height(10.dp))
-                    BoxWithConstraints(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                        val compassSize = min(400f, maxWidth.value - 8f).dp
-                        Box(modifier = Modifier.size(compassSize), contentAlignment = Alignment.Center) {
-                            Image(
-                                painter = painterResource(Res.drawable.goniometro),
-                                contentDescription = null,
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .rotate(-((travelHeading ?: 0.0).toFloat())),
-                                contentScale = ContentScale.Fit,
-                            )
-                            Box(
-                                modifier = Modifier
-                                    .align(Alignment.TopCenter)
-                                    .padding(top = compassSize * 0.03f)
-                                    .width(2.dp)
-                                    .height(compassSize * 0.34f)
-                                    .background(Color.Black.copy(alpha = 0.75f)),
-                            )
+                        if (mapWpCount > 0 || mapTrkCount > 0 || trkRecording) {
+                            Spacer(modifier = Modifier.height(6.dp))
                             Text(
-                                text = headingLabel,
-                                fontSize = 22.sp,
-                                fontWeight = FontWeight.ExtraBold,
-                                color = Color.Black,
-                                modifier = Modifier
-                                    .background(Color.White.copy(alpha = 0.9f), RoundedCornerShape(10.dp))
-                                    .padding(horizontal = 24.dp, vertical = 10.dp),
+                                text = buildString {
+                                    append("In mappa: $mapWpCount WP · $mapTrkCount TRK")
+                                    if (trkRecording) append(" · registrazione attiva")
+                                    append(" — si chiudono solo con Clear data")
+                                },
+                                color = if (nightMode) Color(0xFFFFE14A) else Color(0xFF4A3800),
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 13.sp,
                             )
                         }
                     }
                 } else {
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = headingLabel,
-                        color = fg,
-                        fontSize = 22.sp,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.fillMaxWidth(),
-                        textAlign = TextAlign.Center,
-                    )
-                    Spacer(modifier = Modifier.height(10.dp))
-                    Box(
+                    Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(170.dp),
-                        contentAlignment = Alignment.Center,
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(if (nightMode) card else CompassGuideDayYellow)
+                            .clickable { showCalib = true }
+                            .padding(horizontal = 12.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        NavigationArrow(
-                            rotationDeg = arrowRotation.toFloat(),
-                            color = if (nightMode) Color.White else Color.Black,
-                            modifier = Modifier.size(162.dp),
+                        Text("ℹ", fontSize = 18.sp, color = if (nightMode) sub else Color.Black)
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Text(
+                            text = "Bussola imprecisa? Guida calibrazione (movimento a 8)",
+                            color = if (nightMode) fg else Color.Black,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.weight(1f),
+                        )
+                        Text("›", fontSize = 22.sp, color = if (nightMode) sub else Color.Black)
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        CoordsColumn(
+                            title = "BASE",
+                            accuracy = accBase,
+                            buttonLabel = if (loadingBase) "..." else "Imposta BASE da GPS",
+                            buttonColor = Color(0xFF009246),
+                            lat = latBase, lon = lonBase, alt = altBase,
+                            onLat = { latBase = it }, onLon = { lonBase = it }, onAlt = { altBase = it },
+                            latLabel = "Lat BASE", lonLabel = "Lon BASE", altLabel = "Quota BASE (m)",
+                            onGps = { setFromGps(true) },
+                            card = card, fg = fg, sub = sub,
+                            modifier = Modifier.weight(1f),
+                        )
+                        CoordsColumn(
+                            title = "PATTUGLIA",
+                            accuracy = accPtg,
+                            buttonLabel = if (loadingPtg) "..." else "Imposta PTG da GPS",
+                            buttonColor = Color(0xFFF9A825),
+                            lat = latPtg, lon = lonPtg, alt = altPtg,
+                            onLat = { latPtg = it }, onLon = { lonPtg = it }, onAlt = { altPtg = it },
+                            latLabel = "Lat PTG", lonLabel = "Lon PTG", altLabel = "Quota PTG (m)",
+                            onGps = { setFromGps(false) },
+                            card = card, fg = fg, sub = sub,
+                            modifier = Modifier.weight(1f),
                         )
                     }
+
                     Spacer(modifier = Modifier.height(10.dp))
-                    GpsActionButton("Chiudi Vai a BASE", Color(0xFF9E9E9E), Modifier.width(240.dp), onClick = {
-                        stopVaiABase()
-                        toast("Navigazione fermata")
-                    })
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        GpsActionButton("Calcola rotta", Color(0xFF9E9E9E), Modifier.weight(1f), onClick = { calcolaRotta() })
+                        GpsActionButton("Vai a BASE", Color(0xFF009246), Modifier.weight(1f), onClick = { vaiABase() })
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Text(
+                        text = if (isGoMode) {
+                            val target = selectedWpId?.takeIf { it.isNotBlank() } ?: "BASE"
+                            "Distanza $target: ${formatDistance(distanceM)}"
+                        } else {
+                            "Distanza: ${formatDistance(distanceM)}"
+                        },
+                        color = fg,
+                        fontSize = if (isGoMode) 22.sp else 24.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                    )
+                    if (!selectedWpId.isNullOrBlank()) {
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = selectedWpId!!,
+                            color = Color.White,
+                            fontWeight = FontWeight.ExtraBold,
+                            fontSize = 16.sp,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(Color(0xFF009246))
+                                .padding(horizontal = 10.dp, vertical = 4.dp),
+                        )
+                    }
+                    if (!isGoMode) {
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "Bearing: ${bearingToBase?.let { "${it.toInt()}°" } ?: "-"}",
+                            color = fg,
+                            fontSize = 24.sp,
+                            fontWeight = FontWeight.Bold,
+                        )
+                        Spacer(modifier = Modifier.height(10.dp))
+                        BoxWithConstraints(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                            val compassSize = min(400f, maxWidth.value - 8f).dp
+                            Box(modifier = Modifier.size(compassSize), contentAlignment = Alignment.Center) {
+                                Image(
+                                    painter = painterResource(Res.drawable.goniometro),
+                                    contentDescription = null,
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .rotate(-((travelHeading ?: 0.0).toFloat())),
+                                    contentScale = ContentScale.Fit,
+                                )
+                                Box(
+                                    modifier = Modifier
+                                        .align(Alignment.TopCenter)
+                                        .padding(top = compassSize * 0.03f)
+                                        .width(2.dp)
+                                        .height(compassSize * 0.34f)
+                                        .background(Color.Black.copy(alpha = 0.75f)),
+                                )
+                                Text(
+                                    text = headingLabel,
+                                    fontSize = 22.sp,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = Color.Black,
+                                    modifier = Modifier
+                                        .background(Color.White.copy(alpha = 0.9f), RoundedCornerShape(10.dp))
+                                        .padding(horizontal = 24.dp, vertical = 10.dp),
+                                )
+                            }
+                        }
+                    } else {
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = headingLabel,
+                            color = fg,
+                            fontSize = 22.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.fillMaxWidth(),
+                            textAlign = TextAlign.Center,
+                        )
+                        Spacer(modifier = Modifier.height(10.dp))
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(170.dp),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            NavigationArrow(
+                                rotationDeg = arrowRotation.toFloat(),
+                                color = if (nightMode) Color.White else Color.Black,
+                                modifier = Modifier.size(162.dp),
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(10.dp))
+                        GpsActionButton("Chiudi Vai a BASE", Color(0xFF9E9E9E), Modifier.width(240.dp), onClick = {
+                            stopVaiABase()
+                            toast("Navigazione fermata")
+                        })
+                    }
                 }
             }
         }
