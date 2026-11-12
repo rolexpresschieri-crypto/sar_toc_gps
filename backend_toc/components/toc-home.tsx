@@ -2,7 +2,7 @@
 
 import dynamic from "next/dynamic";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { hasCoordinates, type LiveSquad } from "@/lib/live-squads";
 import { readStoredLayerMode, writeStoredLayerMode } from "@/lib/map-layer-storage";
 import { layerOptions, type LayerMode } from "@/lib/map-layers";
@@ -78,10 +78,34 @@ export default function TocHome() {
   const [pushBusy, setPushBusy] = useState(false);
   const [pushSelectAll, setPushSelectAll] = useState(true);
   const [pushTargets, setPushTargets] = useState<Set<string>>(new Set());
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     setLayerMode(readStoredLayerMode());
   }, []);
+
+  useEffect(() => {
+    if (!menuOpen) {
+      return;
+    }
+    function onDoc(e: MouseEvent) {
+      if (!menuRef.current?.contains(e.target as Node)) {
+        setMenuOpen(false);
+      }
+    }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") {
+        setMenuOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", onDoc);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDoc);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [menuOpen]);
 
   useEffect(() => {
     const ids = squads.map((s) => s.sessionId);
@@ -321,42 +345,61 @@ export default function TocHome() {
             </p>
             {statusMessage ? <p className={styles.message}>{statusMessage}</p> : null}
           </div>
-          <div className={styles.headerLogoWrapRight}>
-            <HeaderEnteLogo orgCode={session.organizationCode} className={styles.headerLogo} />
+          <div className={styles.headerMenuSlot} ref={menuRef}>
+            <button
+              type="button"
+              className={styles.burgerBtn}
+              aria-label={menuOpen ? "Chiudi menu" : "Apri menu"}
+              aria-expanded={menuOpen}
+              onClick={() => setMenuOpen((v) => !v)}
+            >
+              <span className={styles.burgerBar} />
+              <span className={styles.burgerBar} />
+              <span className={styles.burgerBar} />
+            </button>
+            {menuOpen ? (
+              <nav className={styles.burgerMenu} aria-label="Menu TOC">
+                <Link className={styles.burgerItem} href="/anagrafica" onClick={() => setMenuOpen(false)}>
+                  Anagrafica
+                </Link>
+                <Link className={styles.burgerItem} href="/log" onClick={() => setMenuOpen(false)}>
+                  LOG
+                </Link>
+                <button
+                  type="button"
+                  className={styles.burgerItem}
+                  onClick={() => {
+                    setMenuOpen(false);
+                    openExternalMapWindow(layerMode);
+                  }}
+                >
+                  Mappa su schermo grande
+                </button>
+                <Link className={styles.burgerItem} href="/config" onClick={() => setMenuOpen(false)}>
+                  Operatori online
+                </Link>
+                {canManageBackendUsers(session.code) ? (
+                  <Link className={styles.burgerItem} href="/utenti" onClick={() => setMenuOpen(false)}>
+                    Utenti backend
+                  </Link>
+                ) : null}
+                <button
+                  type="button"
+                  className={`${styles.burgerItem} ${styles.burgerLogout}`}
+                  onClick={() => {
+                    setMenuOpen(false);
+                    toc.handleLogout();
+                  }}
+                >
+                  Logout TOC
+                </button>
+              </nav>
+            ) : null}
           </div>
         </div>
         <div className={styles.actions}>
           <button className={`${styles.btn} ${styles.btnPrimary}`} type="button" onClick={() => void loadLive()}>
             Aggiorna
-          </button>
-          <Link className={`${styles.btn} ${styles.btnYellow}`} href="/anagrafica">
-            Anagrafica
-          </Link>
-          <Link className={`${styles.btn} ${styles.btnYellow}`} href="/log">
-            LOG
-          </Link>
-          <Link className={`${styles.btn} ${styles.btnYellow}`} href="/config">
-            Operatori online
-          </Link>
-          {canManageBackendUsers(session.code) ? (
-            <Link className={`${styles.btn} ${styles.btnYellow}`} href="/utenti">
-              Utenti backend
-            </Link>
-          ) : null}
-          <button
-            className={`${styles.btn} ${styles.btnYellow}`}
-            type="button"
-            onClick={() => openExternalMapWindow(layerMode)}
-            title="Apre una nuova finestra da spostare sul secondo monitor"
-          >
-            Mappa su schermo grande
-          </button>
-          <button
-            className={`${styles.btn} ${styles.btnDanger} ${styles.btnLogout}`}
-            type="button"
-            onClick={toc.handleLogout}
-          >
-            Logout TOC
           </button>
         </div>
       </header>
