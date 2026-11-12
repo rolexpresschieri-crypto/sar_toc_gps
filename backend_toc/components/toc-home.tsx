@@ -38,6 +38,21 @@ function HeaderEnteLogo({ orgCode, className }: { orgCode: string; className?: s
   );
 }
 
+function LogoutDoorIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" aria-hidden="true">
+      <path
+        fill="currentColor"
+        d="M10 3a1 1 0 0 0-1 1v4h2V5h7v14h-7v-3H9v4a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1V4a1 1 0 0 0-1-1h-9z"
+      />
+      <path
+        fill="currentColor"
+        d="M4.3 11.3a1 1 0 0 0 0 1.4l3 3a1 1 0 0 0 1.4-1.4L7.42 13H15a1 1 0 1 0 0-2H7.42l1.28-1.3a1 1 0 0 0-1.4-1.4l-3 3z"
+      />
+    </svg>
+  );
+}
+
 const SarLiveMap = dynamic(() => import("@/components/sar-live-map"), {
   ssr: false,
   loading: () => <p className={styles.opsEmpty}>Caricamento mappa…</p>,
@@ -391,6 +406,7 @@ export default function TocHome() {
                     toc.handleLogout();
                   }}
                 >
+                  <LogoutDoorIcon className={styles.burgerLogoutIcon} />
                   Logout TOC
                 </button>
               </nav>

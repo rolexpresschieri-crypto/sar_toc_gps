@@ -86,7 +86,7 @@
   position: absolute;
   top: calc(100% + 8px);
   right: 0;
-  min-width: 240px;
+  min-width: 280px;
   display: flex;
   flex-direction: column;
   gap: 2px;
@@ -101,33 +101,44 @@
   display: block;
   width: 100%;
   text-align: left;
-  padding: 11px 12px;
+  padding: 12px 14px;
   border: none;
   border-radius: 8px;
   background: transparent;
   color: #f5f5f5;
   font: inherit;
   font-weight: 700;
-  font-size: 14px;
+  font-size: 17px;
+  line-height: 1.25;
   text-decoration: none;
   cursor: pointer;
 }
 
 .burgerItem:hover {
-  background: rgba(224, 190, 58, 0.22);
+  background: rgba(224, 190, 58, 0.28);
   color: #fff;
 }
 
 .burgerLogout {
-  margin-top: 12px;
-  padding-top: 12px;
-  border-top: 1px solid rgba(224, 190, 58, 0.35);
-  color: #ffb4b4;
+  margin-top: 14px;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  background: #c62828;
+  color: #fff;
+  border: 1px solid #a51f1f;
 }
 
 .burgerLogout:hover {
-  background: rgba(198, 40, 40, 0.35);
+  background: #e53935;
   color: #fff;
+  filter: brightness(1.08);
+}
+
+.burgerLogoutIcon {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
 }
 
 .header h1 {

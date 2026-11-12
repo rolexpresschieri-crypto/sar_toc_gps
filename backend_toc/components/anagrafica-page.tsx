@@ -23,6 +23,11 @@ import { deleteOperatorForOrganization } from "@/lib/delete-operator";
 import { downloadOperatorsPdf } from "@/lib/operators-pdf";
 import { normalizeMapColor } from "@/lib/live-squads";
 import {
+  USER_SEAT_LIMIT,
+  fetchOrgSeatCodes,
+  wouldExceedUserSeatLimit,
+} from "@/lib/user-seats";
+import {
   countOnlineForOperation,
   deleteOperationLogs,
   downloadOperationXlsx,
@@ -377,6 +382,31 @@ export default function AnagraficaPage() {
     setBusy(true);
     setFormError(null);
     try {
+      if (squadEnabled) {
+        const snap = await fetchOrgSeatCodes(supabase, orgId);
+        if (snap.error) {
+          throw new Error(snap.error);
+        }
+        const editingRow = squadEditingId ? squads.find((s) => s.id === squadEditingId) : null;
+        const wasEnabled = Boolean(editingRow?.is_enabled);
+        const codeChanged =
+          editingRow && editingRow.squad_code.trim().toUpperCase() !== code;
+        if (!wasEnabled || !editingRow || codeChanged) {
+          if (
+            wouldExceedUserSeatLimit({
+              orgCode: session.organizationCode,
+              appCodes: snap.appCodes,
+              backendCodes: snap.backendCodes,
+              nextCode: code,
+              nextEnabled: true,
+            })
+          ) {
+            throw new Error(
+              `Limite raggiunto: massimo ${USER_SEAT_LIMIT} utenti per questo ente (NVANSMI escluso).`,
+            );
+          }
+        }
+      }
       const folderId = await folderIdForAffiliation(affiliation);
       if (squadEditingId) {
         const { error } = await supabase
@@ -439,6 +469,25 @@ export default function AnagraficaPage() {
     setBusy(true);
     setFormError(null);
     try {
+      if (nextEnabled && session) {
+        const snap = await fetchOrgSeatCodes(supabase, orgId);
+        if (snap.error) {
+          throw new Error(snap.error);
+        }
+        if (
+          wouldExceedUserSeatLimit({
+            orgCode: session.organizationCode,
+            appCodes: snap.appCodes,
+            backendCodes: snap.backendCodes,
+            nextCode: row.squad_code,
+            nextEnabled: true,
+          })
+        ) {
+          throw new Error(
+            `Limite raggiunto: massimo ${USER_SEAT_LIMIT} utenti per questo ente (NVANSMI escluso).`,
+          );
+        }
+      }
       const { error } = await supabase
         .from("squads")
         .update({ is_enabled: nextEnabled })
