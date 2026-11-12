@@ -7,6 +7,7 @@ import {
   normalizeOrgCode,
   type AdminSessionData,
 } from "@/lib/admin-auth";
+import { enteLogoUrl } from "@/lib/ente-logo";
 import {
   getSupabaseBrowserClient,
   loginTocAdmin,
@@ -18,8 +19,8 @@ export function useTocSession() {
   const [supabase, setSupabase] = useState<ReturnType<typeof getSupabaseBrowserClient>>(null);
   const [session, setSession] = useState<AdminSessionData | null>(null);
   const [authChecked, setAuthChecked] = useState(false);
-  const [loginEnte, setLoginEnte] = useState("NVANSMI");
-  const [loginCode, setLoginCode] = useState("ADMIN_RR");
+  const [loginEnte, setLoginEnte] = useState("");
+  const [loginCode, setLoginCode] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
   const [enteLocked, setEnteLocked] = useState(false);
   const [loginBusy, setLoginBusy] = useState(false);
@@ -133,21 +134,30 @@ export function TocLoginForm({
   onChangeEnte: () => void;
 }) {
   const [showPassword, setShowPassword] = useState(false);
+  const [logoBroken, setLogoBroken] = useState(false);
+  const logoSrc = enteLogoUrl(loginEnte);
+  useEffect(() => {
+    setLogoBroken(false);
+  }, [logoSrc]);
+
   return (
     <main className={`${styles.root} ${styles.loginScreen}`}>
       <div className={styles.loginLayout}>
-        <div className={styles.loginLogoWrap}>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            className={styles.loginLogoSide}
-            src="/map/squad/logo_ansmi.png"
-            alt="NV ANSMI — Reparto cinofilo da soccorso"
-          />
-        </div>
+        {logoSrc && !logoBroken ? (
+          <div className={styles.loginLogoWrap}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              className={styles.loginLogoSide}
+              src={logoSrc}
+              alt={`Logo ${normalizeOrgCode(loginEnte)}`}
+              onError={() => setLogoBroken(true)}
+            />
+          </div>
+        ) : null}
         <form className={styles.loginCard} onSubmit={onLogin}>
           <h1>Login TOC SAR</h1>
           <input
-            placeholder="Codice TOC"
+            placeholder="Codice Ente"
             value={loginEnte}
             onChange={(e) => setLoginEnte(e.target.value.toUpperCase())}
             disabled={enteLocked}
@@ -155,7 +165,7 @@ export function TocLoginForm({
           />
           {enteLocked ? (
             <button type="button" className={styles.changeEnte} onClick={onChangeEnte}>
-              Cambia TOC
+              Cambia Ente
             </button>
           ) : null}
           <input
@@ -190,7 +200,7 @@ export function TocLoginForm({
           {statusMessage ? <p className={styles.message}>{statusMessage}</p> : null}
         </form>
       </div>
-      <p className={styles.loginSignature}>by R. Ronco</p>
+      <p className={styles.loginSignature}>Rolexpress Digital Service</p>
     </main>
   );
 }

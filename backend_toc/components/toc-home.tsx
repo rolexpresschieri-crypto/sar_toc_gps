@@ -10,7 +10,28 @@ import { openExternalMapWindow } from "@/lib/open-external-map";
 import { markPhotoAckedLocally, useLiveFeed, type FieldPhoto } from "@/lib/use-live-feed";
 import { TocLoginForm, useTocSession } from "@/lib/use-toc-session";
 import { canManageBackendUsers } from "@/lib/admin-auth";
+import { enteLogoUrl } from "@/lib/ente-logo";
 import styles from "./toc-home.module.css";
+
+function HeaderEnteLogo({ orgCode, className }: { orgCode: string; className?: string }) {
+  const src = enteLogoUrl(orgCode);
+  const [broken, setBroken] = useState(false);
+  useEffect(() => {
+    setBroken(false);
+  }, [src]);
+  if (!src || broken) {
+    return null;
+  }
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      className={className}
+      src={src}
+      alt={orgCode}
+      onError={() => setBroken(true)}
+    />
+  );
+}
 
 const SarLiveMap = dynamic(() => import("@/components/sar-live-map"), {
   ssr: false,
@@ -238,8 +259,7 @@ export default function TocHome() {
       <header className={styles.header}>
         <div className={styles.headerTop}>
           <div className={styles.headerLogoWrap}>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img className={styles.headerLogo} src="/map/squad/logo_ansmi.png" alt="NV ANSMI" />
+            <HeaderEnteLogo orgCode={session.organizationCode} className={styles.headerLogo} />
           </div>
           <div className={styles.headerCenterCluster}>
             <h1>
@@ -251,8 +271,7 @@ export default function TocHome() {
             {statusMessage ? <p className={styles.message}>{statusMessage}</p> : null}
           </div>
           <div className={styles.headerLogoWrapRight}>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img className={styles.headerLogo} src="/map/squad/logo_ansmi.png" alt="NV ANSMI" />
+            <HeaderEnteLogo orgCode={session.organizationCode} className={styles.headerLogo} />
           </div>
         </div>
         <div className={styles.actions}>

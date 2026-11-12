@@ -1,8 +1,6 @@
 /** Elenco operatori: le 5 colonne in tabella, logo dell'ente di login in alto a destra. */
 
-const LOGIN_ENTE_LOGO: Record<string, string> = {
-  NVANSMI: "/map/squad/logo_ansmi.png",
-};
+import { enteLogoUrl } from "@/lib/ente-logo";
 
 export type OperatorPdfRow = {
   code: string;
@@ -41,8 +39,9 @@ function imageSize(dataUrl: string): Promise<{ w: number; h: number }> {
 }
 
 async function loadLoginEnteLogo(orgCode: string): Promise<string | null> {
+  const primary = enteLogoUrl(orgCode);
   const code = orgCode.trim().toUpperCase();
-  const urls = [LOGIN_ENTE_LOGO[code], `/org/${code}.png`].filter(
+  const urls = [primary, `/org/${code}.png`, `/org/${code.toLowerCase()}.png`].filter(
     (url): url is string => Boolean(url),
   );
   for (const url of urls) {
