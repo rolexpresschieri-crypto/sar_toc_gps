@@ -66,13 +66,18 @@ fun LoginScreen(
     val canSubmit =
         orgToSend.isNotEmpty() && code.trim().isNotEmpty() && password.isNotEmpty() && !isLoading
 
-    Column(
+    Box(
         modifier = Modifier
             .fillMaxSize()
             .background(Color(0xFF0A0607).copy(alpha = 0.72f))
-            .windowInsetsPadding(WindowInsets.safeDrawing)
+            .windowInsetsPadding(WindowInsets.safeDrawing),
+    ) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(24.dp),
+            .padding(24.dp)
+            .padding(bottom = 36.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         if (orgToSend.isNotEmpty()) {
@@ -208,6 +213,11 @@ fun LoginScreen(
                 Text("Indietro", fontWeight = FontWeight.Bold, modifier = Modifier.padding(vertical = 8.dp))
             }
         }
+    }
+        BrandFooter(
+            showVersion = true,
+            modifier = Modifier.align(Alignment.BottomCenter),
+        )
     }
 }
 

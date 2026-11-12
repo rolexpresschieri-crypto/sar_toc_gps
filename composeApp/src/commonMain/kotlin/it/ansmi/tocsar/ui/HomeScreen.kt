@@ -104,13 +104,13 @@ fun HomeScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .verticalScroll(scroll)
-                .padding(bottom = 12.dp),
+                .padding(bottom = 40.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(top = 10.dp, start = 10.dp, end = 16.dp),
+                    .padding(top = 10.dp, start = 12.dp, end = 16.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween,
             ) {
@@ -229,6 +229,11 @@ fun HomeScreen(
             )
             }
         }
+
+        BrandFooter(
+            showVersion = false,
+            modifier = Modifier.align(Alignment.BottomCenter),
+        )
 
         if (menuOpen) {
             Box(
