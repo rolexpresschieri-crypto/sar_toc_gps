@@ -361,6 +361,7 @@ export default function TocHome() {
             {statusMessage ? <p className={styles.message}>{statusMessage}</p> : null}
           </div>
           <div className={styles.headerMenuSlot} ref={menuRef}>
+            <p className={styles.brandSignature}>by Rolexpress Digital Service</p>
             <button
               type="button"
               className={styles.burgerBtn}
@@ -720,6 +721,7 @@ export default function TocHome() {
           </section>
         </div>
       </div>
+      <p className={styles.brandFooter}>by Rolexpress Digital Service</p>
     </main>
   );
 }

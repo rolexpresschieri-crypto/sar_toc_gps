@@ -200,7 +200,7 @@ export function TocLoginForm({
           {statusMessage ? <p className={styles.message}>{statusMessage}</p> : null}
         </form>
       </div>
-      <p className={styles.loginSignature}>Rolexpress Digital Service</p>
+      <p className={styles.loginSignature}>by Rolexpress Digital Service</p>
     </main>
   );
 }
