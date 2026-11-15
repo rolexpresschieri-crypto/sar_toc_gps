@@ -30,6 +30,7 @@ import it.ansmi.tocsar.ui.GpsFieldSession
 import it.ansmi.tocsar.ui.SendNotifyScreen
 import it.ansmi.tocsar.ui.SendPhotoScreen
 import it.ansmi.tocsar.ui.CompassScreen
+import it.ansmi.tocsar.ui.ForceUpdateOverlay
 import it.ansmi.tocsar.ui.GpsMenuAction
 import it.ansmi.tocsar.ui.GpsScreen
 import it.ansmi.tocsar.ui.HomeScreen
@@ -73,10 +74,20 @@ fun App() {
     var rememberedOrgCode by remember {
         mutableStateOf(OperatorSessionStore.loadOrganizationCode())
     }
+    var requiredUpdate by remember { mutableStateOf<AndroidLatestManifest?>(null) }
     val snackbar = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     val facade = remember {
         loadTocSarConfig()?.let { TocSarFacade(it) }
+    }
+
+    LaunchedEffect(Unit) {
+        // Controllo all'avvio e ogni 60s (se tornano in app senza chiuderla).
+        while (isActive) {
+            val needed = withContext(Dispatchers.Default) { fetchRequiredAndroidUpdate() }
+            requiredUpdate = needed
+            delay(60_000L)
+        }
     }
 
     fun toast(msg: String) {
@@ -482,6 +493,8 @@ fun App() {
                 .align(Alignment.BottomCenter)
                 .padding(16.dp),
         )
+
+        requiredUpdate?.let { ForceUpdateOverlay(it) }
     }
 }
 
