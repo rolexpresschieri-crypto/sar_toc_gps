@@ -139,7 +139,10 @@ export default function ConfigPage() {
       <header className={styles.topBar}>
         <div>
           <h1>Operatori online — {session.organizationCode}</h1>
-          <p className={styles.sub}>Come in app: visibilità in mappa e log-out forzato. Ogni utente di questo ente può farlo.</p>
+          <p className={styles.sub}>
+            Come in app: solo LUPO gestisce visibilità in mappa e force log-out. Qui in sala TOC
+            puoi farlo da questo pannello.
+          </p>
         </div>
         <div className={styles.nav}>
           {canManageBackendUsers(session.code) ? (
@@ -154,8 +157,9 @@ export default function ConfigPage() {
       </header>
       <section className={styles.panel}>
         <p className={styles.hint}>
-          Flag acceso: l&apos;operatore compare sulla mappa degli altri. Spento: lo vede solo il TOC
-          (e LUPO in app). Forza log-out lo toglie dalla mappa finché non fa di nuovo Log-in.
+          Flag acceso: l&apos;operatore compare sulla mappa app (anche per LUPO). Spento: non
+          compare in mappa a nessuno; resta comunque in Operatori online. Forza log-out lo toglie
+          dalla mappa finché non fa di nuovo Log-in. In app solo LUPO può farlo.
         </p>
         {toast ? <p className={styles.toast}>{toast}</p> : null}
         {status ? <p className={styles.error}>{status}</p> : null}
