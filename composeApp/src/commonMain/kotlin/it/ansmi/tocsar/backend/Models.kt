@@ -48,7 +48,7 @@ data class OnlineOperatorSession(
     val operatorName: String,
     val loginAtIso: String?,
     val hasGpsFix: Boolean,
-    /** Se true, gli altri operatori lo vedono in mappa. LUPO (admin) vede tutti indipendentemente dal flag. */
+    /** Se true, appare in mappa agli operatori (anche LUPO). Si imposta da Operatori on line. */
     val peerVisible: Boolean,
     val organizationId: String,
     val organizationCode: String,

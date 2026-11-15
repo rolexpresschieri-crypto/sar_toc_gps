@@ -386,15 +386,15 @@ def build() -> Path:
     pdf.p("Codice, nome, se ha già un fix GPS, orario di login, e il flag visibilità.")
     pdf.h2("6.2  Flag «visibile in mappa»")
     pdf.p(
-        "LUPO vede sempre tutti gli online con posizione. "
-        "Gli altri operatori vedono solo chi ha il flag acceso. "
-        "Il flag vale anche per LUPO: se LUPO è nascosto, gli altri non vedono LUPO. "
-        "LUPO deve vedere tutti; non è detto che tutti debbano vedere LUPO."
+        "In mappa compare solo chi ha il flag acceso — anche per LUPO. "
+        "«Operatori on line» elenca comunque tutti gli online, così LUPO può accendere/spegnere i flag. "
+        "Se LUPO è nascosto, gli altri non vedono LUPO."
     )
-    pdf.bullet("Visibile in mappa (spunta accesa)", "Gli altri online vedono il pin di quell’operatore.")
+    pdf.bullet("Visibile in mappa (spunta accesa)", "Tutti gli online vedono il pin di quell’operatore (anche LUPO).")
     pdf.bullet(
         "Nascosto",
-        "Solo LUPO lo vede in mappa. Esempio: LOST nascosto → RAGGHY non lo vede; LUPO sì.",
+        "Nessuno lo vede in mappa (neanche LUPO). "
+        "Esempio: LOST nascosto → né RAGGHY né LUPO lo vedono in mappa; resta in Operatori on line.",
     )
     pdf.p("Al log-in il flag parte spento (nascosto). LUPO lo accende quando serve.")
     pdf.h2("6.3  Forza log-out")
@@ -665,7 +665,11 @@ def build() -> Path:
     )
 
     pdf.h1("8.  Cosa fare se…")
-    pdf.bullet("Non vedo un operatore in mappa", "È online? Ha il GPS? Il flag visibile è acceso? Solo LUPO vede i nascosti.")
+    pdf.bullet(
+        "Non vedo un operatore in mappa",
+        "È online? Ha il GPS? Il flag visibile è acceso in Operatori on line? "
+        "Anche LUPO vede solo chi ha il flag acceso.",
+    )
     pdf.bullet(
         "Non vedo i confini comunali",
         "In mappa apri il tasto C e spunta il comune (o Tutti). "

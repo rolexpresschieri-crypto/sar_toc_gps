@@ -298,17 +298,15 @@ class OperatorRepository(
     }
 
     /**
-     * Pin in mappa:
-     * - LUPO (admin): tutti gli online con fix GPS (anche nascosti)
-     * - altri: solo sessioni con peer_visible = true (anche LUPO, se il flag è acceso)
+     * Pin in mappa: solo sessioni con peer_visible = true (anche per LUPO).
+     * Chi far vedere si sceglie in «Operatori on line» (o Config TOC).
      */
     suspend fun loadLiveOperators(
-        viewerOperatorCode: String,
+        @Suppress("UNUSED_PARAMETER") viewerOperatorCode: String,
         organizationId: String,
     ): List<LiveOperatorPin> {
-        val admin = isTocAdminOperator(viewerOperatorCode)
         return loadOnlineSummaries(organizationId).mapNotNull { row ->
-            if (!admin && !row.peerVisible) return@mapNotNull null
+            if (!row.peerVisible) return@mapNotNull null
             val lat = row.lastLatitude ?: return@mapNotNull null
             val lon = row.lastLongitude ?: return@mapNotNull null
             if (!lat.isFinite() || !lon.isFinite()) return@mapNotNull null
