@@ -360,14 +360,19 @@ private fun rebuildOverlays(
     val baseLon = model.baseLon
     if (baseLat != null && baseLon != null) {
         val label = model.baseLabel?.trim()?.takeIf { it.isNotEmpty() } ?: "BASE"
-        val home = createHomeTargetBitmap(map, label, label.uppercase() in selectedWp)
-        val baseWp = WaypointItem(label, baseLat, baseLon, null)
+        val pin = createWaypointCircleBitmap(
+            map = map,
+            label = label,
+            selected = label.uppercase() in selectedWp,
+            mission = false,
+        )
+        val baseWp = WaypointItem(label, baseLat, baseLon, null, isLocal = true)
         val marker = Marker(map).apply {
             position = GeoPoint(baseLat, baseLon)
             title = BaseMarkerId
             relatedObject = baseWp
-            setAnchor(Marker.ANCHOR_CENTER, home.hotV)
-            icon = BitmapDrawable(map.context.resources, home.bitmap)
+            setAnchor(Marker.ANCHOR_CENTER, pin.hotV)
+            icon = BitmapDrawable(map.context.resources, pin.bitmap)
             setInfoWindow(null)
             setOnMarkerClickListener { m, _ ->
                 val wp = m.relatedObject as? WaypointItem
@@ -388,13 +393,18 @@ private fun rebuildOverlays(
         ) {
             continue
         }
-        val home = createHomeTargetBitmap(map, w.name, w.name.uppercase() in selectedWp)
+        val pin = createWaypointCircleBitmap(
+            map = map,
+            label = w.name,
+            selected = w.name.uppercase() in selectedWp,
+            mission = !w.isLocal,
+        )
         val marker = Marker(map).apply {
             position = GeoPoint(w.lat, w.lon)
             title = w.name
             relatedObject = w
-            setAnchor(Marker.ANCHOR_CENTER, home.hotV)
-            icon = BitmapDrawable(map.context.resources, home.bitmap)
+            setAnchor(Marker.ANCHOR_CENTER, pin.hotV)
+            icon = BitmapDrawable(map.context.resources, pin.bitmap)
             setInfoWindow(null)
             setOnMarkerClickListener { m, _ ->
                 val wp = m.relatedObject as? WaypointItem
@@ -677,9 +687,14 @@ private fun updateWaypointMeasureIcons(
     val selected = model.selectedWaypointNames()
     for (m in state.waypointMarkers) {
         val wp = m.relatedObject as? WaypointItem ?: continue
-        val home = createHomeTargetBitmap(map, wp.name, wp.name.uppercase() in selected)
-        m.setAnchor(Marker.ANCHOR_CENTER, home.hotV)
-        m.icon = BitmapDrawable(map.context.resources, home.bitmap)
+        val pin = createWaypointCircleBitmap(
+            map = map,
+            label = wp.name,
+            selected = wp.name.uppercase() in selected,
+            mission = !wp.isLocal,
+        )
+        m.setAnchor(Marker.ANCHOR_CENTER, pin.hotV)
+        m.icon = BitmapDrawable(map.context.resources, pin.bitmap)
     }
 }
 
@@ -775,52 +790,61 @@ private fun dp(map: MapView, value: Float): Float =
 
 private data class AnchoredBitmap(val bitmap: Bitmap, val hotV: Float)
 
-/** Target BASE come TocAppBuild: casa verde + etichetta (hotspot = base casa). */
-private fun createHomeTargetBitmap(
+/**
+ * WP in mappa: cerchio compatto + etichetta.
+ * Missione = rosso; locale (e BASE) = verde.
+ */
+private fun createWaypointCircleBitmap(
     map: MapView,
     label: String,
     selected: Boolean = false,
+    mission: Boolean = false,
 ): AnchoredBitmap {
-    val display = label.trim().ifBlank { "BASE" }
+    val display = label.trim().ifBlank { "WP" }
     val density = map.resources.displayMetrics.density
-    val w = (132 * density).toInt().coerceAtLeast(120)
-    val h = (96 * density).toInt().coerceAtLeast(90)
+    val fillColor = if (mission) {
+        AndroidColor.parseColor("#C62828")
+    } else {
+        AndroidColor.parseColor("#009246")
+    }
+    val w = (120 * density).toInt().coerceAtLeast(100)
+    val circleR = 9f * density
+    val cy = 6f * density + circleR
+    val labelTop = cy + circleR + 5f * density
+    val h = (labelTop + 22f * density).toInt().coerceAtLeast(70)
     val bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
     val c = AndroidCanvas(bmp)
-
-    val homePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = AndroidColor.parseColor("#009246")
-        style = Paint.Style.FILL
-    }
     val cx = w / 2f
-    val homeSize = 36f * density
-    val homeTop = 4f * density
-    val homeBottom = homeTop + homeSize * 0.95f
-    val path = Path().apply {
-        // tetto
-        moveTo(cx, homeTop)
-        lineTo(cx - homeSize * 0.55f, homeTop + homeSize * 0.42f)
-        lineTo(cx + homeSize * 0.55f, homeTop + homeSize * 0.42f)
-        close()
-    }
-    c.drawPath(path, homePaint)
-    val body = RectF(
-        cx - homeSize * 0.38f,
-        homeTop + homeSize * 0.38f,
-        cx + homeSize * 0.38f,
-        homeBottom,
+
+    c.drawCircle(
+        cx,
+        cy,
+        circleR,
+        Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = fillColor
+            style = Paint.Style.FILL
+        },
     )
-    c.drawRect(body, homePaint)
+    c.drawCircle(
+        cx,
+        cy,
+        circleR,
+        Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = AndroidColor.WHITE
+            style = Paint.Style.STROKE
+            strokeWidth = 1.6f * density
+        },
+    )
 
     if (selected) {
         c.drawCircle(
             cx,
-            homeTop + homeSize * 0.48f,
-            homeSize * 0.62f,
+            cy,
+            circleR + 3.5f * density,
             Paint(Paint.ANTI_ALIAS_FLAG).apply {
                 color = AndroidColor.parseColor("#FFEB3B")
                 style = Paint.Style.STROKE
-                strokeWidth = 3f * density
+                strokeWidth = 2.5f * density
             },
         )
     }
@@ -829,16 +853,16 @@ private fun createHomeTargetBitmap(
         c = c,
         text = display,
         cx = cx,
-        top = homeBottom + 4f * density,
+        top = labelTop,
         maxWidth = w - 8f * density,
         borderColor = if (selected) {
             AndroidColor.parseColor("#FFEB3B")
         } else {
-            AndroidColor.parseColor("#009246")
+            fillColor
         },
         density = density,
     )
-    return AnchoredBitmap(bmp, (homeBottom / h).coerceIn(0.05f, 0.95f))
+    return AnchoredBitmap(bmp, (cy / h).coerceIn(0.05f, 0.95f))
 }
 
 /** Fix utente: cerchio+freccia sul punto geo; label subito sotto (stesso asse). */

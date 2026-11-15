@@ -68,6 +68,7 @@ import kotlin.math.ln
 
 private const val KindGps = "toc.gps"
 private const val KindWp = "toc.wp"
+private const val KindWpMission = "toc.wp.mission"
 private const val KindOp = "toc.op"
 private const val KindBase = "toc.base"
 private const val KindTrk = "toc.trk"
@@ -290,7 +291,7 @@ private fun applyMarkerTint(
     val selected =
         when (kind) {
             KindGps -> state.selfSelected
-            KindWp, KindBase -> title?.uppercase() in state.selectedWpNames
+            KindWp, KindWpMission, KindBase -> title?.uppercase() in state.selectedWpNames
             KindOp -> title?.uppercase() in state.selectedOpCodes
             else -> false
         }
@@ -300,10 +301,17 @@ private fun applyMarkerTint(
                 if (selected) yellow else UIColor.colorWithRed(0.808, 0.169, 0.216, alpha = 1.0)
             view.glyphText = "▲"
         }
+        KindWpMission -> {
+            // WP missione: cerchio rosso
+            view.markerTintColor =
+                if (selected) yellow else UIColor.colorWithRed(0.776, 0.157, 0.157, alpha = 1.0)
+            view.glyphText = "●"
+        }
         KindBase, KindWp -> {
+            // WP locali / BASE: cerchio verde
             view.markerTintColor =
                 if (selected) yellow else UIColor.colorWithRed(0.0, 0.573, 0.275, alpha = 1.0)
-            view.glyphText = "⌂"
+            view.glyphText = "●"
         }
         KindOp -> {
             view.markerTintColor =
@@ -437,7 +445,8 @@ private fun rebuildStaticOverlays(map: MKMapView, state: IosMapRuntime, model: G
         ) {
             continue
         }
-        pins.add(makePin(w.name, w.lat, w.lon, KindWp, MapOverlayTap.Waypoint(w)))
+        val kind = if (w.isLocal) KindWp else KindWpMission
+        pins.add(makePin(w.name, w.lat, w.lon, kind, MapOverlayTap.Waypoint(w)))
     }
     pins.forEach { map.addAnnotation(it.annotation) }
     state.pinAnnotations = pins

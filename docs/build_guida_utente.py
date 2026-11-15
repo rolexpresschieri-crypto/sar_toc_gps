@@ -21,7 +21,7 @@ GREEN = (7, 155, 66)
 DARK = (25, 25, 25)
 MUTED = (70, 70, 70)
 LINE = (180, 180, 180)
-VERSION = "1.0.73"
+VERSION = "1.0.74"
 
 
 def _first_existing(*paths: Path) -> Path:
@@ -244,14 +244,14 @@ def build() -> Path:
     pdf.h1("2.  Prima di usare l’app")
     pdf.bullet(
         "Installazione Android",
-        "Copia sul telefono il file APK (es. toc_sar_KMP_1.0.73.apk) e installa. "
+        "Copia sul telefono il file APK (es. toc_sar_KMP_1.0.74.apk) e installa. "
         "Se Android lo chiede, consenti «origini sconosciute» solo per TOC SAR.",
     )
     pdf.ios(
         "Installazione (IPA / Diawi)",
         "Apri il link Diawi, tocca Installa. Se TOC SAR è già installata, DISINSTALLALA prima "
         "(tieni premuta l’icona → Rimuovi app), altrimenti resta la versione vecchia. "
-        "Non usare l’APK Android sull’iPhone: serve toc_sar_iOS_1.0.73.ipa (o il link Diawi di quella versione).",
+        "Non usare l’APK Android sull’iPhone: serve toc_sar_iOS_1.0.74.ipa (o il link Diawi di quella versione).",
     )
     pdf.ios(
         "Sviluppatore non verificato",
@@ -493,7 +493,7 @@ def build() -> Path:
     pdf.bullet(
         "Dove salva",
         "Sul telefono, in WP & TRK → WP LOCALI. "
-        "Dopo Salva il punto compare in mappa (casa verde). "
+        "Dopo Salva il punto compare in mappa (cerchio verde). "
         "Non parte da solo la navigazione verso quel punto.",
     )
     pdf.note(
@@ -590,7 +590,8 @@ def build() -> Path:
         "Altro operatore online e visibile (cap. 6). Il colore è quello scelto in anagrafica per quella persona, "
         "così si distinguono operatori di associazioni diverse. Su iPhone il codice può essere abbreviato.",
     )
-    pdf.bullet("Casa verde + nome", "Waypoint selezionato o appena inserito.")
+    pdf.bullet("Cerchio verde + nome", "Waypoint locale (INS WP / sul telefono).")
+    pdf.bullet("Cerchio rosso + nome", "Waypoint di missione (dal TOC, cartelle WP MISSIONE).")
     pdf.bullet("Linea rossa", "Traccia che stai registrando adesso.")
     pdf.bullet("Linee colorate", "Tracce caricate da WP & TRK.")
     pdf.bullet("Contorno rosso", "Confini comunali accesi.")
