@@ -308,19 +308,52 @@ fun looksLikeTrkContent(raw: String): Boolean {
     return Regex("""lat\s*,\s*lon""", RegexOption.IGNORE_CASE).containsMatchIn(raw)
 }
 
+/** Rimuove BOM / zero-width: altrimenti il 1° WP del file (es. CP_01) finisce in fondo all’elenco. */
+fun sanitizeGpsLabel(raw: String): String =
+    raw.trim()
+        .trimStart('\uFEFF', '\u200B', '\u200E', '\u200F')
+        .trimEnd('\uFEFF', '\u200B', '\u200E', '\u200F')
+        .trim()
+
+/** Ordinamento naturale: CP_01 < CP_02 < CP_10 (non lessicografico puro). */
+fun compareGpsLabels(a: String, b: String): Int {
+    val left = sanitizeGpsLabel(a).uppercase()
+    val right = sanitizeGpsLabel(b).uppercase()
+    if (left == right) return 0
+    val chunk = Regex("""\d+|\D+""")
+    val ca = chunk.findAll(left).map { it.value }.toList()
+    val cb = chunk.findAll(right).map { it.value }.toList()
+    val n = minOf(ca.size, cb.size)
+    for (i in 0 until n) {
+        val x = ca[i]
+        val y = cb[i]
+        val nx = x.toLongOrNull()
+        val ny = y.toLongOrNull()
+        val cmp =
+            if (nx != null && ny != null) {
+                nx.compareTo(ny)
+            } else {
+                x.compareTo(y)
+            }
+        if (cmp != 0) return cmp
+    }
+    return ca.size.compareTo(cb.size)
+}
+
 /** WP di missione da file TOC (CSV name,lat,lon[,alt] oppure blocco lat=/lon=). Senza prefisso ZZ_. */
 fun parseMissionWaypoints(raw: String): List<WaypointItem> {
-    val labeled = parseMissionLabeledBlocks(raw)
+    val text = sanitizeGpsLabel(raw)
+    val labeled = parseMissionLabeledBlocks(text)
     if (labeled.isNotEmpty()) return labeled
     val csv = mutableListOf<WaypointItem>()
-    for (line in raw.lineSequence()) {
-        val t = line.trim()
+    for (line in text.lineSequence()) {
+        val t = sanitizeGpsLabel(line)
         if (t.isEmpty()) continue
         val low = t.lowercase()
         if (low.startsWith("name") || low.startsWith("lat")) continue
         val parts = t.split(Regex("[,;]+"))
         if (parts.size < 3) continue
-        val maybeName = parts[0].trim()
+        val maybeName = sanitizeGpsLabel(parts[0])
         if (maybeName.isEmpty()) continue
         val lat = parseCoord(parts[1]) ?: continue
         val lon = parseCoord(parts[2]) ?: continue
@@ -366,7 +399,13 @@ private fun parseMissionLabeledBlock(raw: String): WaypointItem? {
         }
     }
     if (!labeled || name.isNullOrBlank() || lat == null || lon == null) return null
-    return WaypointItem(name = name, lat = lat, lon = lon, alt = alt, isLocal = false)
+    return WaypointItem(
+        name = sanitizeGpsLabel(name),
+        lat = lat,
+        lon = lon,
+        alt = alt,
+        isLocal = false,
+    )
 }
 
 fun Double.formatCoord6(): String {

@@ -97,6 +97,7 @@ import it.ansmi.tocsar.backend.TocSarFacade
 import it.ansmi.tocsar.backend.loadTocSarConfig
 import it.ansmi.tocsar.geo.loadCompassHeadingOffset
 import it.ansmi.tocsar.geo.normalizeHeadingDegrees
+import it.ansmi.tocsar.geo.compareGpsLabels
 import it.ansmi.tocsar.geo.parseCoord
 import it.ansmi.tocsar.geo.pickGpsImportFile
 import it.ansmi.tocsar.geo.safeGpsFileStem
@@ -1439,7 +1440,7 @@ private fun WpTrkDialog(
                             }
                         }
                         if (expanded) {
-                            groupWps.sortedBy { it.name }.forEach { wp ->
+                            groupWps.sortedWith { a, b -> compareGpsLabels(a.name, b.name) }.forEach { wp ->
                                 WaypointRow(
                                     wp = wp,
                                     selected = selectedWp.contains(wp.name),
@@ -1466,7 +1467,7 @@ private fun WpTrkDialog(
                 if (!loading && localWps.isEmpty()) {
                     Text("Nessun waypoint locale.", color = Color(0xFF616161), fontSize = 13.sp)
                 }
-                localWps.forEach { wp ->
+                localWps.sortedWith { a, b -> compareGpsLabels(a.name, b.name) }.forEach { wp ->
                     WaypointRow(
                         wp = wp,
                         selected = selectedWp.contains(wp.name),
@@ -1543,7 +1544,7 @@ private fun WpTrkDialog(
                             }
                         }
                         if (expanded) {
-                            groupTrks.sortedBy { it.name }.forEach { trk ->
+                            groupTrks.sortedWith { a, b -> compareGpsLabels(a.name, b.name) }.forEach { trk ->
                                 val label = trk.name.substringBeforeLast('.').ifBlank { trk.name }
                                 Column(
                                     modifier = Modifier
