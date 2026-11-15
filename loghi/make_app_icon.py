@@ -6,7 +6,7 @@ from pathlib import Path
 from PIL import Image
 
 ROOT = Path(__file__).resolve().parents[1]
-SRC = Path(__file__).resolve().parent / "icona_app.png"
+SRC = Path(__file__).resolve().parent / "icona_app_01.png"
 
 
 def near_black(r: int, g: int, b: int, a: int, thr: int = 28) -> bool:
