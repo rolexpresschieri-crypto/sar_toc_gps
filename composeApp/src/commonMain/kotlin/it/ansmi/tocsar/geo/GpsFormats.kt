@@ -16,6 +16,8 @@ data class TrackPoint(
     val alt: Double? = null,
     /** Se true, inizia un nuovo tratto (buco GPS: chiamata, tunnel, …) — non collegare al punto precedente. */
     val gapBefore: Boolean = false,
+    /** Epoch ms (wall clock) al momento del fix; null = traccia senza tempo (pre-1.0.75 timed). */
+    val timeMs: Long? = null,
 )
 
 /** Spezza la traccia nei segmenti continui (salta i buchi). */
@@ -114,13 +116,17 @@ fun displayLocalTrackLabel(name: String): String {
 }
 
 fun encodeTrkFile(points: List<TrackPoint>): String {
-    val buf = StringBuilder("lat,lon,alt\n")
+    val withTime = points.any { it.timeMs != null }
+    val buf = StringBuilder(if (withTime) "lat,lon,alt,time\n" else "lat,lon,alt\n")
     for (p in points) {
         if (p.gapBefore) buf.append("#GAP\n")
         buf.append(p.lat.formatCoord6()).append(',')
             .append(p.lon.formatCoord6()).append(',')
             .append(p.alt?.let { it.toInt().toString() } ?: "")
-            .append('\n')
+        if (withTime) {
+            buf.append(',').append(p.timeMs?.toString().orEmpty())
+        }
+        buf.append('\n')
     }
     return buf.toString()
 }
@@ -177,9 +183,24 @@ fun parseTrkLine(line: String): TrackPoint? {
         val lat = parseCoord(csv[0]) ?: return null
         val lon = parseCoord(csv[1]) ?: return null
         val alt = if (csv.size > 2) parseCoord(csv[2]) else null
-        return TrackPoint(lat, lon, alt)
+        val timeMs = if (csv.size > 3) parseTrkTimeMs(csv[3]) else null
+        return TrackPoint(lat, lon, alt, timeMs = timeMs)
     }
     return null
+}
+
+/** Epoch ms, oppure secondi Unix se il valore è tipicamente < 1e12. */
+fun parseTrkTimeMs(raw: String): Long? {
+    val t = raw.trim()
+    if (t.isEmpty()) return null
+    val n = t.replace(',', '.').toDoubleOrNull() ?: return null
+    if (!n.isFinite() || n <= 0.0) return null
+    val asLong = n.toLong()
+    return when {
+        asLong >= 1_000_000_000_000L -> asLong // già ms
+        asLong >= 1_000_000_000L -> asLong * 1000L // secondi
+        else -> null
+    }
 }
 
 /** GPX 1.1: Garmin, OsmAnd, Locus, Organic Maps, Google Earth. */
@@ -302,10 +323,134 @@ fun looksLikeWaypointContent(raw: String): Boolean {
 }
 
 fun looksLikeTrkContent(raw: String): Boolean {
+    if (looksLikeGpxTrack(raw)) return true
     if (Regex("""^\s*T\s+A\s+""", setOf(RegexOption.MULTILINE, RegexOption.IGNORE_CASE)).containsMatchIn(raw)) {
         return true
     }
     return Regex("""lat\s*,\s*lon""", RegexOption.IGNORE_CASE).containsMatchIn(raw)
+}
+
+fun looksLikeGpxTrack(raw: String): Boolean =
+    Regex("""<trkpt\b""", RegexOption.IGNORE_CASE).containsMatchIn(raw)
+
+/** GPX 1.1 traccia (trk/trkseg/trkpt), con tempo opzionale. */
+fun encodeTrackGpx(name: String, points: List<TrackPoint>): String {
+    val safe = xmlEscape(name.trim().ifBlank { "TRK" })
+    return buildString {
+        append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n")
+        append("<gpx version=\"1.1\" creator=\"TocSar\" xmlns=\"http://www.topografix.com/GPX/1/1\">\n")
+        append("  <trk>\n    <name>").append(safe).append("</name>\n")
+        append("    <trkseg>\n")
+        for (p in points) {
+            if (p.gapBefore) {
+                append("    </trkseg>\n    <trkseg>\n")
+            }
+            append("      <trkpt lat=\"").append(p.lat.formatCoord6())
+            append("\" lon=\"").append(p.lon.formatCoord6()).append("\">")
+            if (p.alt != null) {
+                append("\n        <ele>").append(p.alt.toInt()).append("</ele>")
+            }
+            if (p.timeMs != null) {
+                append("\n        <time>").append(iso8601Utc(p.timeMs)).append("</time>")
+            }
+            append("\n      </trkpt>\n")
+        }
+        append("    </trkseg>\n  </trk>\n</gpx>\n")
+    }
+}
+
+fun parseGpxTrack(raw: String): List<TrackPoint> {
+    val out = mutableListOf<TrackPoint>()
+    var gapNext = false
+    val trkpt = Regex(
+        """<trkpt\b([^>]*)>([\s\S]*?)</trkpt>""",
+        RegexOption.IGNORE_CASE,
+    )
+    val segments = Regex(
+        """<trkseg\b[^>]*>([\s\S]*?)</trkseg>""",
+        RegexOption.IGNORE_CASE,
+    ).findAll(raw).toList()
+    val bodies =
+        if (segments.isNotEmpty()) {
+            segments.map { it.groupValues[1] }
+        } else {
+            listOf(raw)
+        }
+    for ((segIdx, segBody) in bodies.withIndex()) {
+        var firstInSeg = true
+        for (m in trkpt.findAll(segBody)) {
+            val attrs = m.groupValues[1]
+            val inner = m.groupValues[2]
+            val lat = attr(attrs, "lat")?.let { parseCoord(it) } ?: continue
+            val lon = attr(attrs, "lon")?.let { parseCoord(it) } ?: continue
+            val ele = Regex("""<ele>([\s\S]*?)</ele>""", RegexOption.IGNORE_CASE)
+                .find(inner)?.groupValues?.get(1)?.let { parseCoord(it.trim()) }
+            val timeMs = Regex("""<time>([\s\S]*?)</time>""", RegexOption.IGNORE_CASE)
+                .find(inner)?.groupValues?.get(1)?.trim()?.let { parseGpxTimeMs(it) }
+            val gap = gapNext || (segIdx > 0 && firstInSeg)
+            out.add(TrackPoint(lat, lon, ele, gapBefore = gap, timeMs = timeMs))
+            gapNext = false
+            firstInSeg = false
+        }
+        gapNext = true
+    }
+    return out
+}
+
+fun parseGpxTrackOrTrk(raw: String): List<TrackPoint> =
+    if (looksLikeGpxTrack(raw)) parseGpxTrack(raw) else parseTrkFile(raw)
+
+private fun iso8601Utc(epochMs: Long): String {
+    // 2026-11-17T13:00:00Z — calcolo semplice UTC senza dipendenze
+    val totalSec = epochMs / 1000L
+    val days = totalSec / 86400L
+    var rem = (totalSec % 86400L).toInt()
+    val h = rem / 3600
+    rem %= 3600
+    val mi = rem / 60
+    val s = rem % 60
+    // Algoritmo civile da giorni dal 1970-01-01
+    var z = days + 719468L
+    val era = (if (z >= 0) z else z - 146096L) / 146097L
+    val doe = z - era * 146097L
+    val yoe = (doe - doe / 1460L + doe / 36524L - doe / 146096L) / 365L
+    var y = (yoe + era * 400L).toInt()
+    val doy = (doe - (365L * yoe + yoe / 4L - yoe / 100L)).toInt()
+    val mp = (5 * doy + 2) / 153
+    val d = doy - (153 * mp + 2) / 5 + 1
+    val m = mp + (if (mp < 10) 3 else -9)
+    y += if (m <= 2) 1 else 0
+    return buildString {
+        append(y.toString().padStart(4, '0')).append('-')
+        append(m.toString().padStart(2, '0')).append('-')
+        append(d.toString().padStart(2, '0')).append('T')
+        append(h.toString().padStart(2, '0')).append(':')
+        append(mi.toString().padStart(2, '0')).append(':')
+        append(s.toString().padStart(2, '0')).append('Z')
+    }
+}
+
+private fun parseGpxTimeMs(raw: String): Long? {
+    val t = raw.trim()
+    // 2026-11-17T13:00:00Z oppure con offset
+    val m = Regex(
+        """^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2}):(\d{2})""",
+    ).find(t) ?: return null
+    val y = m.groupValues[1].toInt()
+    val mo = m.groupValues[2].toInt()
+    val d = m.groupValues[3].toInt()
+    val h = m.groupValues[4].toInt()
+    val mi = m.groupValues[5].toInt()
+    val s = m.groupValues[6].toInt()
+    // Giorni da 1970-01-01 (algoritmo civile inverso)
+    val y2 = y - if (mo <= 2) 1 else 0
+    val era = (if (y2 >= 0) y2 else y2 - 399) / 400
+    val yoe = y2 - era * 400
+    val mp = mo + (if (mo > 2) -3 else 9)
+    val doy = (153 * mp + 2) / 5 + d - 1
+    val doe = yoe * 365 + yoe / 4 - yoe / 100 + doy
+    val days = era * 146097L + doe - 719468L
+    return ((days * 86400L) + h * 3600L + mi * 60L + s) * 1000L
 }
 
 /** Rimuove BOM / zero-width: altrimenti il 1° WP del file (es. CP_01) finisce in fondo all’elenco. */

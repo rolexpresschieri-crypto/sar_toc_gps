@@ -16,7 +16,8 @@ actual fun sharePlainText(subject: String, text: String, fileNameHint: String) {
         null
     }
     val send = Intent(Intent.ACTION_SEND).apply {
-        // .txt + text/plain: WhatsApp lo accetta come documento, non come messaggio vuoto.
+        // text/plain: WhatsApp lo prende come documento. Il nome resta .trk/.gpx (per LAND ecc.);
+        // WA a volte rinomina comunque in DOC-…-WA….bin — non dipende dall’app.
         type = "text/plain"
         putExtra(Intent.EXTRA_SUBJECT, subject)
         if (uri != null) {

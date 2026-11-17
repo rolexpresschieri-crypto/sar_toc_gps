@@ -2,9 +2,9 @@
 
 Guida ufficiale unica per gli operatori (formato ANSMI/UCRS, due loghi):
 
-- **[TOC_SAR_Guida_utente.pdf](TOC_SAR_Guida_utente.pdf)** — Android e iPhone · v. 1.0.74
+- **[TOC_SAR_Guida_utente.pdf](TOC_SAR_Guida_utente.pdf)** — Android e iPhone · v. 1.0.75
 
-Copre dal **log-in** (Codice Ente + codice + password) / **log-out** fino al modulo **GPS** (sottomenu: TRK, WP, mappa, Calcola rotta, Bussola, misura, confini comunali). Il Codice Ente è la sala; l’ente in anagrafica è l’associazione dell’operatore. Il colore del pallino in mappa è quello scelto per la persona. Le eccezioni iPhone (installazione Diawi, permessi, misura in mappa) sono nei punti **iPhone —** e nei riquadri. Il Mac serve solo a compilare l’IPA.
+Spiega **come usare** l’app e la sala TOC: log-in / log-out, GPS (TRK, WP, mappa, rotta, bussola, misura, confini), aggiornamento Android e **ANALISI TRK** cane/conduttore. Le differenze iPhone sono nei punti **iPhone —** e nei riquadri. Se qualcosa non torna: capitolo «Cosa fare se…».
 
 Per rigenerare il PDF:
 

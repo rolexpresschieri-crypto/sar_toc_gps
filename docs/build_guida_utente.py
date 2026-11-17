@@ -21,7 +21,7 @@ GREEN = (7, 155, 66)
 DARK = (25, 25, 25)
 MUTED = (70, 70, 70)
 LINE = (180, 180, 180)
-VERSION = "1.0.74"
+VERSION = "1.0.75"
 
 
 def _first_existing(*paths: Path) -> Path:
@@ -200,7 +200,14 @@ def build() -> Path:
     pdf.set_font("ArialIt", "", 12)
     pdf.set_text_color(*MUTED)
     pdf.cell(0, 7, f"Android e iPhone  ·  versione {VERSION}", align="C", new_x="LMARGIN", new_y="NEXT")
-    pdf.cell(0, 7, "Dal log-in al modulo GPS (mappa, waypoint, tracce, misura, confini)", align="C", new_x="LMARGIN", new_y="NEXT")
+    pdf.cell(
+        0,
+        7,
+        "Come usare l’app e la sala TOC (tracce, mappa, analisi cane/conduttore)",
+        align="C",
+        new_x="LMARGIN",
+        new_y="NEXT",
+    )
     pdf.ln(14)
     pdf.set_draw_color(*GREEN)
     pdf.set_line_width(1.2)
@@ -211,9 +218,9 @@ def build() -> Path:
     pdf.multi_cell(
         0,
         6,
-        "Questa guida vale per Android e iPhone: tasti e funzioni sono gli stessi. "
-        "Le eccezioni iPhone (installazione, permessi, qualche dettaglio in mappa) "
-        "sono nei punti «iPhone —» e nei riquadri. Il Mac serve solo a compilare l’IPA, non in campo.",
+        "Questa guida spiega cosa fare sul telefono e in sala TOC. "
+        "Android e iPhone hanno gli stessi tasti; dove iPhone è diverso trovi «iPhone —» o un riquadro. "
+        "Se qualcosa non torna, vai al capitolo «Cosa fare se…».",
         align="C",
     )
     pdf.ln(16)
@@ -244,14 +251,19 @@ def build() -> Path:
     pdf.h1("2.  Prima di usare l’app")
     pdf.bullet(
         "Installazione Android",
-        "Copia sul telefono il file APK (es. toc_sar_KMP_1.0.74.apk) e installa. "
-        "Se Android lo chiede, consenti «origini sconosciute» solo per TOC SAR.",
+        "Installa il file dell’app sul telefono (es. toc_sar_KMP_1.0.75.apk). "
+        "Se Android lo chiede, consenti l’installazione da fonti esterne solo per TOC SAR. "
+        "Quando esce una versione più nuova, l’app può bloccare l’uso finché non aggiorni "
+        "(segui il messaggio a schermo: scarica e installa). "
+        "Se hai ancora una versione molto vecchia (prima della 1.0.75), la prima volta "
+        "devi installare a mano almeno la 1.0.75; dopo, gli aggiornamenti arrivano da soli.",
     )
     pdf.ios(
         "Installazione (IPA / Diawi)",
-        "Apri il link Diawi, tocca Installa. Se TOC SAR è già installata, DISINSTALLALA prima "
-        "(tieni premuta l’icona → Rimuovi app), altrimenti resta la versione vecchia. "
-        "Non usare l’APK Android sull’iPhone: serve toc_sar_iOS_1.0.74.ipa (o il link Diawi di quella versione).",
+        "Apri il link Diawi e tocca Installa. Se TOC SAR è già sul telefono, DISINSTALLALA prima "
+        "(tieni premuta l’icona → Rimuovi app), altrimenti resta la copia vecchia. "
+        "Non installare il file Android sull’iPhone: serve il file iPhone (IPA) o il link Diawi. "
+        "Su iPhone l’aggiornamento si fa installando la nuova IPA, non con il messaggio obbligatorio di Android.",
     )
     pdf.ios(
         "Sviluppatore non verificato",
@@ -308,7 +320,7 @@ def build() -> Path:
     )
     pdf.bullet(
         "Password app",
-        "Password dell’operatore, non quella del database. È quella comunicata in briefing / anagrafica TOC.",
+        "È la password dell’operatore comunicata in briefing / anagrafica TOC (non altre password di servizio).",
     )
     pdf.bullet("Entra", "Avvia la sessione sull’evento attivo e apre la home Tracking / Operatori SAR. Parte il tracking GPS verso il TOC.")
     pdf.p(
@@ -448,13 +460,15 @@ def build() -> Path:
     pdf.h2("7.1  Memorizzare una traccia")
     pdf.p(
         "Registra il percorso che stai facendo (bonifica, ricerca, spostamento). "
-        "Un punto circa ogni 3 metri, scartando i salti del GPS rumoroso."
+        "L’app salva i punti mentre ti muovi e anche quando resti fermo un momento, "
+        "così in sala TOC si possono vedere tempi, velocità e — con due tracce — "
+        "quanto distano cane e conduttore durante l’addestramento."
     )
     pdf.bullet(
         "Cosa premere per partire",
         "Nel sottomenu GPS: START TRK. Si apre la mappa e parte la registrazione "
-        "(scia rossa). In home il tasto diventa STOP TRK e compare lo stato «TRK attivo»; "
-        "parte anche TIME (ore:minuti:secondi) e DIST (metri) dove disponibili.",
+        "(scia rossa). In home il tasto diventa STOP TRK e compare «TRK attivo»; "
+        "partono anche TIME (tempo) e DIST (metri percorsi).",
     )
     pdf.bullet(
         "Mentre registra",
@@ -466,8 +480,14 @@ def build() -> Path:
         "Come fare STOP della traccia",
         "Nel sottomenu: STOP TRK. Ferma la registrazione e ferma anche TIME/DIST. "
         "Con almeno 2 punti si apre «Report traccia»: il nome diventa CODICE_TRK_ più quello che scrivi. "
-        "Salva = file sul telefono + riepilogo al TOC. Salva + invia = uguale, e apre la condivisione del file .trk. "
-        "Annulla = scarta tutto, non resta il file. Poi torni alla home. Con meno di 2 punti non salva.",
+        "Salva = tiene il file sul telefono e manda il riepilogo al TOC. "
+        "Salva + invia = uguale, poi puoi mandare il file (WhatsApp, mail, Drive…). "
+        "Annulla = non tiene nulla. Poi torni alla home.",
+    )
+    pdf.note(
+        "Se mandi la traccia con WhatsApp, a volte il file arriva con un nome strano "
+        "(DOC-… e finisce con .bin). Per aprirlo con LAND rinominalo in .trk. "
+        "Nell’app TOC SAR puoi importarlo lo stesso: Importa file / Apri con."
     )
     pdf.bullet(
         "Fermare solo TIME e DIST",
@@ -621,7 +641,7 @@ def build() -> Path:
         "C — confini comunali",
         "Elenco dei comuni. Spunta uno o più nomi, oppure «Tutti i confini» / «Nessuno». "
         "La C è rossa se almeno un confine è acceso. "
-        "L’elenco lo carica il TOC in Anagrafica (file GeoJSON): dal telefono si accende e si spegne, non si aggiunge. "
+        "L’elenco lo prepara il TOC in Anagrafica: dal telefono si accende e si spegne, non si aggiunge. "
         "Serve connessione. Un comune nuovo compare al prossimo ingresso in mappa, senza reinstallare l’app.",
     )
     pdf.bullet(
@@ -664,7 +684,61 @@ def build() -> Path:
         "Non serve una nuova APK né una nuova IPA."
     )
 
-    pdf.h1("8.  Cosa fare se…")
+    pdf.h1("8.  Sala TOC — aggiornare l’app e analizzare due tracce")
+    pdf.p(
+        "La sala operativa si apre dal computer su https://toc-sar.vercel.app "
+        "(entri con il codice TOC). Da qui gestisci l’evento e, per l’addestramento cinofilo, "
+        "confronti le tracce di cane e conduttore."
+    )
+    pdf.h2("8.1  Quando l’app chiede di aggiornare (Android)")
+    pdf.bullet(
+        "Cosa fare",
+        "Se compare il messaggio «aggiornamento obbligatorio», segui le istruzioni a schermo: "
+        "scarica e installa la nuova versione, poi riapri TOC SAR. "
+        "Senza connessione l’app non ti blocca. Su iPhone l’aggiornamento si fa installando la nuova IPA.",
+    )
+    pdf.bullet(
+        "Versione molto vecchia",
+        "Se non compare mai il messaggio e resti su una versione precedente alla 1.0.75, "
+        "chiedi la nuova APK e installala una volta a mano; dopo, gli aggiornamenti arriveranno da soli.",
+    )
+
+    pdf.h2("8.2  ANALISI TRK (cane / conduttore)")
+    pdf.p(
+        "Menu a tre linee (in alto a destra) → sotto Anagrafica tocca ANALISI TRK. "
+        "Serve a capire, dopo un lavoro di ricerca/addestramento, come si sono mossi cane e conduttore "
+        "e quanto sono rimasti distanti nel tempo."
+    )
+    pdf.bullet(
+        "Passi",
+        "1) Carica due tracce dal PC oppure sceglile dalle cartelle missione già sul TOC. "
+        "2) Indica quale è il cane e quale il conduttore. "
+        "3) Guarda mappa e numeri. 4) Se serve, RESET per ripartire oppure PDF / Stampa per il report.",
+    )
+    pdf.bullet(
+        "Cosa leggi a schermo",
+        "Mappa: traccia arancio = cane, blu = conduttore. "
+        "Per ciascuno: quanto ha percorso, quanto è durato, velocità (se la traccia ha l’orario). "
+        "Sotto: distanza cane–conduttore (minima, media, massima) e il grafico di come cambia nel tempo.",
+    )
+    pdf.bullet(
+        "Per avere tempi e distanza «vera»",
+        "Registra cane e conduttore con due telefoni entrambi su TOC SAR aggiornata (da 1.0.75 in poi), "
+        "nello stesso periodo di lavoro, poi carica le due tracce qui. "
+        "Con tracce vecchie (senza orario) vedi comunque i percorsi sulla mappa e quanto hanno percorso, "
+        "ma non durata, velocità né la distanza cane–conduttore minuto per minuto.",
+    )
+    pdf.bullet(
+        "RESET e PDF / Stampa",
+        "RESET toglie le tracce scelte e i ruoli. "
+        "PDF / Stampa prepara il foglio da archiviare o stampare (numeri, percorsi, grafici).",
+    )
+    pdf.note(
+        "Consiglio pratico in addestramento: un telefono sul conduttore, uno sul cane (o sul collare/handler dedicato), "
+        "START TRK insieme, STOP alla fine, poi in sala TOC → ANALISI TRK."
+    )
+
+    pdf.h1("9.  Cosa fare se…")
     pdf.bullet(
         "Non vedo un operatore in mappa",
         "È online? Ha il GPS? Il flag visibile è acceso in Operatori on line? "
@@ -673,7 +747,7 @@ def build() -> Path:
     pdf.bullet(
         "Non vedo i confini comunali",
         "In mappa apri il tasto C e spunta il comune (o Tutti). "
-        "Se l’elenco è vuoto: in TOC Anagrafica → Confini comunali carica il GeoJSON.",
+        "Se l’elenco è vuoto: in TOC Anagrafica → Confini comunali caricano i file dei comuni.",
     )
     pdf.ios(
         "Non vedo la finestra MISURA",
@@ -699,6 +773,22 @@ def build() -> Path:
         "Ho inserito un WP e non voglio navigarci",
         "Normale: compare solo in mappa. La navigazione parte solo se la avvii tu (punti 7.3 e 7.6).",
     )
+    pdf.bullet(
+        "WhatsApp mi ha mandato un file strano (.bin) invece della traccia",
+        "Succede spesso. Per aprirlo con LAND: rinomina il file in .trk. "
+        "Nell’app: Importa file / Apri con — TOC SAR lo legge lo stesso.",
+    )
+    pdf.bullet(
+        "In ANALISI TRK non vedo velocità o distanza cane–conduttore nel tempo",
+        "Serve aver registrato entrambe le tracce con l’app aggiornata (da 1.0.75) e aver assegnato "
+        "i due ruoli. Con tracce vecchie restano mappa e metri percorsi, non i tempi.",
+    )
+    pdf.bullet(
+        "Dopo un aggiornamento non vedo più le tracce sul telefono",
+        "Se hai solo aggiornato l’app senza disinstallarla, i file restano. "
+        "Se hai disinstallato e reinstallato, Android cancella i dati: le tracce andate non si recuperano "
+        "(per quello conviene anche Invia / salvare fuori dal telefono).",
+    )
     pdf.ios(
         "L’app non si installa da Diawi",
         "UDID del telefono nel profilo Ad Hoc? Disinstallata la copia precedente? Autorizzato lo sviluppatore?",
@@ -710,7 +800,7 @@ def build() -> Path:
     pdf.multi_cell(
         0,
         5.4,
-        "Fine della guida unica Android + iPhone (fino al GPS, versione "
+        "Fine della guida Android + iPhone + sala TOC (versione "
         + VERSION
         + "). Funzioni successive verranno aggiunte in questo stesso PDF.",
     )

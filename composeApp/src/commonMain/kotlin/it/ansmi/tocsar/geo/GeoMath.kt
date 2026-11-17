@@ -67,9 +67,28 @@ private const val MaxTrackSpeedMps = 35.0
 private const val MinAllowedJumpM = 80.0
 private const val MaxTrackFixAgeMs = 30_000L
 
+/** Spaziatura TRK: movimento minimo oppure tempo massimo (velocità/pause). */
+const val TrackPointMinDistanceM = 3.0
+const val TrackPointMaxIntervalMs = 5_000L
+
 /** Pausa lunga (es. telefonata) + salto: riprendi senza collegare il buco con una retta. */
 const val TrackGapMinElapsedMs = 45_000L
 const val TrackGapMinJumpM = 150.0
+
+/** True se va salvato un nuovo punto (spostamento ≥ minDistance oppure intervallo ≥ maxInterval). */
+fun shouldRecordTrackPointBySpacing(
+    lastPoint: TrackPoint?,
+    lastAcceptedWallMs: Long,
+    lat: Double,
+    lon: Double,
+    nowMs: Long,
+): Boolean {
+    if (lastPoint == null) return true
+    val d = haversineDistanceM(lastPoint.lat, lastPoint.lon, lat, lon)
+    if (d >= TrackPointMinDistanceM) return true
+    if (lastAcceptedWallMs > 0L && nowMs - lastAcceptedWallMs >= TrackPointMaxIntervalMs) return true
+    return false
+}
 
 fun isTrackGap(
     lastPoint: TrackPoint?,

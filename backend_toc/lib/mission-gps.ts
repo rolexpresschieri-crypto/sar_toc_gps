@@ -30,7 +30,7 @@ export function sanitizeMissionFolder(raw: string): string {
 
 function fileKind(name: string): "trk" | "wpt" | null {
   const lower = name.toLowerCase();
-  if (lower.endsWith(".trk")) {
+  if (lower.endsWith(".trk") || lower.endsWith(".gpx")) {
     return "trk";
   }
   if (lower.endsWith(".wpt")) {
@@ -43,11 +43,11 @@ export function safeMissionFileName(raw: string): string {
   const base = raw.trim().split(/[/\\]/).pop()?.trim() ?? "";
   const kind = fileKind(base);
   if (!base || !kind) {
-    throw new Error("Sono ammessi solo file .trk e .wpt.");
+    throw new Error("Sono ammessi solo file .gpx, .trk e .wpt.");
   }
   const cleaned = base.replace(/[^\w.\- ()]/g, "_").replace(/_+/g, "_");
   if (!fileKind(cleaned)) {
-    throw new Error("Sono ammessi solo file .trk e .wpt.");
+    throw new Error("Sono ammessi solo file .gpx, .trk e .wpt.");
   }
   return cleaned;
 }
@@ -234,6 +234,44 @@ function parseLabeledWpt(raw: string): MissionWaypoint[] {
 }
 
 export function parseMissionTrk(raw: string): Array<Array<[number, number]>> {
+  // GPX: riusa parser analisi (con tempo) e spezza i gap
+  if (/<trkpt\b/i.test(raw)) {
+    // import lazy-friendly: duplicazione minima inline
+    const pts: Array<{ lat: number; lon: number; gapBefore: boolean }> = [];
+    const segRe = /<trkseg\b[^>]*>([\s\S]*?)<\/trkseg>/gi;
+    const segs: string[] = [];
+    let sm: RegExpExecArray | null;
+    while ((sm = segRe.exec(raw)) != null) segs.push(sm[1] ?? "");
+    const bodies = segs.length > 0 ? segs : [raw];
+    let gapNext = false;
+    for (let si = 0; si < bodies.length; si++) {
+      const ptRe = /<trkpt\b([^>]*)>([\s\S]*?)<\/trkpt>/gi;
+      let pm: RegExpExecArray | null;
+      let first = true;
+      while ((pm = ptRe.exec(bodies[si] ?? "")) != null) {
+        const attrs = pm[1] ?? "";
+        const lat = parseNum(/\blat\s*=\s*"([^"]+)"/i.exec(attrs)?.[1] ?? "");
+        const lon = parseNum(/\blon\s*=\s*"([^"]+)"/i.exec(attrs)?.[1] ?? "");
+        if (lat == null || lon == null) continue;
+        pts.push({ lat, lon, gapBefore: gapNext || (si > 0 && first) });
+        gapNext = false;
+        first = false;
+      }
+      gapNext = true;
+    }
+    const segments: Array<Array<[number, number]>> = [];
+    let current: Array<[number, number]> = [];
+    for (const p of pts) {
+      if (p.gapBefore && current.length > 0) {
+        segments.push(current);
+        current = [];
+      }
+      current.push([p.lat, p.lon]);
+    }
+    if (current.length > 0) segments.push(current);
+    return segments.filter((seg) => seg.length >= 2);
+  }
+
   const segments: Array<Array<[number, number]>> = [];
   let current: Array<[number, number]> = [];
   const pushPoint = (lat: number, lon: number, gap: boolean) => {
@@ -299,7 +337,7 @@ export async function listMissionCatalog(
       name: folder.name,
       files: files.map((file) => ({
         ...file,
-        kind: file.name.toLowerCase().endsWith(".trk") ? "trk" : "wpt",
+        kind: fileKind(file.name) ?? "wpt",
       })),
     });
   }

@@ -378,6 +378,9 @@ export default function TocHome() {
                 <Link className={styles.burgerItem} href="/anagrafica" onClick={() => setMenuOpen(false)}>
                   Anagrafica
                 </Link>
+                <Link className={styles.burgerItem} href="/analisi-trk" onClick={() => setMenuOpen(false)}>
+                  ANALISI TRK
+                </Link>
                 <Link className={styles.burgerItem} href="/log" onClick={() => setMenuOpen(false)}>
                   LOG
                 </Link>

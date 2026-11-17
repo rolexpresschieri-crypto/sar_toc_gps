@@ -76,8 +76,10 @@ import it.ansmi.tocsar.geo.isFresh
 import it.ansmi.tocsar.geo.createCompassGateway
 import it.ansmi.tocsar.geo.createGpsLocalStore
 import it.ansmi.tocsar.geo.createLocationGateway
+import it.ansmi.tocsar.geo.encodeTrackGpx
 import it.ansmi.tocsar.geo.encodeTrkFile
 import it.ansmi.tocsar.geo.encodeWaypointGpx
+import it.ansmi.tocsar.geo.parseGpxTrackOrTrk
 import it.ansmi.tocsar.geo.reverseTrackPoints
 import it.ansmi.tocsar.geo.formatAlt0
 import it.ansmi.tocsar.geo.formatCoord6
@@ -1167,8 +1169,8 @@ private fun SaveTrackDialog(
             if (shareAfter) {
                 sharePlainText(
                     subject = "Traccia $fullName",
-                    text = body,
-                    fileNameHint = "${safeGpsFileStem(fullName)}.trk",
+                    text = encodeTrackGpx(fullName, points),
+                    fileNameHint = "${safeGpsFileStem(fullName)}.gpx",
                 )
             }
         } catch (e: Exception) {
@@ -1276,8 +1278,8 @@ private fun InspectTrackDialog(
                 onClick = {
                     sharePlainText(
                         subject = "Traccia $name",
-                        text = encodeTrkFile(points),
-                        fileNameHint = "${safeGpsFileStem(name)}.trk",
+                        text = encodeTrackGpx(name, points),
+                        fileNameHint = "${safeGpsFileStem(name)}.gpx",
                     )
                 },
             ) { Text("Invia") }
@@ -1574,8 +1576,8 @@ private fun WpTrkDialog(
                                             onClick = {
                                                 sharePlainText(
                                                     subject = "Traccia ${trk.name}",
-                                                    text = encodeTrkFile(trk.points),
-                                                    fileNameHint = "${safeGpsFileStem(trk.name)}.trk",
+                                                    text = encodeTrackGpx(trk.name, trk.points),
+                                                    fileNameHint = "${safeGpsFileStem(trk.name)}.gpx",
                                                 )
                                             },
                                             label = "Invia",
@@ -1640,11 +1642,11 @@ private fun WpTrkDialog(
                                     scope.launch {
                                         busy = true
                                         try {
-                                            val body = store.readTrackBody(trk.name)
+                                            val pts = parseGpxTrackOrTrk(store.readTrackBody(trk.name))
                                             sharePlainText(
                                                 subject = "Traccia ${trk.name}",
-                                                text = body,
-                                                fileNameHint = "${safeGpsFileStem(trk.name)}.trk",
+                                                text = encodeTrackGpx(trk.name, pts),
+                                                fileNameHint = "${safeGpsFileStem(trk.name)}.gpx",
                                             )
                                         } catch (e: Exception) {
                                             toast("Condivisione non riuscita: ${e.message}")

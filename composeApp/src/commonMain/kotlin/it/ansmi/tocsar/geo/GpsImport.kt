@@ -10,6 +10,14 @@ suspend fun importGpsFileContent(
     body: String,
 ): String {
     return when {
+        // GPX traccia prima del WP: un .gpx può contenere entrambi
+        looksLikeGpxTrack(body) -> {
+            val pts = parseGpxTrack(body)
+            if (pts.size < 2) return "Traccia GPX troppo corta"
+            val name = importedGpsNameFromFileName(fileName)
+            store.upsertTrack(name, encodeTrkFile(pts))
+            "Importata traccia $name"
+        }
         looksLikeWaypointContent(body) -> {
             val parsed = parseWaypointFile(body)
                 ?: return "File WP non valido"
@@ -28,7 +36,7 @@ suspend fun importGpsFileContent(
             store.upsertTrack(name, encodeTrkFile(pts))
             "Importata traccia $name"
         }
-        else -> "Formato non riconosciuto (.trk / WP .gpx)"
+        else -> "Formato non riconosciuto (.gpx / .trk / .wpt)"
     }
 }
 
@@ -36,12 +44,13 @@ suspend fun importGpsFileContent(
 fun importedGpsNameFromFileName(fileName: String): String {
     var stem = fileName.trim()
     stem = stem.substringAfterLast('/').substringAfterLast('\\')
-    // WhatsApp a volte: "nome.trk" o "DOC….trk"
+    // WhatsApp: "nome.trk", "nome.trk.txt", oppure "DOC-…-WA….bin" / "….trk"
     if (stem.contains('.')) {
         val lower = stem.lowercase()
         stem = when {
             lower.endsWith(".wpt.txt") -> stem.dropLast(".wpt.txt".length)
             lower.endsWith(".trk.txt") -> stem.dropLast(".trk.txt".length)
+            lower.endsWith(".gpx.txt") -> stem.dropLast(".gpx.txt".length)
             else -> stem.substringBeforeLast('.')
         }
     }

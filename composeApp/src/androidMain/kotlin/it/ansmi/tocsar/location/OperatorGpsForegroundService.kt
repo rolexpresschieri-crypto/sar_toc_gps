@@ -22,9 +22,9 @@ import it.ansmi.tocsar.geo.GeoFix
 import it.ansmi.tocsar.geo.GpsPublishPolicy
 import it.ansmi.tocsar.geo.TrackPoint
 import it.ansmi.tocsar.geo.createLocationGateway
-import it.ansmi.tocsar.geo.haversineDistanceM
 import it.ansmi.tocsar.geo.isTrackGap
 import it.ansmi.tocsar.geo.shouldAcceptTrackFix
+import it.ansmi.tocsar.geo.shouldRecordTrackPointBySpacing
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -218,9 +218,15 @@ class OperatorGpsForegroundService : Service() {
         if (!shouldAcceptTrackFix(lastPoint, lastTrackFix, fix, now, lastAcceptedWallMs)) {
             return
         }
-        if (lastPoint != null) {
-            val d = haversineDistanceM(lastPoint.lat, lastPoint.lon, fix.latitude, fix.longitude)
-            if (d < TRACK_POINT_MIN_DISTANCE_M) return
+        if (!shouldRecordTrackPointBySpacing(
+                lastPoint,
+                lastAcceptedWallMs,
+                fix.latitude,
+                fix.longitude,
+                now,
+            )
+        ) {
+            return
         }
         val gap = isTrackGap(lastPoint, fix, now, lastAcceptedWallMs)
         GpsTrackingRuntime.addTrkPoint(
@@ -229,6 +235,7 @@ class OperatorGpsForegroundService : Service() {
                 lon = fix.longitude,
                 alt = fix.trackAltitudeOrNull(),
                 gapBefore = gap,
+                timeMs = now,
             ),
         )
         lastTrackFix = fix
@@ -324,7 +331,6 @@ class OperatorGpsForegroundService : Service() {
         private const val TAG = "OperatorGpsFgService"
         private const val CHANNEL_ID = "toc_sar_gps_tracking"
         private const val NOTIFICATION_ID = 42001
-        private const val TRACK_POINT_MIN_DISTANCE_M = 3.0
 
         const val ACTION_START = "it.ansmi.tocsar.gps.START"
         const val ACTION_STOP = "it.ansmi.tocsar.gps.STOP"

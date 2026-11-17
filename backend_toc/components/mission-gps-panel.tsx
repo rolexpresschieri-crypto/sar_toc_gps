@@ -127,7 +127,7 @@ export default function MissionGpsPanel({
     e.preventDefault();
     const list = picked ? Array.from(picked) : [];
     if (list.length === 0) {
-      setError("Scegli almeno un file .trk o .wpt.");
+      setError("Scegli almeno un file .gpx, .trk o .wpt.");
       return;
     }
     setBusy(true);
@@ -189,7 +189,7 @@ export default function MissionGpsPanel({
           <h2>Missione GPS — {orgCode}</h2>
           <p>
             Cartelle e file nel bucket mission-gps, sotto {orgCode}. L&apos;app mostra la cartella
-            solo se contiene file .trk o .wpt. Una cartella nuova compare qui subito e in app dopo
+            solo se contiene file .gpx / .trk / .wpt. Una cartella nuova compare qui subito e in app dopo
             il primo file.
           </p>
         </div>
@@ -226,10 +226,10 @@ export default function MissionGpsPanel({
             </select>
           </label>
           <label>
-            File .trk / .wpt
+            File .gpx / .trk / .wpt
             <input
               type="file"
-              accept=".trk,.wpt,text/plain"
+              accept=".gpx,.trk,.wpt,text/plain"
               multiple
               disabled={busy || !folder}
               onChange={(e) => setPicked(e.target.files)}
@@ -244,7 +244,7 @@ export default function MissionGpsPanel({
         </div>
       </form>
       {folder && files.length === 0 ? (
-        <p className={styles.empty}>Nessun .trk o .wpt in {folder}. L&apos;app non mostra ancora questa cartella.</p>
+        <p className={styles.empty}>Nessun .gpx / .trk / .wpt in {folder}. L&apos;app non mostra ancora questa cartella.</p>
       ) : files.length > 0 ? (
         <table className={styles.table}>
           <thead>
@@ -258,7 +258,13 @@ export default function MissionGpsPanel({
             {files.map((file) => (
               <tr key={file.path}>
                 <td>{file.name}</td>
-                <td>{file.name.toLowerCase().endsWith(".trk") ? "TRK" : "WP"}</td>
+                <td>
+                  {file.name.toLowerCase().endsWith(".wpt")
+                    ? "WP"
+                    : file.name.toLowerCase().endsWith(".gpx")
+                      ? "GPX"
+                      : "TRK"}
+                </td>
                 <td className={styles.rowActions}>
                   <button type="button" className={styles.btnDanger} disabled={busy} onClick={() => void handleDeleteFile(file)}>
                     Elimina

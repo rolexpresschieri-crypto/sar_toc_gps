@@ -17,8 +17,6 @@ import platform.Foundation.NSDate
 import platform.Foundation.NSLock
 import kotlin.concurrent.Volatile
 
-private const val TrackPointMinDistanceM = 3.0
-
 private fun nowMs(): Long =
     ((NSDate().timeIntervalSinceReferenceDate + 978307200.0) * 1000.0).toLong()
 
@@ -191,9 +189,15 @@ private object IosGpsRuntime {
         if (!trkRecording) return
         val lastPoint = trkSnapshot().lastOrNull()
         if (!shouldAcceptTrackFix(lastPoint, lastTrackFix, fix, now, lastAcceptedWallMs)) return
-        if (lastPoint != null) {
-            val d = haversineDistanceM(lastPoint.lat, lastPoint.lon, fix.latitude, fix.longitude)
-            if (d < TrackPointMinDistanceM) return
+        if (!shouldRecordTrackPointBySpacing(
+                lastPoint,
+                lastAcceptedWallMs,
+                fix.latitude,
+                fix.longitude,
+                now,
+            )
+        ) {
+            return
         }
         val gap = isTrackGap(lastPoint, fix, now, lastAcceptedWallMs)
         val recorded =
@@ -207,6 +211,7 @@ private object IosGpsRuntime {
                             lon = fix.longitude,
                             alt = fix.trackAltitudeOrNull(),
                             gapBefore = gap,
+                            timeMs = now,
                         ),
                     )
                     true
