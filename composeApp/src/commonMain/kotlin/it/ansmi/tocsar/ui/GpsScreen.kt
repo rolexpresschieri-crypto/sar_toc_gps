@@ -77,7 +77,6 @@ import it.ansmi.tocsar.geo.createCompassGateway
 import it.ansmi.tocsar.geo.createGpsLocalStore
 import it.ansmi.tocsar.geo.createLocationGateway
 import it.ansmi.tocsar.geo.encodeTrackGpx
-import it.ansmi.tocsar.geo.encodeTrkFile
 import it.ansmi.tocsar.geo.encodeWaypointGpx
 import it.ansmi.tocsar.geo.parseGpxTrackOrTrk
 import it.ansmi.tocsar.geo.reverseTrackPoints
@@ -1137,7 +1136,7 @@ private fun SaveTrackDialog(
         }
         saving = true
         try {
-            val body = encodeTrkFile(points)
+            val body = encodeTrackGpx(fullName, points)
             store.upsertTrack(fullName, body)
             val org = organizationId?.trim().orEmpty()
             val opId = operatorId?.trim().orEmpty()
@@ -1701,7 +1700,7 @@ private fun WpTrkDialog(
                                         busy = true
                                         try {
                                             val pts = reverseTrackPoints(store.fetchTrackPoints(trk.name))
-                                            store.upsertTrack(trk.name, encodeTrkFile(pts))
+                                            store.upsertTrack(trk.name, encodeTrackGpx(trk.name, pts))
                                             reload()
                                             toast("Traccia invertita · REPORT ora dal basso")
                                         } catch (e: Exception) {

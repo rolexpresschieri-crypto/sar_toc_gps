@@ -21,7 +21,7 @@ GREEN = (7, 155, 66)
 DARK = (25, 25, 25)
 MUTED = (70, 70, 70)
 LINE = (180, 180, 180)
-VERSION = "1.0.75"
+VERSION = "1.0.76"
 
 
 def _first_existing(*paths: Path) -> Path:
@@ -251,7 +251,7 @@ def build() -> Path:
     pdf.h1("2.  Prima di usare l’app")
     pdf.bullet(
         "Installazione Android",
-        "Installa il file dell’app sul telefono (es. toc_sar_KMP_1.0.75.apk). "
+        "Installa il file dell’app sul telefono (es. toc_sar_KMP_1.0.76.apk). "
         "Se Android lo chiede, consenti l’installazione da fonti esterne solo per TOC SAR. "
         "Quando esce una versione più nuova, l’app può bloccare l’uso finché non aggiorni "
         "(segui il messaggio a schermo: scarica e installa). "
@@ -485,9 +485,10 @@ def build() -> Path:
         "Annulla = non tiene nulla. Poi torni alla home.",
     )
     pdf.note(
-        "Se mandi la traccia con WhatsApp, a volte il file arriva con un nome strano "
-        "(DOC-… e finisce con .bin). Per aprirlo con LAND rinominalo in .trk. "
-        "Nell’app TOC SAR puoi importarlo lo stesso: Importa file / Apri con."
+        "Da 1.0.76 le tracce si salvano e si inviano come .gpx (con orario). "
+        "Su WhatsApp a volte il file arriva con nome strano (DOC-… / .bin): "
+        "rinominalo in .gpx (o .trk se è un file vecchio) per LAND; "
+        "in TOC SAR: Importa file / Apri con."
     )
     pdf.bullet(
         "Fermare solo TIME e DIST",
@@ -706,36 +707,43 @@ def build() -> Path:
     pdf.h2("8.2  ANALISI TRK (cane / conduttore)")
     pdf.p(
         "Menu a tre linee (in alto a destra) → sotto Anagrafica tocca ANALISI TRK. "
-        "Serve a capire, dopo un lavoro di ricerca/addestramento, come si sono mossi cane e conduttore "
-        "e quanto sono rimasti distanti nel tempo."
+        "Serve a capire, dopo un lavoro di ricerca/addestramento, come si sono mossi area, cane e conduttore "
+        "e quanto cane e conduttore sono rimasti distanti nel tempo."
+    )
+    pdf.bullet(
+        "Da dove arrivano le tracce",
+        "Puoi usare tracce registrate con TOC SAR (da 1.0.76 salvate come .gpx con orario) "
+        "oppure file .gpx esportati da GPS tradizionali (Garmin, collari, LAND, ecc.). "
+        "Le stesse tracce, caricate anche nelle cartelle missione del TOC, si possono "
+        "visualizzare e analizzare sulla mappa di sala operativa SAR TOC (oltre che in ANALISI TRK).",
     )
     pdf.bullet(
         "Passi",
-        "1) Carica due tracce dal PC oppure sceglile dalle cartelle missione già sul TOC. "
-        "2) Indica quale è il cane e quale il conduttore. "
-        "3) Guarda mappa e numeri. 4) Se serve, RESET per ripartire oppure PDF / Stampa per il report.",
+        "1) Carica i file .gpx dal PC (o dalle cartelle missione TOC): area da bonificare, conduttore, cane. "
+        "2) Assegna ogni file al ruolo giusto (menu sotto ogni ruolo). "
+        "3) Guarda mappa e numeri. 4) Se serve, RESET oppure PDF / Stampa per il report.",
     )
     pdf.bullet(
         "Cosa leggi a schermo",
-        "Mappa: traccia arancio = cane, blu = conduttore. "
-        "Per ciascuno: quanto ha percorso, quanto è durato, velocità (se la traccia ha l’orario). "
-        "Sotto: distanza cane–conduttore (minima, media, massima) e il grafico di come cambia nel tempo.",
+        "Mappa topografica: verde = area, blu = conduttore, arancio = cane. "
+        "Per ciascuno: percorso, durata in moto, velocità (se la traccia ha l’orario). "
+        "Sotto: distanza cane–conduttore (min/media/max) e grafico nel tempo; poi PDF con Fig.1–3.",
     )
     pdf.bullet(
         "Per avere tempi e distanza «vera»",
-        "Registra cane e conduttore con due telefoni entrambi su TOC SAR aggiornata (da 1.0.75 in poi), "
-        "nello stesso periodo di lavoro, poi carica le due tracce qui. "
-        "Con tracce vecchie (senza orario) vedi comunque i percorsi sulla mappa e quanto hanno percorso, "
+        "Serve l’orario sui punti (tipico dei .gpx da GPS o dall’app da 1.0.75/1.0.76). "
+        "Registra cane e conduttore nello stesso periodo, oppure importa i .gpx dal GPS del collare/handheld. "
+        "Senza orario vedi comunque i percorsi sulla mappa e i metri percorsi, "
         "ma non durata, velocità né la distanza cane–conduttore minuto per minuto.",
     )
     pdf.bullet(
         "RESET e PDF / Stampa",
         "RESET toglie le tracce scelte e i ruoli. "
-        "PDF / Stampa prepara il foglio da archiviare o stampare (numeri, percorsi, grafici).",
+        "PDF / Stampa prepara il foglio da archiviare o stampare (numeri, mappa, grafici).",
     )
     pdf.note(
-        "Consiglio pratico in addestramento: un telefono sul conduttore, uno sul cane (o sul collare/handler dedicato), "
-        "START TRK insieme, STOP alla fine, poi in sala TOC → ANALISI TRK."
+        "Consiglio: in addestramento due dispositivi TOC SAR (START TRK insieme), "
+        "oppure GPS tradizionali → esporta .gpx → sala TOC (missione/mappa e/o ANALISI TRK)."
     )
 
     pdf.h1("9.  Cosa fare se…")
@@ -775,13 +783,13 @@ def build() -> Path:
     )
     pdf.bullet(
         "WhatsApp mi ha mandato un file strano (.bin) invece della traccia",
-        "Succede spesso. Per aprirlo con LAND: rinomina il file in .trk. "
+        "Succede spesso. Per LAND: rinomina in .gpx (o .trk se vecchio). "
         "Nell’app: Importa file / Apri con — TOC SAR lo legge lo stesso.",
     )
     pdf.bullet(
         "In ANALISI TRK non vedo velocità o distanza cane–conduttore nel tempo",
-        "Serve aver registrato entrambe le tracce con l’app aggiornata (da 1.0.75) e aver assegnato "
-        "i due ruoli. Con tracce vecchie restano mappa e metri percorsi, non i tempi.",
+        "Serve l’orario sui punti (.gpx da GPS o app da 1.0.75+) e aver assegnato cane e conduttore. "
+        "Senza orario restano mappa e metri percorsi, non i tempi.",
     )
     pdf.bullet(
         "Dopo un aggiornamento non vedo più le tracce sul telefono",

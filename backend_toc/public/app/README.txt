@@ -18,3 +18,6 @@ Se versionCode remoto > versionCode installato, blocca finché non si apre apkUr
 
 Chi ha ancora ≤1.0.73 deve installare UNA VOLTA a mano un'APK ≥1.0.75
 (che contiene il controllo); da allora gli aggiornamenti sono obbligatori via dialog.
+
+Release corrente di esempio: toc_sar_KMP_1.0.76.apk in questa cartella
+(apkUrl = https://toc-sar.vercel.app/app/toc_sar_KMP_1.0.76.apk).

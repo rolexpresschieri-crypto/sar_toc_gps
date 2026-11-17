@@ -6,4 +6,4 @@ actual fun appVersionName(): String =
     NSBundle.mainBundle.infoDictionary
         ?.get("CFBundleShortVersionString")
         as? String
-        ?: "1.0.75"
+        ?: "1.0.76"

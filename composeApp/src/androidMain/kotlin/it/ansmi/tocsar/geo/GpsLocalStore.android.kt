@@ -75,36 +75,46 @@ private class AndroidGpsLocalStore : GpsLocalStore {
     }
 
     override suspend fun loadTracks(): List<TrackListItem> = withContext(Dispatchers.IO) {
-        tracksDir().listFiles()?.filter { it.isFile && it.extension.equals("trk", true) }
+        tracksDir().listFiles()
+            ?.filter { it.isFile && (it.extension.equals("gpx", true) || it.extension.equals("trk", true)) }
             ?.map { f ->
                 val name = f.nameWithoutExtension
-                val n = parseTrkFile(f.readText()).size
+                val n = parseGpxTrackOrTrk(f.readText()).size
                 TrackListItem(name = name, nPoints = n)
             }
+            ?.distinctBy { it.name.lowercase() }
             ?.sortedBy { it.name }
             ?: emptyList()
     }
 
-    override suspend fun upsertTrack(name: String, trkBody: String) = withContext(Dispatchers.IO) {
+    override suspend fun upsertTrack(name: String, trkBody: String): Unit = withContext(Dispatchers.IO) {
         val stem = safeGpsFileStem(name)
-        File(tracksDir(), "$stem.trk").writeText(trkBody)
+        // GPX ufficiale; rimuove eventuale .trk legacy con lo stesso stem
+        File(tracksDir(), "$stem.gpx").writeText(trkBody)
+        File(tracksDir(), "$stem.trk").delete()
+        Unit
     }
 
     override suspend fun deleteTrack(name: String): Unit = withContext(Dispatchers.IO) {
         val stem = safeGpsFileStem(name)
+        File(tracksDir(), "$stem.gpx").delete()
         File(tracksDir(), "$stem.trk").delete()
         Unit
     }
 
     override suspend fun readTrackBody(name: String): String = withContext(Dispatchers.IO) {
         val stem = safeGpsFileStem(name)
-        val file = File(tracksDir(), "$stem.trk")
-        if (!file.exists()) error("Traccia non trovata: $name")
-        file.readText()
+        val gpx = File(tracksDir(), "$stem.gpx")
+        val trk = File(tracksDir(), "$stem.trk")
+        when {
+            gpx.exists() -> gpx.readText()
+            trk.exists() -> trk.readText()
+            else -> error("Traccia non trovata: $name")
+        }
     }
 
     override suspend fun fetchTrackPoints(name: String): List<TrackPoint> {
-        val points = parseTrkFile(readTrackBody(name))
+        val points = parseGpxTrackOrTrk(readTrackBody(name))
         if (points.size < 2) error("Traccia $name: ${points.size} punti letti in locale")
         return points
     }

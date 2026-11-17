@@ -29,7 +29,7 @@ import it.ansmi.tocsar.geo.TrackStats
 import it.ansmi.tocsar.geo.WaypointItem
 import it.ansmi.tocsar.geo.missionFolderFromStoragePath
 import it.ansmi.tocsar.geo.parseMissionWaypoints
-import it.ansmi.tocsar.geo.parseTrkFile
+import it.ansmi.tocsar.geo.parseGpxTrackOrTrk
 import kotlinx.serialization.json.Json
 
 /**
@@ -503,7 +503,7 @@ class OperatorRepository(
                     waypoints += parseMissionWaypoints(body).map { it.copy(missionGroup = group) }
                 }
                 "trk" -> {
-                    val pts = parseTrkFile(body)
+                    val pts = parseGpxTrackOrTrk(body)
                     if (pts.size >= 2) {
                         val base = row.fileName.trim().ifBlank { "TRK" }
                         val uniqueName =

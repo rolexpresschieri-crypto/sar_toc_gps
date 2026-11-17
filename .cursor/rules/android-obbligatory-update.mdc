@@ -9,7 +9,7 @@ Quando l’utente chiede una **nuova versione APK** / release Android, ricordare
 
 ## Stato attuale (seed)
 
-- Build con controllo versione: **1.0.75** / `10075` (e successive).
+- Build con controllo versione: **1.0.76** / `10076` (e successive).
 - Manifest remoto: `backend_toc/public/app/android-latest.json`
 - URL live: `https://toc-sar.vercel.app/app/android-latest.json`
 - Istruzioni: `backend_toc/public/app/README.txt`
@@ -18,17 +18,17 @@ Quando l’utente chiede una **nuova versione APK** / release Android, ricordare
 
 Chi aveva ≤ 1.0.73 doveva installare **una volta a mano** la 1.0.75. Da allora gli aggiornamenti sono via dialog.
 
-## Checklist prossima release (es. 1.0.76)
+## Checklist prossima release (es. 1.0.77)
 
 1. Alza `versionName` / `versionCode` in `composeApp/build.gradle.kts` (e fallback iOS `AppVersion.ios.kt` se serve).
 2. Build APK (`assembleRelease` + `copy-apk-toc-name.ps1`) → `toc_sar_KMP_x.y.zz.apk`.
 3. Metti l’APK su URL pubblico (Drive diretto `uc?export=download&id=…`, oppure `backend_toc/public/app/` + deploy).
 4. Aggiorna `android-latest.json`:
-   - `versionName`, `versionCode` (> installata),
-   - `apkUrl` non vuoto,
-   - `message` (opzionale).
+ - `versionName`, `versionCode` (> installata),
+ - `apkUrl` non vuoto,
+ - `message` (opzionale).
 5. Deploy TOC: da `backend_toc` → `npx vercel --prod` (git push da solo non aggiorna Vercel).
-6. Non lasciare `apkUrl` vuoto se `versionCode` è già maggiore della 75: altrimenti il dialog non parte.
+6. Non lasciare `apkUrl` vuoto se `versionCode` è già maggiore della build in campo: altrimenti il dialog non parte.
 
 ## Comportamento app
 

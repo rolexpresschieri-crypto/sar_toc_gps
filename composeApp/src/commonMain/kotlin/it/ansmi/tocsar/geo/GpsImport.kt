@@ -15,7 +15,7 @@ suspend fun importGpsFileContent(
             val pts = parseGpxTrack(body)
             if (pts.size < 2) return "Traccia GPX troppo corta"
             val name = importedGpsNameFromFileName(fileName)
-            store.upsertTrack(name, encodeTrkFile(pts))
+            store.upsertTrack(name, encodeTrackGpx(name, pts))
             "Importata traccia $name"
         }
         looksLikeWaypointContent(body) -> {
@@ -33,7 +33,7 @@ suspend fun importGpsFileContent(
             val pts = parseTrkFile(body)
             if (pts.size < 2) return "Traccia troppo corta"
             val name = importedGpsNameFromFileName(fileName)
-            store.upsertTrack(name, encodeTrkFile(pts))
+            store.upsertTrack(name, encodeTrackGpx(name, pts))
             "Importata traccia $name"
         }
         else -> "Formato non riconosciuto (.gpx / .trk / .wpt)"

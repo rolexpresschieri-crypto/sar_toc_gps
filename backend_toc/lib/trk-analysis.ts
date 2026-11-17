@@ -171,50 +171,102 @@ export function parseTrkPoints(raw: string): TrkPoint[] {
 
 /** Sopra questa soglia un Δt tra due fix è una pausa / spegnimento, non tempo di lavoro. */
 const MAX_ACTIVE_SEG_SEC = 120;
-/** Sotto questa velocità il segmento conta come fermo (GPS acceso in attesa). */
-const MIN_MOVE_KMH = 0.4;
+/** Sotto questa velocità = fermo / jitter collare (non «in moto»). */
+const MIN_MOVE_KMH = 0.8;
+/**
+ * Oltre ≈ corsa sostenuta in bosco: tipico salto collare GPS.
+ * 18 km/h ≈ 5 m/s.
+ */
+const MAX_PLAUSIBLE_KMH = 18;
+/** Anche con orario: un fix non può spostarsi di troppi metri. */
+const MAX_SEG_M = 30;
+/** Senza orario: salto > N metri tra due fix consecutivi = outlier. */
+const MAX_JUMP_M_NO_TIME = 40;
+
+function segmentSpeedKmh(dM: number, dtSec: number): number {
+  if (dtSec <= 0) return Number.POSITIVE_INFINITY;
+  return (dM / dtSec) * 3.6;
+}
+
+/** true = segmento utilizzabile per metriche (non pausa lunga, non teleporto GPS). */
+function isPlausibleSegment(
+  dM: number,
+  a: TrkPoint,
+  b: TrkPoint,
+): { ok: boolean; kmh: number | null; dtSec: number | null } {
+  if (b.gapBefore) return { ok: false, kmh: null, dtSec: null };
+  if (a.timeMs != null && b.timeMs != null && b.timeMs > a.timeMs) {
+    const dtSec = (b.timeMs - a.timeMs) / 1000;
+    if (dtSec <= 0 || dtSec >= MAX_ACTIVE_SEG_SEC) {
+      return { ok: false, kmh: null, dtSec };
+    }
+    if (dM > MAX_SEG_M) return { ok: false, kmh: segmentSpeedKmh(dM, dtSec), dtSec };
+    const kmh = segmentSpeedKmh(dM, dtSec);
+    if (kmh > MAX_PLAUSIBLE_KMH) return { ok: false, kmh, dtSec };
+    return { ok: true, kmh, dtSec };
+  }
+  if (dM > MAX_JUMP_M_NO_TIME) return { ok: false, kmh: null, dtSec: null };
+  return { ok: true, kmh: null, dtSec: null };
+}
+
+type TimedSeg = { t0: number; t1: number; dM: number; kmh: number };
 
 export function computeTrkStats(name: string, points: TrkPoint[]): TrkStats {
-  let distanceM = 0;
-  const speedsKmh: number[] = [];
-  /** Somma solo moto reale (Δt < 2 min e velocità ≥ soglia) — non attesa a GPS acceso. */
-  let activeDurationMs = 0;
-  let hasTimedSeg = false;
+  const timedSegs: TimedSeg[] = [];
+  let untimedDistanceM = 0;
+  let anyTime = false;
 
   for (let i = 1; i < points.length; i++) {
     const a = points[i - 1]!;
     const b = points[i]!;
-    if (b.gapBefore) continue;
     const d = haversineM(a.lat, a.lon, b.lat, b.lon);
-    distanceM += d;
-    if (a.timeMs != null && b.timeMs != null && b.timeMs > a.timeMs) {
-      const dtSec = (b.timeMs - a.timeMs) / 1000;
-      if (dtSec > 0 && dtSec < MAX_ACTIVE_SEG_SEC) {
-        const kmh = (d / dtSec) * 3.6;
-        hasTimedSeg = true;
-        if (kmh >= MIN_MOVE_KMH) {
-          activeDurationMs += b.timeMs - a.timeMs;
-        }
-        if (kmh >= 0 && kmh <= 45) {
-          speedsKmh.push(kmh);
-        }
+    const seg = isPlausibleSegment(d, a, b);
+    if (!seg.ok) continue;
+    if (seg.kmh != null && a.timeMs != null && b.timeMs != null) {
+      anyTime = true;
+      if (seg.kmh >= MIN_MOVE_KMH) {
+        timedSegs.push({ t0: a.timeMs, t1: b.timeMs, dM: d, kmh: seg.kmh });
       }
+    } else {
+      untimedDistanceM += d;
     }
   }
 
-  const hasTime = hasTimedSeg || points.some((p) => p.timeMs != null);
-  const durationMs = hasTimedSeg && activeDurationMs > 0 ? activeDurationMs : null;
+  // Solo fase di lavoro principale (come il grafico velocità)
+  const win =
+    timedSegs.length >= 2
+      ? movementTimeWindow(
+          [timedSegs.map((s) => ({ tMs: s.t1, kmh: s.kmh }))],
+          MIN_MOVE_KMH,
+        )
+      : null;
+  const used =
+    win != null
+      ? timedSegs.filter((s) => s.t1 >= win.t0 && s.t0 <= win.t1)
+      : timedSegs;
+
+  let distanceM = untimedDistanceM;
+  let activeDurationMs = 0;
+  const speedsKmh: number[] = [];
+  for (const s of used) {
+    distanceM += s.dM;
+    activeDurationMs += s.t1 - s.t0;
+    speedsKmh.push(s.kmh);
+  }
+
+  const hasTime = anyTime || points.some((p) => p.timeMs != null);
+  const durationMs = used.length > 0 && activeDurationMs > 0 ? activeDurationMs : null;
 
   let avgSpeedKmh: number | null = null;
   let maxSpeedKmh: number | null = null;
   if (speedsKmh.length > 0) {
-    // media sul moto (esclude i tratti ~fermi che gonfiano il «mezzo grafico a zero»)
-    const moving = speedsKmh.filter((v) => v >= MIN_MOVE_KMH && v <= 45);
-    const src = moving.length > 0 ? moving : speedsKmh.filter((v) => v >= 0 && v <= 45);
-    if (src.length > 0) {
-      avgSpeedKmh = src.reduce((s, v) => s + v, 0) / src.length;
-      maxSpeedKmh = Math.max(...src);
-    }
+    avgSpeedKmh = speedsKmh.reduce((s, v) => s + v, 0) / speedsKmh.length;
+    const sorted = [...speedsKmh].sort((a, b) => a - b);
+    const idx = Math.min(
+      sorted.length - 1,
+      Math.max(0, Math.ceil(sorted.length * 0.95) - 1),
+    );
+    maxSpeedKmh = sorted[idx] ?? sorted[sorted.length - 1]!;
   } else if (durationMs != null && durationMs > 0 && distanceM > 0) {
     avgSpeedKmh = (distanceM / (durationMs / 1000)) * 3.6;
   }
@@ -271,19 +323,17 @@ export function cumulativeDistanceSeries(points: TrkPoint[]): number[] {
   return out;
 }
 
-/** Velocità istantanea (km/h) tra punti consecutivi — richiede timestamp. */
+/** Velocità istantanea (km/h) tra punti consecutivi — richiede timestamp; scarta salti GPS. */
 export function speedSeriesKmh(points: TrkPoint[]): Array<{ tMs: number; kmh: number }> {
   const out: Array<{ tMs: number; kmh: number }> = [];
   for (let i = 1; i < points.length; i++) {
     const a = points[i - 1]!;
     const b = points[i]!;
-    if (b.gapBefore || a.timeMs == null || b.timeMs == null || b.timeMs <= a.timeMs) continue;
-    const dtSec = (b.timeMs - a.timeMs) / 1000;
-    if (dtSec <= 0 || dtSec >= MAX_ACTIVE_SEG_SEC) continue;
+    if (a.timeMs == null || b.timeMs == null || b.timeMs <= a.timeMs) continue;
     const d = haversineM(a.lat, a.lon, b.lat, b.lon);
-    const kmh = (d / dtSec) * 3.6;
-    if (kmh < 0 || kmh > 45) continue;
-    out.push({ tMs: b.timeMs, kmh });
+    const seg = isPlausibleSegment(d, a, b);
+    if (!seg.ok || seg.kmh == null) continue;
+    out.push({ tMs: b.timeMs, kmh: seg.kmh });
   }
   return out;
 }

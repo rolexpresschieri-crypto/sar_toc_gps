@@ -99,31 +99,41 @@ private class IosGpsLocalStore : GpsLocalStore {
             ?: return@withContext emptyList()
         files.mapNotNull { raw ->
             val name = raw as? String ?: return@mapNotNull null
-            if (!name.endsWith(".trk", ignoreCase = true)) return@mapNotNull null
-            val stem = name.removeSuffix(".trk").removeSuffix(".TRK")
+            val lower = name.lowercase()
+            if (!lower.endsWith(".gpx") && !lower.endsWith(".trk")) return@mapNotNull null
+            val stem =
+                when {
+                    lower.endsWith(".gpx") -> name.dropLast(4)
+                    else -> name.dropLast(4)
+                }
             val body = readUtf8("$dir/$name") ?: return@mapNotNull null
-            TrackListItem(name = stem, nPoints = parseTrkFile(body).size)
-        }.sortedBy { it.name }
+            TrackListItem(name = stem, nPoints = parseGpxTrackOrTrk(body).size)
+        }.distinctBy { it.name.lowercase() }.sortedBy { it.name }
     }
 
     override suspend fun upsertTrack(name: String, trkBody: String) = withContext(Dispatchers.Default) {
         val stem = safeGpsFileStem(name)
-        writeUtf8("${tracksDir()}/$stem.trk", trkBody)
+        writeUtf8("${tracksDir()}/$stem.gpx", trkBody)
+        NSFileManager.defaultManager.removeItemAtPath("${tracksDir()}/$stem.trk", error = null)
+        Unit
     }
 
     override suspend fun deleteTrack(name: String) = withContext(Dispatchers.Default) {
         val stem = safeGpsFileStem(name)
+        NSFileManager.defaultManager.removeItemAtPath("${tracksDir()}/$stem.gpx", error = null)
         NSFileManager.defaultManager.removeItemAtPath("${tracksDir()}/$stem.trk", error = null)
         Unit
     }
 
     override suspend fun readTrackBody(name: String): String = withContext(Dispatchers.Default) {
         val stem = safeGpsFileStem(name)
-        readUtf8("${tracksDir()}/$stem.trk") ?: error("Traccia non trovata: $name")
+        readUtf8("${tracksDir()}/$stem.gpx")
+            ?: readUtf8("${tracksDir()}/$stem.trk")
+            ?: error("Traccia non trovata: $name")
     }
 
     override suspend fun fetchTrackPoints(name: String): List<TrackPoint> {
-        val points = parseTrkFile(readTrackBody(name))
+        val points = parseGpxTrackOrTrk(readTrackBody(name))
         if (points.size < 2) error("Traccia $name: ${points.size} punti")
         return points
     }
