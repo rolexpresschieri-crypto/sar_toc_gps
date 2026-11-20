@@ -3,7 +3,7 @@ setlocal
 cd /d "%~dp0"
 
 echo ============================================
-echo   TOC SAR - Anagrafica
+echo   TOC SAR - GPS ^& Cartografia
 echo   Apri nel browser: http://localhost:3000
 echo   Login: NVANSMI / ADMIN_RR / 123456
 echo ============================================

@@ -5,8 +5,8 @@ Aggiornamento obbligatorio Android (TOC SAR)
    Storage, o copia in questa cartella /app/ e rideploya Vercel).
 
 2. Modifica android-latest.json:
-   - versionName  es. "1.0.76"
-   - versionCode  es. 10076  (deve essere > della build installata)
+   - versionName  es. "1.0.81"
+   - versionCode  es. 10081  (deve essere > della build installata)
    - apkUrl       URL diretto al .apk
    - message      testo del dialog (opzionale)
 
@@ -19,5 +19,6 @@ Se versionCode remoto > versionCode installato, blocca finché non si apre apkUr
 Chi ha ancora ≤1.0.73 deve installare UNA VOLTA a mano un'APK ≥1.0.75
 (che contiene il controllo); da allora gli aggiornamenti sono obbligatori via dialog.
 
-Release corrente di esempio: toc_sar_KMP_1.0.76.apk in questa cartella
-(apkUrl = https://toc-sar.vercel.app/app/toc_sar_KMP_1.0.76.apk).
+Release corrente di esempio: toc_sar_KMP_1.0.81.apk in questa cartella
+(apkUrl = https://toc-sar.vercel.app/app/toc_sar_KMP_1.0.81.apk).
+Pagina fallback download: https://toc-sar.vercel.app/app/scarica.html

@@ -13,3 +13,5 @@ actual fun openExternalUrl(url: String) {
     val nsUrl = NSURL.URLWithString(trimmed) ?: return
     UIApplication.sharedApplication.openURL(nsUrl)
 }
+
+actual suspend fun downloadAndInstallApk(url: String): String? = "Aggiornamento APK solo su Android"

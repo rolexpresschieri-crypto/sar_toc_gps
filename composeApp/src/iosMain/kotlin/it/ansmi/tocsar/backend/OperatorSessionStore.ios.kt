@@ -5,6 +5,7 @@ import platform.Foundation.NSUserDefaults
 actual object OperatorSessionStore {
     private const val Key = "operator_session_id"
     private const val OrgKey = "organization_code"
+    private const val VersionKey = "last_app_version_code"
     private val defaults get() = NSUserDefaults.standardUserDefaults
 
     actual fun loadSessionId(): String? =
@@ -30,6 +31,14 @@ actual object OperatorSessionStore {
         } else {
             defaults.setObject(value, OrgKey)
         }
+        defaults.synchronize()
+    }
+
+    actual fun loadLastAppVersionCode(): Int =
+        defaults.integerForKey(VersionKey).toInt()
+
+    actual fun saveLastAppVersionCode(code: Int) {
+        defaults.setInteger(code.coerceAtLeast(0).toLong(), VersionKey)
         defaults.synchronize()
     }
 }

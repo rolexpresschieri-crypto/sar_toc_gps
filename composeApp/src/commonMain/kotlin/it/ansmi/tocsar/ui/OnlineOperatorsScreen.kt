@@ -14,7 +14,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -25,6 +27,7 @@ import androidx.compose.material3.Checkbox
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -40,6 +43,7 @@ import androidx.compose.ui.unit.sp
 import it.ansmi.tocsar.backend.OnlineOperatorSession
 import it.ansmi.tocsar.backend.TocAdminOperatorCode
 import it.ansmi.tocsar.backend.TocSarFacade
+import it.ansmi.tocsar.stationary.LupoStationaryController
 import it.ansmi.tocsar.ui.theme.TacticalFrame
 import it.ansmi.tocsar.ui.theme.TacticalMuted
 import it.ansmi.tocsar.ui.theme.TacticalNavy
@@ -65,6 +69,8 @@ fun OnlineOperatorsScreen(
     var operators by remember { mutableStateOf<List<OnlineOperatorSession>>(emptyList()) }
     var busySessionId by remember { mutableStateOf<String?>(null) }
     var confirmTarget by remember { mutableStateOf<OnlineOperatorSession?>(null) }
+    val stationaryIds by LupoStationaryController.stationaryIds.collectAsState()
+    val excludedIds by LupoStationaryController.excludedIds.collectAsState()
 
     suspend fun reload() {
         operators = facade.loadOnlineOperatorSessions(organizationId)
@@ -117,7 +123,7 @@ fun OnlineOperatorsScreen(
         }
 
         Text(
-            text = "Admin $actorCode · forza log-out · flag «visibile» per gli altri",
+            text = "Admin $actorCode · fermo · forza log-out · flag «visibile»",
             color = TacticalYellow,
             fontSize = 12.sp,
             fontWeight = FontWeight.SemiBold,
@@ -171,6 +177,10 @@ fun OnlineOperatorsScreen(
                             op = op,
                             isSelf = op.sessionId == selfSessionId,
                             busy = busySessionId == op.sessionId,
+                            stationary = stationaryIds.contains(op.sessionId),
+                            excluded = excludedIds.contains(op.sessionId),
+                            onDismissStationary = { LupoStationaryController.dismiss(op.sessionId) },
+                            onToggleExclude = { LupoStationaryController.toggleExclude(op.sessionId) },
                             onForceLogout = { confirmTarget = op },
                             onPeerVisibleChange = { checked ->
                                 scope.launch {
@@ -259,31 +269,91 @@ private fun OnlineOperatorRow(
     op: OnlineOperatorSession,
     isSelf: Boolean,
     busy: Boolean,
+    stationary: Boolean,
+    excluded: Boolean,
+    onDismissStationary: () -> Unit,
+    onToggleExclude: () -> Unit,
     onForceLogout: () -> Unit,
     onPeerVisibleChange: (Boolean) -> Unit,
 ) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .border(2.dp, TacticalFrame, RoundedCornerShape(12.dp))
+            .border(
+                2.dp,
+                if (stationary) TacticalRed else TacticalFrame,
+                RoundedCornerShape(12.dp),
+            )
             .background(Color.Black.copy(alpha = 0.45f), RoundedCornerShape(12.dp))
             .padding(14.dp),
     ) {
-        Text(
-            text = buildString {
-                append(op.operatorCode)
-                append(" · ")
-                append(op.operatorName)
-                if (isSelf) append(" (tu)")
-            },
-            color = Color.White,
-            fontWeight = FontWeight.ExtraBold,
-            fontSize = 16.sp,
-        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = buildString {
+                    append(op.operatorCode)
+                    append(" · ")
+                    append(op.operatorName)
+                    if (isSelf) append(" (tu)")
+                    if (stationary) append(" · FERMO")
+                },
+                color = Color.White,
+                fontWeight = FontWeight.ExtraBold,
+                fontSize = 16.sp,
+                modifier = Modifier.weight(1f),
+            )
+            if (stationary) {
+                Box(
+                    modifier = Modifier
+                        .size(32.dp)
+                        .clickable(onClick = onDismissStationary),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text("🔔", fontSize = 18.sp)
+                }
+                Spacer(modifier = Modifier.width(4.dp))
+            } else {
+                Spacer(modifier = Modifier.width(36.dp))
+            }
+            Box(
+                modifier = Modifier
+                    .size(28.dp)
+                    .border(
+                        1.dp,
+                        if (excluded) TacticalRed else Color(0xFF2E7D32),
+                        RoundedCornerShape(6.dp),
+                    )
+                    .background(
+                        if (excluded) TacticalRed.copy(alpha = 0.18f) else Color.Transparent,
+                        RoundedCornerShape(6.dp),
+                    )
+                    .clickable(onClick = onToggleExclude),
+                contentAlignment = Alignment.Center,
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(12.dp)
+                        .background(
+                            if (excluded) TacticalRed else Color(0xFF2E7D32),
+                            RoundedCornerShape(2.dp),
+                        ),
+                )
+            }
+        }
         Spacer(modifier = Modifier.height(4.dp))
         Text(
-            text = if (op.hasGpsFix) "GPS: posizione nota" else "GPS: nessun fix ancora",
-            color = if (op.hasGpsFix) Color(0xFF81C784) else TacticalOrange,
+            text = when {
+                excluded -> "Allarme fermo escluso (stop rosso)"
+                op.hasGpsFix -> "GPS: posizione nota"
+                else -> "GPS: nessun fix ancora"
+            },
+            color = when {
+                excluded -> TacticalRed
+                op.hasGpsFix -> Color(0xFF81C784)
+                else -> TacticalOrange
+            },
             fontSize = 12.sp,
             fontWeight = FontWeight.SemiBold,
         )

@@ -48,6 +48,8 @@ data class OnlineOperatorSession(
     val operatorName: String,
     val loginAtIso: String?,
     val hasGpsFix: Boolean,
+    val lastLatitude: Double? = null,
+    val lastLongitude: Double? = null,
     /** Se true, appare in mappa agli operatori (anche LUPO). Si imposta da Operatori on line. */
     val peerVisible: Boolean,
     val organizationId: String,

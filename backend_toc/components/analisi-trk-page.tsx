@@ -87,15 +87,36 @@ function SeparationSparkline({ sep }: { sep: SeparationStats }) {
   const minX = Math.min(...xs);
   const maxX = Math.max(...xs);
   const minY = 0;
-  const maxY = Math.max(...ys, 1);
+  let run = 0;
+  const means = ys.map((v, i) => {
+    run += v;
+    return run / (i + 1);
+  });
+  const maxY = Math.max(...ys, ...means, 1);
   const dx = Math.max(maxX - minX, 1e-6);
   const dy = Math.max(maxY - minY, 1e-6);
   const plotW = w - padL - padR;
   const plotH = h - padT - padB;
-  const pts = sep.samples
-    .map((s) => {
-      const x = padL + ((s.tSec - minX) / dx) * plotW;
-      const y = padT + plotH - ((s.distM - minY) / dy) * plotH;
+  const nBins = Math.min(48, Math.max(12, ys.length));
+  const bars: Array<{ x: number; bh: number; bw: number }> = [];
+  const sums = new Array<number>(nBins).fill(0);
+  const counts = new Array<number>(nBins).fill(0);
+  for (let i = 0; i < xs.length; i++) {
+    const bi = Math.min(nBins - 1, Math.max(0, Math.floor(((xs[i]! - minX) / dx) * nBins)));
+    sums[bi]! += ys[i]!;
+    counts[bi]! += 1;
+  }
+  const slot = plotW / nBins;
+  for (let bi = 0; bi < nBins; bi++) {
+    if (!counts[bi]) continue;
+    const v = sums[bi]! / counts[bi]!;
+    const bh = ((v - minY) / dy) * plotH;
+    bars.push({ x: padL + bi * slot + slot * 0.12, bh, bw: Math.max(slot * 0.76, 1) });
+  }
+  const meanPts = means
+    .map((m, i) => {
+      const x = padL + ((xs[i]! - minX) / dx) * plotW;
+      const y = padT + plotH - ((m - minY) / dy) * plotH;
       return `${x.toFixed(1)},${y.toFixed(1)}`;
     })
     .join(" ");
@@ -105,7 +126,12 @@ function SeparationSparkline({ sep }: { sep: SeparationStats }) {
     return { y, label: val >= 1000 ? `${(val / 1000).toFixed(1)}k` : `${Math.round(val)}` };
   });
   return (
-    <svg className={styles.spark} viewBox={`0 0 ${w} ${h}`} role="img" aria-label="Distanza cane-conduttore">
+    <svg
+      className={styles.spark}
+      viewBox={`0 0 ${w} ${h}`}
+      role="img"
+      aria-label="Distanza cane-conduttore (istogramma + media progressiva)"
+    >
       {grid.map((g) => (
         <g key={g.y}>
           <line x1={padL} y1={g.y} x2={w - padR} y2={g.y} stroke="#5a6a88" strokeWidth="0.6" />
@@ -114,7 +140,18 @@ function SeparationSparkline({ sep }: { sep: SeparationStats }) {
           </text>
         </g>
       ))}
-      <polyline fill="none" stroke="#9c6bce" strokeWidth="2" points={pts} />
+      {bars.map((b, i) => (
+        <rect
+          key={i}
+          x={b.x}
+          y={padT + plotH - b.bh}
+          width={b.bw}
+          height={b.bh}
+          fill="#9c6bce"
+          opacity={0.75}
+        />
+      ))}
+      <polyline fill="none" stroke="#f0e6ff" strokeWidth="1.8" points={meanPts} />
     </svg>
   );
 }

@@ -35,9 +35,12 @@ import org.osmdroid.util.GeoPoint
 import org.osmdroid.util.MapTileIndex
 import org.osmdroid.views.MapView
 import org.osmdroid.views.overlay.Marker
+import org.osmdroid.views.overlay.Overlay
 import org.osmdroid.views.overlay.Polygon
 import org.osmdroid.views.overlay.Polyline
 import org.osmdroid.views.overlay.TilesOverlay
+import android.graphics.Point
+import android.os.SystemClock
 
 private const val NavLineId = "NAV_TO_BASE"
 private const val GpsMarkerId = "GPS_FIX"
@@ -105,6 +108,7 @@ private class MapRuntimeState {
     var baseMarker: Marker? = null
     var comunePolygons: MutableList<Polygon> = mutableListOf()
     var lastConfiniKey: String? = null
+    var stationaryRings: StationaryRingsOverlay? = null
     var onOverlayShare: ((MapOverlayTap) -> Unit)? = null
 }
 
@@ -240,8 +244,10 @@ private fun liveOperatorsKey(model: GpsMapModel): String =
     buildString {
         append(model.liveOperators.joinToString("|") {
             val sel = if (it.sessionId in model.selectedOperatorSessionIds()) "S" else "-"
-            "${it.sessionId}:${(it.latitude * 1e5).toInt()}:${(it.longitude * 1e5).toInt()}:${it.mapColorHex}:$sel"
+            val still = if (it.sessionId in model.stationarySessionIds) "F" else "-"
+            "${it.sessionId}:${(it.latitude * 1e5).toInt()}:${(it.longitude * 1e5).toInt()}:${it.mapColorHex}:$sel$still"
         })
+        append("|still=").append(model.stationarySessionIds.sorted().joinToString(","))
         append("|a=").append(model.measureA.measureKey())
         append("|b=").append(model.measureB.measureKey())
     }
@@ -350,6 +356,8 @@ private fun rebuildOverlays(
     state.lastLiveOperatorsKey = null
     state.comunePolygons.clear()
     state.lastConfiniKey = null
+    state.stationaryRings?.stop()
+    state.stationaryRings = null
 
     if (trailsEnabled && trailsOverlay != null) {
         map.overlays.add(trailsOverlay)
@@ -655,9 +663,17 @@ private fun updateOnlineOperatorMarkers(
     state.operatorMarkers.forEach { map.overlays.remove(it) }
     state.operatorMarkers.clear()
 
+    val stillPoints =
+        model.liveOperators
+            .filter { it.sessionId in model.stationarySessionIds }
+            .map { GeoPoint(it.latitude, it.longitude) }
+    ensureStationaryRings(map, state, stillPoints)
+
     for (op in model.liveOperators) {
         val selected = op.sessionId in model.selectedOperatorSessionIds()
-        val pin = createOperatorPinBitmap(map, op.operatorCode, op.mapColorHex, selected)
+        val stationary = op.sessionId in model.stationarySessionIds
+        val pinColor = if (stationary) "#E53935" else op.mapColorHex
+        val pin = createOperatorPinBitmap(map, op.operatorCode, pinColor, selected)
         val marker = Marker(map).apply {
             position = GeoPoint(op.latitude, op.longitude)
             title = op.operatorCode
@@ -677,6 +693,114 @@ private fun updateOnlineOperatorMarkers(
 
     updateWaypointMeasureIcons(map, model, state)
     updateMeasureLine(map, model, state)
+}
+
+private fun ensureStationaryRings(
+    map: MapView,
+    state: MapRuntimeState,
+    points: List<GeoPoint>,
+) {
+    val overlay = state.stationaryRings
+    if (overlay == null) {
+        if (points.isEmpty()) return
+        val created = StationaryRingsOverlay().also { it.centers = points }
+        state.stationaryRings = created
+        // Sotto i marker operatori
+        map.overlays.add(0, created)
+        created.start(map)
+        return
+    }
+    overlay.centers = points
+    if (points.isEmpty()) {
+        overlay.stop()
+        map.overlays.remove(overlay)
+        state.stationaryRings = null
+    } else if (!map.overlays.contains(overlay)) {
+        map.overlays.add(0, overlay)
+        overlay.start(map)
+    }
+}
+
+/** Cerchi concentrici animati (pixel) intorno agli operatori fermi. */
+private class StationaryRingsOverlay : Overlay() {
+    var centers: List<GeoPoint> = emptyList()
+    private var running = false
+    private val glow =
+        Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.STROKE
+            strokeWidth = 10f
+            color = AndroidColor.parseColor("#FF1744")
+        }
+    private val stroke =
+        Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.STROKE
+            strokeWidth = 6f
+            color = AndroidColor.parseColor("#FF1744")
+        }
+    private val fill =
+        Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.FILL
+            color = AndroidColor.parseColor("#FF1744")
+        }
+    private val screen = Point()
+    // 6 anelli compatti ma ben visibili
+    private val radiiPx = floatArrayOf(12f, 20f, 28f, 36f, 46f, 56f)
+
+    fun start(map: MapView) {
+        if (running) return
+        running = true
+        map.post(object : Runnable {
+            override fun run() {
+                if (!running) return
+                map.invalidate()
+                map.postDelayed(this, 50L)
+            }
+        })
+    }
+
+    fun stop() {
+        running = false
+    }
+
+    override fun draw(c: AndroidCanvas, mapView: MapView, shadow: Boolean) {
+        if (shadow || centers.isEmpty()) return
+        val density = mapView.resources.displayMetrics.density
+        val t = (SystemClock.uptimeMillis() % 2800L) / 2800f
+        // onda piccolo→grande→piccolo (resta sempre abbastanza grande)
+        val breath = if (t < 0.5f) t * 2f else (1f - t) * 2f
+        val scale = 0.82f + breath * 0.35f
+        val proj = mapView.projection
+        for (gp in centers) {
+            proj.toPixels(gp, screen)
+            val cx = screen.x.toFloat()
+            val cy = screen.y.toFloat()
+            for ((i, base) in radiiPx.withIndex()) {
+                val phase = ((t + i * 0.08f) % 1f)
+                val wave = (1f - kotlin.math.abs(phase - 0.5f) * 2f).coerceIn(0f, 1f)
+                val alpha = (0.55f + 0.45f * wave)
+                val r = base * density * scale
+                glow.strokeWidth = 8f * density
+                glow.alpha = (alpha * 90).toInt().coerceIn(50, 120)
+                c.drawCircle(cx, cy, r, glow)
+                stroke.strokeWidth = 4.2f * density
+                stroke.alpha = (alpha * 255).toInt().coerceIn(160, 255)
+                c.drawCircle(cx, cy, r, stroke)
+            }
+            fill.alpha = 255
+            c.drawCircle(cx, cy, 5.5f * density, fill)
+            c.drawCircle(
+                cx,
+                cy,
+                5.5f * density + 2f * density,
+                Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                    style = Paint.Style.STROKE
+                    strokeWidth = 2f * density
+                    color = AndroidColor.WHITE
+                    this.alpha = 230
+                },
+            )
+        }
+    }
 }
 
 private fun updateWaypointMeasureIcons(

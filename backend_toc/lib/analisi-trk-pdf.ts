@@ -226,7 +226,37 @@ function drawTrackSchematic(
   plot(cane, COLOR_CANE, 0.7);
 }
 
-function drawLineChart(
+function progressiveMeans(ys: number[]): number[] {
+  const out: number[] = [];
+  let sum = 0;
+  for (let i = 0; i < ys.length; i++) {
+    sum += ys[i]!;
+    out.push(sum / (i + 1));
+  }
+  return out;
+}
+
+/** Media per bin sull’asse X (istogramma temporale). */
+function binSeriesMeans(
+  xs: number[],
+  ys: number[],
+  minX: number,
+  maxX: number,
+  nBins: number,
+): Array<number | null> {
+  const sums = new Array<number>(nBins).fill(0);
+  const counts = new Array<number>(nBins).fill(0);
+  const span = Math.max(maxX - minX, 1e-9);
+  for (let i = 0; i < xs.length; i++) {
+    const t = ((xs[i]! - minX) / span) * nBins;
+    const bi = Math.min(nBins - 1, Math.max(0, Math.floor(t)));
+    sums[bi]! += ys[i]!;
+    counts[bi]! += 1;
+  }
+  return sums.map((s, i) => (counts[i]! > 0 ? s / counts[i]! : null));
+}
+
+function drawHistogramChart(
   doc: jsPDF,
   x: number,
   y: number,
@@ -235,7 +265,6 @@ function drawLineChart(
   title: string,
   series: Array<{ xs: number[]; ys: number[]; color: [number, number, number]; label: string }>,
   yUnit: string,
-  opts?: { maxGapX?: number },
 ) {
   drawFrame(doc, x, y, w, h, title);
   const usable = series.filter((s) => s.xs.length >= 2 && s.ys.length >= 2);
@@ -256,6 +285,9 @@ function drawLineChart(
       maxX = Math.max(maxX, s.xs[i]!);
       maxY = Math.max(maxY, s.ys[i]!);
     }
+    for (const m of progressiveMeans(s.ys)) {
+      maxY = Math.max(maxY, m);
+    }
   }
   if (maxX <= minX) maxX = minX + 1;
   if (maxY <= minY) maxY = minY + 1;
@@ -269,7 +301,6 @@ function drawLineChart(
   const pw = w - leftAxis - rightPad;
   const ph = h - topPad - bottomPad;
 
-  // Griglia orizzontale + valori ordinate
   const nGrid = 4;
   doc.setFontSize(6.5);
   for (let i = 0; i <= nGrid; i++) {
@@ -280,30 +311,58 @@ function drawLineChart(
     doc.setLineWidth(0.15);
     doc.line(px, gy, px + pw, gy);
     doc.setTextColor(90, 90, 90);
-    const label = formatAxis(val, yUnit);
-    doc.text(label, px - 1.5, gy + 1.2, { align: "right" });
+    doc.text(formatAxis(val, yUnit), px - 1.5, gy + 1.2, { align: "right" });
   }
   doc.setDrawColor(120, 120, 120);
   doc.setLineWidth(0.25);
   doc.line(px, py, px, py + ph);
   doc.line(px, py + ph, px + pw, py + ph);
 
-  const maxGap = opts?.maxGapX;
-  for (const s of usable) {
+  const nBins = Math.min(56, Math.max(16, Math.round(pw / 2.2)));
+  const slotW = pw / nBins;
+  const nSeries = usable.length;
+  const barW = Math.max(0.35, (slotW * 0.78) / nSeries);
+
+  for (let si = 0; si < usable.length; si++) {
+    const s = usable[si]!;
+    const bins = binSeriesMeans(s.xs, s.ys, minX, maxX, nBins);
+    doc.setFillColor(...s.color);
     doc.setDrawColor(...s.color);
-    doc.setLineWidth(0.55);
+    for (let bi = 0; bi < nBins; bi++) {
+      const v = bins[bi];
+      if (v == null || v <= 0) continue;
+      const bh = ((v - minY) / (maxY - minY)) * ph;
+      const bx = px + bi * slotW + slotW * 0.11 + si * barW;
+      const by = py + ph - bh;
+      doc.setFillColor(
+        Math.min(255, s.color[0] + 40),
+        Math.min(255, s.color[1] + 40),
+        Math.min(255, s.color[2] + 40),
+      );
+      doc.rect(bx, by, Math.max(barW - 0.15, 0.3), bh, "F");
+    }
+  }
+
+  // Linee media progressiva (su campioni originali)
+  for (const s of usable) {
+    const means = progressiveMeans(s.ys);
+    doc.setDrawColor(Math.max(0, s.color[0] - 50), Math.max(0, s.color[1] - 50), Math.max(0, s.color[2] - 50));
+    doc.setLineWidth(0.7);
     for (let i = 1; i < s.xs.length; i++) {
-      if (maxGap != null && s.xs[i]! - s.xs[i - 1]! > maxGap) continue;
       const x1 = px + ((s.xs[i - 1]! - minX) / (maxX - minX)) * pw;
-      const y1 = py + ph - ((s.ys[i - 1]! - minY) / (maxY - minY)) * ph;
+      const y1 = py + ph - ((means[i - 1]! - minY) / (maxY - minY)) * ph;
       const x2 = px + ((s.xs[i]! - minX) / (maxX - minX)) * pw;
-      const y2 = py + ph - ((s.ys[i]! - minY) / (maxY - minY)) * ph;
+      const y2 = py + ph - ((means[i]! - minY) / (maxY - minY)) * ph;
       doc.line(x1, y1, x2, y2);
     }
   }
 
-  const legendItems = usable.map((s) => ({ color: s.color, label: s.label }));
-  drawLegend(doc, px, y + h - 1.5, legendItems);
+  drawLegend(
+    doc,
+    px,
+    y + h - 1.5,
+    usable.map((s) => ({ color: s.color, label: s.label })),
+  );
   doc.setTextColor(0, 0, 0);
 }
 
@@ -416,7 +475,7 @@ export async function downloadAnalisiTrkPdf(input: {
     doc.addPage();
     y = 20;
   }
-  drawLineChart(
+  drawHistogramChart(
     doc,
     margin,
     y,
@@ -496,7 +555,7 @@ export async function downloadAnalisiTrkPdf(input: {
     Number.POSITIVE_INFINITY,
   );
   const hasSpeed = caneSp.length >= 2 || condSp.length >= 2;
-  drawLineChart(
+  drawHistogramChart(
     doc,
     margin,
     y,
@@ -520,19 +579,8 @@ export async function downloadAnalisiTrkPdf(input: {
       },
     ],
     "km/h",
-    { maxGapX: 120 },
   );
   y += lineChartH + figGap;
-
-  doc.setFontSize(8);
-  doc.setTextColor(100);
-  doc.text(
-    pdfText(
-      "Verde=area, blu=conduttore, arancio=cane, viola=distanza. Velocita: solo finestra di moto (esclusa attesa a GPS acceso).",
-    ),
-    margin,
-    Math.min(y, pageH - 10),
-  );
 
   if (logoData && logoW > 0 && logoH > 0) {
     stampLogoOnAllPages(doc, logoData, logoW, logoH, pageW);

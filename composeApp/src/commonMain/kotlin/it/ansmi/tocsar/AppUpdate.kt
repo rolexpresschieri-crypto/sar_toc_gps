@@ -21,6 +21,12 @@ expect fun appVersionCode(): Int
 
 expect fun openExternalUrl(url: String)
 
+/**
+ * Android: scarica APK e apre l'installer.
+ * Restituisce null se ok, oppure messaggio errore/guida.
+ */
+expect suspend fun downloadAndInstallApk(url: String): String?
+
 /** Solo Android forza l'aggiornamento APK; iOS ignora. */
 expect fun isAndroidAppUpdateSupported(): Boolean
 

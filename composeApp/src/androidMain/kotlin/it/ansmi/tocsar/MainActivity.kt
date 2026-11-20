@@ -20,6 +20,7 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
         AndroidAppContext.init(application)
+        AndroidActivityHolder.set(this)
         registerGpsImportPicker()
         registerFieldPhotoPicker()
         ingestGpsShareIntent(intent)
@@ -36,13 +37,22 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    override fun onResume() {
+        super.onResume()
+        AndroidActivityHolder.set(this)
+    }
+
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
+        AndroidActivityHolder.set(this)
         ingestGpsShareIntent(intent)
     }
 
     override fun onDestroy() {
+        if (AndroidActivityHolder.get() === this) {
+            AndroidActivityHolder.set(null)
+        }
         GpsImportPicker.unbind(this)
         FieldPhotoPicker.unbind(this)
         super.onDestroy()

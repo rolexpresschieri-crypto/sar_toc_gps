@@ -1,6 +1,6 @@
 {
-  "versionName": "1.0.76",
-  "versionCode": 10076,
-  "apkUrl": "https://toc-sar.vercel.app/app/toc_sar_KMP_1.0.76.apk",
-  "message": "Aggiornamento 1.0.76: tracce e waypoint in GPX con orari. L'aggiornamento è obbligatorio per continuare."
+  "versionName": "1.0.81",
+  "versionCode": 10081,
+  "apkUrl": "https://toc-sar.vercel.app/app/toc_sar_KMP_1.0.81.apk",
+  "message": "Aggiornamento 1.0.81: cartelle missione GPS con file .gpx ora visibili in app (es. TRK_CASELLE). Se il download non parte: https://toc-sar.vercel.app/app/scarica.html"
 }

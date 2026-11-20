@@ -9,6 +9,7 @@ import { restoreAdminSessionFromStorage, getSupabaseBrowserClient } from "@/lib/
 import { readStoredLayerMode, writeStoredLayerMode } from "@/lib/map-layer-storage";
 import { layerOptions, parseLayerMode, type LayerMode } from "@/lib/map-layers";
 import { useLiveFeed } from "@/lib/use-live-feed";
+import { useStationaryWatch } from "@/lib/stationary-watch";
 import type { LiveSquad } from "@/lib/live-squads";
 import styles from "@/components/map-fullscreen.module.css";
 
@@ -51,6 +52,7 @@ function MapFullscreenContent() {
     () => new Set(alarms.map((a) => a.session_id)),
     [alarms],
   );
+  const { stationaryIds } = useStationaryWatch(squads); // esclusione stop solo in lista TOC
 
   function selectSquad(squad: LiveSquad) {
     setSelectedSessionId(squad.sessionId);
@@ -136,6 +138,7 @@ function MapFullscreenContent() {
           squads={squads}
           selectedSessionId={selectedSessionId}
           alarmingSessionIds={alarmingIds}
+          stationarySessionIds={stationaryIds}
           recenterNonce={recenterNonce}
           onSelect={selectSquad}
           layerMode={layerMode}

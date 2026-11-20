@@ -68,6 +68,9 @@ import it.ansmi.tocsar.geo.trackHorizDistanceM
 import it.ansmi.tocsar.geo.isFresh
 import it.ansmi.tocsar.geo.bearingDeg
 import it.ansmi.tocsar.backend.LiveOperatorPin
+import it.ansmi.tocsar.backend.isTocAdminOperator
+import it.ansmi.tocsar.stationary.LupoStationaryController
+import androidx.compose.runtime.collectAsState
 import it.ansmi.tocsar.backend.TocSarFacade
 import it.ansmi.tocsar.backend.loadTocSarConfig
 import androidx.compose.runtime.LaunchedEffect
@@ -92,6 +95,8 @@ data class GpsMapModel(
     val organizationId: String = "",
     /** Altri operatori online visibili al navigatore corrente. */
     val liveOperators: List<LiveOperatorPin> = emptyList(),
+    /** Sessioni in allarme fermo (cerchi concentrici) — tipicamente solo per LUPO. */
+    val stationarySessionIds: Set<String> = emptySet(),
     val measureA: MapMeasurePoint? = null,
     val measureB: MapMeasurePoint? = null,
     val comuneBoundaries: List<ComuneBoundaryGeom> = emptyList(),
@@ -233,9 +238,11 @@ fun GpsMapScreen(
     var liveOperators by remember { mutableStateOf<List<LiveOperatorPin>>(emptyList()) }
     var measureA by remember { mutableStateOf<MapMeasurePoint?>(null) }
     var measureB by remember { mutableStateOf<MapMeasurePoint?>(null) }
+    val stationaryIds by LupoStationaryController.stationaryIds.collectAsState()
 
     val facade = remember { loadTocSarConfig()?.let { TocSarFacade(it) } }
     val selfCode = model.navigatorLabel.trim().uppercase().ifBlank { "GPS" }
+    val showStationaryRings = isTocAdminOperator(selfCode)
 
     LaunchedEffect(facade, model.organizationId) {
         val api = facade ?: return@LaunchedEffect
@@ -305,6 +312,7 @@ fun GpsMapScreen(
     val markerLabel = selfCode
     val mapModel = model.copy(
         liveOperators = liveOperators,
+        stationarySessionIds = if (showStationaryRings) stationaryIds else emptySet(),
         measureA = measureA,
         measureB = measureB,
         comuneBoundaries = comuneGeoms,

@@ -25,7 +25,10 @@ import it.ansmi.tocsar.geo.createGpsLocalStore
 import it.ansmi.tocsar.geo.importGpsFileContent
 import it.ansmi.tocsar.geo.OperatorGpsTracking
 import it.ansmi.tocsar.geo.createLocationGateway
+import it.ansmi.tocsar.appVersionCode
 import it.ansmi.tocsar.epochMs
+import it.ansmi.tocsar.stationary.LupoStationaryController
+import it.ansmi.tocsar.stationary.StationarySample
 import it.ansmi.tocsar.ui.GpsFieldSession
 import it.ansmi.tocsar.ui.SendNotifyScreen
 import it.ansmi.tocsar.ui.SendPhotoScreen
@@ -97,6 +100,7 @@ fun App() {
     fun clearSessionLocal() {
         OperatorGpsTracking.stop()
         GpsFieldSession.clearAll()
+        LupoStationaryController.clear()
         session = null
         gpsStatusLabel = null
         tocMessage = null
@@ -121,8 +125,29 @@ fun App() {
             }
     }
 
+    // Dopo aggiornamento APK: logout remoto + login fresco (evita «già online su altro dispositivo»).
     LaunchedEffect(facade) {
-        val api = facade ?: return@LaunchedEffect
+        val api = facade
+        val currentCode = appVersionCode()
+        val lastCode = OperatorSessionStore.loadLastAppVersionCode()
+        if (currentCode > 0 && lastCode != currentCode) {
+            val savedId = OperatorSessionStore.loadSessionId()
+            if (!savedId.isNullOrBlank() && api != null) {
+                runCatching { api.logoutSessionById(savedId) }
+            }
+            clearSessionLocal()
+            OperatorSessionStore.saveLastAppVersionCode(currentCode)
+            route = AppRoute.Login
+            if (lastCode > 0) {
+                toast("Aggiornamento installato: effettua di nuovo il log-in")
+            }
+            return@LaunchedEffect
+        }
+        if (currentCode > 0 && lastCode == 0) {
+            OperatorSessionStore.saveLastAppVersionCode(currentCode)
+        }
+
+        if (api == null) return@LaunchedEffect
         val savedId = OperatorSessionStore.loadSessionId() ?: return@LaunchedEffect
         runCatching { api.restoreOnlineSession(savedId) }
             .onSuccess { restored ->
@@ -177,6 +202,33 @@ fun App() {
                 }
             }
             delay(3_000L)
+        }
+    }
+
+    // Allarme fermo: solo LUPO, stessa logica TOC (poll posizioni online).
+    LaunchedEffect(session?.sessionId, facade) {
+        val current = session
+        val api = facade
+        if (current == null || api == null || !isTocAdminOperator(current.operatorCode)) {
+            LupoStationaryController.clear()
+            return@LaunchedEffect
+        }
+        val selfId = current.sessionId
+        val orgId = current.organizationId
+        while (isActive) {
+            runCatching { api.loadOnlineOperatorSessions(orgId) }
+                .onSuccess { ops ->
+                    val liveIds = ops.map { it.sessionId }.toSet()
+                    val samples =
+                        ops.mapNotNull { op ->
+                            if (op.sessionId == selfId) return@mapNotNull null
+                            val lat = op.lastLatitude ?: return@mapNotNull null
+                            val lon = op.lastLongitude ?: return@mapNotNull null
+                            StationarySample(op.sessionId, lat, lon)
+                        }
+                    LupoStationaryController.ingest(samples, liveIds - selfId)
+                }
+            delay(2_000L)
         }
     }
 

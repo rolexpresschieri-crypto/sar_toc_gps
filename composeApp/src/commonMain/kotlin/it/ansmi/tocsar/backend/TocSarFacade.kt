@@ -40,6 +40,9 @@ class TocSarFacade(
     suspend fun logoutOperator(session: OperatorBackendSession) =
         repository.logoutOperator(session)
 
+    suspend fun logoutSessionById(sessionId: String) =
+        repository.logoutSessionById(sessionId)
+
     suspend fun restoreOnlineSession(sessionId: String): OperatorBackendSession? =
         repository.restoreOnlineSession(sessionId)
 

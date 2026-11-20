@@ -7,6 +7,7 @@ actual object OperatorSessionStore {
     private const val Prefs = "toc_sar_session"
     private const val Key = "operator_session_id"
     private const val OrgKey = "organization_code"
+    private const val VersionKey = "last_app_version_code"
 
     private fun prefs() =
         AndroidAppContext.require().getSharedPreferences(Prefs, Context.MODE_PRIVATE)
@@ -29,5 +30,12 @@ actual object OperatorSessionStore {
             val value = code?.trim()?.uppercase()?.takeIf { it.isNotEmpty() }
             if (value == null) remove(OrgKey) else putString(OrgKey, value)
         }.apply()
+    }
+
+    actual fun loadLastAppVersionCode(): Int =
+        prefs().getInt(VersionKey, 0)
+
+    actual fun saveLastAppVersionCode(code: Int) {
+        prefs().edit().putInt(VersionKey, code.coerceAtLeast(0)).apply()
     }
 }

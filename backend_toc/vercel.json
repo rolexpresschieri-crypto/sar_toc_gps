@@ -1,4 +1,32 @@
 {
   "framework": "nextjs",
-  "buildCommand": "npm run build"
+  "buildCommand": "npm run build",
+  "headers": [
+    {
+      "source": "/app/(.*)\\.apk",
+      "headers": [
+        {
+          "key": "Content-Type",
+          "value": "application/vnd.android.package-archive"
+        },
+        {
+          "key": "Content-Disposition",
+          "value": "attachment"
+        },
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=60, must-revalidate"
+        }
+      ]
+    },
+    {
+      "source": "/app/android-latest.json",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=30, must-revalidate"
+        }
+      ]
+    }
+  ]
 }

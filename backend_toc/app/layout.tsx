@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "TOC SAR",
-  description: "Sala operativa TOC SAR — operatori, notifiche, LOG, Config e anagrafica",
+  title: "TOC SAR - GPS & Cartografia",
+  description: "TOC SAR - GPS & Cartografia — sala operativa, operatori, mappa, LOG e analisi tracce",
 };
 
 export default function RootLayout({

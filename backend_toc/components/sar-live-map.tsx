@@ -105,6 +105,17 @@ function chipWidth(code: string): number {
   return Math.max(56, Math.min(code.length * 8 + 18, 140));
 }
 
+function stationaryRingsIcon() {
+  return L.divIcon({
+    className: "sar-marker-divicon sar-still-icon",
+    html:
+      '<div class="sar-still-rings" aria-hidden="true">' +
+      "<i></i><i></i><i></i><i></i><i></i><i></i><b></b></div>",
+    iconSize: [140, 140],
+    iconAnchor: [70, 70],
+  });
+}
+
 function markerIcon(squad: LiveSquad, selected: boolean, alarming: boolean) {
   const color = alarming ? "#c62828" : squad.mapColor;
   const code = escapeHtml(squad.squadCode);
@@ -332,6 +343,7 @@ export default function SarLiveMap({
   squads,
   selectedSessionId,
   alarmingSessionIds,
+  stationarySessionIds,
   recenterNonce,
   onSelect,
   layerMode = "standard",
@@ -342,6 +354,8 @@ export default function SarLiveMap({
   squads: LiveSquad[];
   selectedSessionId: string | null;
   alarmingSessionIds: ReadonlySet<string>;
+  /** Online fermi da soglia (cerchi concentrici rossi). */
+  stationarySessionIds?: ReadonlySet<string>;
   recenterNonce: number;
   onSelect: (squad: LiveSquad) => void;
   layerMode?: LayerMode;
@@ -353,6 +367,7 @@ export default function SarLiveMap({
     () => squads.find((s) => s.sessionId === selectedSessionId) ?? null,
     [squads, selectedSessionId],
   );
+  const stillRingsIcon = useMemo(() => stationaryRingsIcon(), []);
   const tile = getMapTileConfig(layerMode);
   const [rulerOn, setRulerOn] = useState(false);
   const [rulerPoints, setRulerPoints] = useState<L.LatLng[]>([]);
@@ -1012,15 +1027,28 @@ export default function SarLiveMap({
             </Tooltip>
           </CircleMarker>
         ) : null}
-        {squads.filter(hasCoordinates).map((s) => {
+        {squads.filter(hasCoordinates).flatMap((s) => {
           const alarming = alarmingSessionIds.has(s.sessionId);
+          const stationary = Boolean(stationarySessionIds?.has(s.sessionId));
           const isSelected = s.sessionId === selectedSessionId;
-          return (
+          const markers = [];
+          if (stationary) {
+            markers.push(
+              <Marker
+                key={`${s.sessionId}-still`}
+                position={[s.lastLatitude!, s.lastLongitude!]}
+                icon={stillRingsIcon}
+                interactive={false}
+                zIndexOffset={isSelected ? 500 : 350}
+              />,
+            );
+          }
+          markers.push(
             <Marker
               key={s.sessionId}
               position={[s.lastLatitude!, s.lastLongitude!]}
-              icon={markerIcon(s, isSelected, alarming)}
-              zIndexOffset={isSelected ? 600 : alarming ? 400 : 0}
+              icon={markerIcon(s, isSelected, alarming || stationary)}
+              zIndexOffset={isSelected ? 600 : alarming || stationary ? 400 : 0}
               eventHandlers={{
                 click: (e) => {
                   L.DomEvent.stop(e);
@@ -1035,6 +1063,7 @@ export default function SarLiveMap({
             >
               <Popup>
                 <strong>{s.squadCode}</strong>
+                {stationary ? " · FERMO" : null}
                 <br />
                 {s.squadName}
                 {s.lastAccuracy != null ? (
@@ -1043,8 +1072,9 @@ export default function SarLiveMap({
                   </>
                 ) : null}
               </Popup>
-            </Marker>
+            </Marker>,
           );
+          return markers;
         })}
       </MapContainer>
     </div>

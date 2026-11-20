@@ -68,6 +68,101 @@
   text-transform: uppercase;
 }
 
+/* Allarme fermo: cerchi concentrici rossi (onda piccolo→grande→piccolo) */
+.sar-still-icon {
+  background: none !important;
+  border: none !important;
+  pointer-events: none !important;
+}
+
+.sar-still-rings {
+  position: relative;
+  width: 140px;
+  height: 140px;
+  filter: drop-shadow(0 0 3px rgba(229, 57, 53, 0.85));
+}
+
+.sar-still-rings i {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  border: 2.5px solid #e53935;
+  border-radius: 50%;
+  box-sizing: border-box;
+  transform: translate(-50%, -50%);
+  opacity: 0.22;
+  animation: sar-still-ring 2.8s ease-in-out infinite;
+}
+
+.sar-still-rings i:nth-child(1) {
+  width: 18px;
+  height: 18px;
+  animation-delay: 0s;
+}
+.sar-still-rings i:nth-child(2) {
+  width: 36px;
+  height: 36px;
+  animation-delay: 0.2s;
+}
+.sar-still-rings i:nth-child(3) {
+  width: 54px;
+  height: 54px;
+  animation-delay: 0.4s;
+}
+.sar-still-rings i:nth-child(4) {
+  width: 72px;
+  height: 72px;
+  animation-delay: 0.6s;
+}
+.sar-still-rings i:nth-child(5) {
+  width: 92px;
+  height: 92px;
+  animation-delay: 0.8s;
+}
+.sar-still-rings i:nth-child(6) {
+  width: 114px;
+  height: 114px;
+  animation-delay: 1s;
+}
+
+.sar-still-rings b {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 10px;
+  height: 10px;
+  margin: -5px 0 0 -5px;
+  border-radius: 50%;
+  background: #e53935;
+  box-shadow: 0 0 6px #e53935;
+  animation: sar-still-dot 2.8s ease-in-out infinite;
+}
+
+@keyframes sar-still-ring {
+  0%,
+  100% {
+    opacity: 0.2;
+    border-width: 2px;
+  }
+  35%,
+  55% {
+    opacity: 1;
+    border-width: 3px;
+  }
+}
+
+@keyframes sar-still-dot {
+  0%,
+  100% {
+    transform: scale(0.85);
+    opacity: 0.85;
+  }
+  50% {
+    transform: scale(1.25);
+    opacity: 1;
+  }
+}
+
 .sar-ruler-bar {
   position: absolute;
   top: 10px;

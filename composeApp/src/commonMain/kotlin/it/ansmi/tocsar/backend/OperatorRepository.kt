@@ -179,6 +179,18 @@ class OperatorRepository(
         return row?.isOnline == true
     }
 
+    /** Logout solo con id sessione (es. dopo aggiornamento APK). */
+    suspend fun logoutSessionById(sessionId: String) {
+        val id = sessionId.trim()
+        if (id.isEmpty()) return
+        val now = nowIso()
+        rest.patch(
+            table = "squad_sessions",
+            filters = listOf("id" to id),
+            body = LogoutPatchBody(isOnline = false, logoutAt = now),
+        )
+    }
+
     suspend fun logoutOperator(session: OperatorBackendSession) {
         val now = nowIso()
         rest.patch(
@@ -339,6 +351,8 @@ class OperatorRepository(
                 operatorName = row.operatorName,
                 loginAtIso = row.loginAt,
                 hasGpsFix = hasGps,
+                lastLatitude = lat?.takeIf { it.isFinite() },
+                lastLongitude = lon?.takeIf { it.isFinite() },
                 peerVisible = row.peerVisible,
                 organizationId = row.organizationId?.trim().orEmpty(),
                 organizationCode = "",
@@ -552,7 +566,8 @@ class OperatorRepository(
                     val lower = name.lowercase()
                     val kind =
                         when {
-                            lower.endsWith(".trk") -> "trk"
+                            // Come TOC: .gpx e .trk = traccia missione
+                            lower.endsWith(".trk") || lower.endsWith(".gpx") -> "trk"
                             lower.endsWith(".wpt") -> "wpt"
                             else -> null
                         } ?: continue

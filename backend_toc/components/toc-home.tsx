@@ -2,7 +2,7 @@
 
 import dynamic from "next/dynamic";
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from "react";
 import { hasCoordinates, type LiveSquad } from "@/lib/live-squads";
 import { readStoredLayerMode, writeStoredLayerMode } from "@/lib/map-layer-storage";
 import { layerOptions, type LayerMode } from "@/lib/map-layers";
@@ -16,7 +16,59 @@ import {
 import { TocLoginForm, useTocSession } from "@/lib/use-toc-session";
 import { canManageBackendUsers } from "@/lib/admin-auth";
 import { enteLogoUrl } from "@/lib/ente-logo";
+import { useStationaryWatch } from "@/lib/stationary-watch";
 import styles from "./toc-home.module.css";
+
+function StillBellIcon({
+  className,
+  onClick,
+}: {
+  className?: string;
+  onClick?: (e: ReactMouseEvent) => void;
+}) {
+  return (
+    <button
+      type="button"
+      className={className}
+      title="Reset allarme fermo"
+      aria-label="Reset allarme fermo"
+      onClick={onClick}
+    >
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path
+          fill="currentColor"
+          d="M12 22a2.5 2.5 0 0 0 2.45-2h-4.9A2.5 2.5 0 0 0 12 22zm6-6V11a6 6 0 1 0-12 0v5l-2 2v1h16v-1l-2-2z"
+        />
+      </svg>
+    </button>
+  );
+}
+
+/** Stop: rosso = allarme escluso; verde = monitoraggio attivo. */
+function StillStopIcon({
+  excluded,
+  className,
+  onClick,
+}: {
+  excluded: boolean;
+  className?: string;
+  onClick?: (e: ReactMouseEvent) => void;
+}) {
+  return (
+    <button
+      type="button"
+      className={className}
+      title={excluded ? "Riattiva allarme fermo" : "Escludi allarme fermo (fermo ok)"}
+      aria-label={excluded ? "Riattiva allarme fermo" : "Escludi allarme fermo"}
+      aria-pressed={excluded}
+      onClick={onClick}
+    >
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <rect x="6" y="6" width="12" height="12" rx="1.5" fill="currentColor" />
+      </svg>
+    </button>
+  );
+}
 
 function HeaderEnteLogo({ orgCode, className }: { orgCode: string; className?: string }) {
   const src = enteLogoUrl(orgCode);
@@ -150,6 +202,12 @@ export default function TocHome() {
     () => new Set(alarms.map((a) => a.session_id)),
     [alarms],
   );
+  const {
+    stationaryIds,
+    excludedIds,
+    dismissStationary,
+    toggleStationaryExclude,
+  } = useStationaryWatch(squads);
 
   function selectSquad(squad: LiveSquad) {
     setSelectedSessionId(squad.sessionId);
@@ -436,6 +494,8 @@ export default function TocHome() {
                 ) : (
                   squads.map((s) => {
                     const alarming = alarmingIds.has(s.sessionId);
+                    const stationary = stationaryIds.has(s.sessionId);
+                    const excluded = excludedIds.has(s.sessionId);
                     const selected = selectedSessionId === s.sessionId;
                     return (
                       <li
@@ -455,13 +515,40 @@ export default function TocHome() {
                       >
                         <span
                           className={
-                            alarming ? `${styles.squadBadge} ${styles.squadBadgeAlarm}` : styles.squadBadge
+                            alarming || stationary
+                              ? `${styles.squadBadge} ${styles.squadBadgeAlarm}`
+                              : styles.squadBadge
                           }
-                          style={alarming ? undefined : { background: s.mapColor }}
+                          style={alarming || stationary ? undefined : { background: s.mapColor }}
                         />
                         <span className={alarming ? styles.squadLabelAlarm : styles.squadLabel}>
                           {alarming ? "ALLARME — " : ""}
                           {s.squadCode} — {displaySurnameFirst(s.squadName)}
+                        </span>
+                        <span className={styles.squadRowActions}>
+                          <span className={styles.stillBellSlot}>
+                            {stationary ? (
+                              <StillBellIcon
+                                className={styles.stillBell}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  dismissStationary(s.sessionId);
+                                }}
+                              />
+                            ) : null}
+                          </span>
+                          <StillStopIcon
+                            excluded={excluded}
+                            className={
+                              excluded
+                                ? `${styles.stillStop} ${styles.stillStopExcluded}`
+                                : `${styles.stillStop} ${styles.stillStopActive}`
+                            }
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              toggleStationaryExclude(s.sessionId);
+                            }}
+                          />
                         </span>
                         {!hasCoordinates(s) ? <span className={styles.noGps}>no GPS</span> : null}
                       </li>
@@ -713,6 +800,7 @@ export default function TocHome() {
                 squads={squads}
                 selectedSessionId={selectedSessionId}
                 alarmingSessionIds={alarmingIds}
+                stationarySessionIds={stationaryIds}
                 recenterNonce={recenterNonce}
                 onSelect={selectSquad}
                 layerMode={layerMode}
